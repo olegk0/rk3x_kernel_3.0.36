@@ -46,6 +46,8 @@
 #include <linux/sensor-dev.h>
 #include <linux/regulator/rk29-pwm-regulator.h>
 
+#define OLEGK0_CHANGED 1
+
 #if defined(CONFIG_MFD_RK610)
 #include <linux/mfd/rk610_core.h>
 #endif
@@ -82,6 +84,15 @@
 #else
 #define RK30_FB0_MEM_SIZE 8*SZ_1M
 #endif
+
+#ifdef OLEGK0_CHANGED
+   #ifdef CONFIG_BOX_FB_1080P
+      #define RK30_IPP_MEM_SIZE 32*SZ_1M //IAM
+   #else
+      #define RK30_IPP_MEM_SIZE 16*SZ_1M
+   #endif
+#endif
+
 
 #include "board-rk30-sdk-camera.c"
 #include "board-rk30-sdk-key.c"
@@ -647,6 +658,20 @@ static struct resource resource_fb[] = {
 		.end   = 0,//RK30_FB0_MEM_SIZE - 1,
 		.flags = IORESOURCE_MEM,
 	},
+#ifdef OLEGK0_CHANGED
+   [3] = {
+      .name  = "mali sdram",
+      .start = 0,
+      .end   = 0,//RK30_FB0_MEM_SIZE - 1,
+      .flags = IORESOURCE_MEM,
+   },
+   [4] = {
+      .name  = "mali fb",
+      .start = 0,
+      .end   = 0,//RK30_FB0_MEM_SIZE - 1,
+      .flags = IORESOURCE_MEM,
+   },
+#endif
 };
 
 static struct platform_device device_fb = {
@@ -1576,12 +1601,17 @@ static void __init rk30_reserve(void)
 #ifdef CONFIG_FB_ROCKCHIP
 	resource_fb[0].start = board_mem_reserve_add("fb0", RK30_FB0_MEM_SIZE);
 	resource_fb[0].end = resource_fb[0].start + RK30_FB0_MEM_SIZE - 1;
+#ifdef OLEGK0_CHANGED
+   resource_fb[1].start = board_mem_reserve_add("ipp buf", RK30_IPP_MEM_SIZE);
+   resource_fb[1].end = resource_fb[1].start + RK30_IPP_MEM_SIZE - 1;
+#else
 	#if 0
 	resource_fb[1].start = board_mem_reserve_add("ipp buf", RK30_FB0_MEM_SIZE);
 	resource_fb[1].end = resource_fb[1].start + RK30_FB0_MEM_SIZE - 1;
 	resource_fb[2].start = board_mem_reserve_add("fb2", RK30_FB0_MEM_SIZE);
 	resource_fb[2].end = resource_fb[2].start + RK30_FB0_MEM_SIZE - 1;
 	#endif
+#endif
 #endif
 #ifdef CONFIG_VIDEO_RK29
 	rk30_camera_request_reserve_mem();
