@@ -17,6 +17,8 @@ menuconfig WLAN
 
 if WLAN
 
+source "drivers/net/wireless/ath/Kconfig"
+
 config WLAN_80211
 	bool "Wireless LAN (IEEE 802.11)"
 	depends on NETDEVICES
