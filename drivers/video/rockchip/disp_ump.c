@@ -32,8 +32,9 @@ static int _disp_get_ump_secure_id(struct fb_info *info, struct rk_fb_inf *g_fbi
 	int buf_len = 1920*1080*4;
 //	int buf_len = info->var.xres * info->var.yres * (info->var.bits_per_pixel >> 3);
 	ump_secure_id secure_id;
-        int layer_id = get_fb_layer_id(&info->fix);
-
+        //Galland substituted for 2 lines below: int layer_id = get_fb_layer_id(&info->fix);
+        struct rk_lcdc_device_driver * dev_drv = (struct rk_lcdc_device_driver * )info->par;
+        int layer_id = dev_drv->fb_get_layer(dev_drv,info->fix.id);
 //if(nbuf>0) return -ENOTSUPP;
 //printk("\nUMP: ENTER   num_fb:%d  num_buf:%d",layer_id,nbuf);
 	if (!(info->var.yres * 2 <= info->var.yres_virtual))//IAM

@@ -250,6 +250,7 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 #ifdef CONFIG_MALI
         int secure_id_buf_num = 0; //IAM
 #endif
+   struct rk_fb_inf *inf = dev_get_drvdata(info->device); //IAM
 
 	switch(cmd)
 	{
