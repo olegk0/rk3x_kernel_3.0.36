@@ -82,7 +82,7 @@
  * between 2MB and 14MB inclusive.
  */
 #ifndef CONSISTENT_DMA_SIZE
-#define CONSISTENT_DMA_SIZE 	SZ_2M
+#define CONSISTENT_DMA_SIZE 	SZ_8M //Galland: Changed from 2M to 8M, needed for v4l2's iommap to capture from webcam
 #endif
 
 #define CONSISTENT_END		(0xffe00000UL)
