@@ -19,7 +19,7 @@
 #include <linux/rk_fb.h>
 
 /* default HDMI output video mode */
-#define HDMI_VIDEO_DEFAULT_MODE			HDMI_1280x720p_60Hz//HDMI_1920x1080p_60Hz
+#define HDMI_VIDEO_DEFAULT_MODE		HDMI_1920x1080p_60Hz //	HDMI_1280x720p_60Hz//
 
 // HDMI video source
 enum {
@@ -30,7 +30,7 @@ enum {
 /* If HDMI_ENABLE, system will auto configure output mode according to EDID 
  * If HDMI_DISABLE, system will output mode according to macro HDMI_VIDEO_DEFAULT_MODE
  */
-#define HDMI_AUTO_CONFIGURE			HDMI_DISABLE
+#define HDMI_AUTO_CONFIGURE			HDMI_ENABLE
 
 /* default HDMI output audio mode */
 #define HDMI_AUDIO_DEFAULT_CHANNEL		2
