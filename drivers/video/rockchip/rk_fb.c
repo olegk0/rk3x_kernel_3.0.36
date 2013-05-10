@@ -33,9 +33,16 @@
 #include "hdmi/rk_hdmi.h"
 #include <linux/linux_logo.h>
 
+#ifdef CONFIG_MALI	//IAM
+#include "ump/ump_kernel_interface.h"
+#endif
+
 void rk29_backlight_set(bool on);
 
-#ifdef	FB_WIMO_FLAG
+#ifdef	FB_WIMO_FLAG   //called FB_MIRRORING in old kernels
+
+#define OLEGK0_CHANGED 1
+
 int (*video_data_to_wimo)(struct fb_info *info,u32 yuv_phy[2]) = NULL;
 EXPORT_SYMBOL(video_data_to_wimo);
 
@@ -224,6 +231,11 @@ static int rk_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
  	#endif
 	return 0;
 }
+//IAM
+#ifdef CONFIG_MALI
+int (*disp_get_ump_secure_id)(struct fb_info *info, struct rk_fb_inf *g_fbi, unsigned long arg, int buf);
+EXPORT_SYMBOL(disp_get_ump_secure_id);
+#endif
 static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 {
 	struct fb_fix_screeninfo *fix = &info->fix;
@@ -235,6 +247,10 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 	int num_buf; //buffer_number
 	void __user *argp = (void __user *)arg;
 	
+#ifdef CONFIG_MALI
+        int secure_id_buf_num = 0; //IAM
+#endif
+
 	switch(cmd)
 	{
  		case FBIOPUT_FBPHYADD:
@@ -274,6 +290,20 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 			dev_drv->num_buf = num_buf;
 			printk("rk fb use %d buffers\n",num_buf);
 			break;
+#ifdef CONFIG_MALI	/*//IAM*/
+		case GET_UMP_SECURE_ID_BUF2: /* flow trough */
+			secure_id_buf_num = 1;
+		case GET_UMP_SECURE_ID_BUF1:
+			{
+			    if (!disp_get_ump_secure_id)
+				request_module("disp_ump");
+			    if (disp_get_ump_secure_id)
+				return disp_get_ump_secure_id(info, inf, arg,
+								secure_id_buf_num);
+			    else
+				return -ENOTSUPP;
+			}
+#endif
 		case FBIOGET_SCREEN_STATE:
 		case FBIOPUT_SET_CURSOR_EN:
 		case FBIOPUT_SET_CURSOR_POS:
@@ -333,8 +363,10 @@ static int rk_fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 {
 	
 	if( 0==var->xres_virtual || 0==var->yres_virtual ||
-		 0==var->xres || 0==var->yres || var->xres<16 ||
-		 ((16!=var->bits_per_pixel)&&(32!=var->bits_per_pixel)) )
+//IAM		 0==var->xres || 0==var->yres || var->xres<16 ||
+		 0==var->yres || var->xres<16 ||
+//		 ((16!=var->bits_per_pixel)&&(32!=var->bits_per_pixel)) )
+		 ((16!=var->bits_per_pixel)&&(24!=var->bits_per_pixel)&&(32!=var->bits_per_pixel)) )  //olegk0 adds 24bpp
 	 {
 		 printk("%s check var fail 1!!! \n",info->fix.id);
 		 printk("xres_vir:%d>>yres_vir:%d\n", var->xres_virtual,var->yres_virtual);
@@ -855,7 +887,11 @@ static int rk_request_fb_buffer(struct fb_info *fbi,int fb_id)
 	struct rk_fb_inf *fb_inf = platform_get_drvdata(g_fb_pdev);
 	if (!strcmp(fbi->fix.id,"fb0"))
 	{
+#ifdef OLEGK0_CHANGED
+            		res = platform_get_resource_byname(g_fb_pdev, IORESOURCE_MEM, "ipp buf");
+#else
 		res = platform_get_resource_byname(g_fb_pdev, IORESOURCE_MEM, "fb0 buf");
+#endif
 		if (res == NULL)
 		{
 			dev_err(&g_fb_pdev->dev, "failed to get memory for fb0 \n");
@@ -868,6 +904,11 @@ static int rk_request_fb_buffer(struct fb_info *fbi,int fb_id)
 		memset(fbi->screen_base, 0, fbi->fix.smem_len);
 		printk("fb%d:phy:%lx>>vir:%p>>len:0x%x\n",fb_id,
 		fbi->fix.smem_start,fbi->screen_base,fbi->fix.smem_len);
+#ifdef OLEGK0_CHANGED
+		//Galland: next three lines copied to fb_id 0 from olegk0's fb_id 1
+		fbi->fix.mmio_len = (fbi->fix.smem_len >> 1)& ~7;
+		fbi->fix.mmio_start = fbi->fix.smem_start + fbi->fix.mmio_len;
+#endif
 	}
 	else
 	{	
