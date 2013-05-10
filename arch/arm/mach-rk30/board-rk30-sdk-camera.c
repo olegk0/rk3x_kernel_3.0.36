@@ -145,6 +145,13 @@
 #include "../../../drivers/media/video/rk30_camera.c"
 /*---------------- Camera Sensor Macro Define End  ---------*/
 
+//Galland: add missing defines (with bogus values) to allow kernel compilation
+#define CONFIG_SENSOR_TORCH_PIN_0 INVALID_GPIO
+#define CONFIG_SENSOR_TORCH_PIN_1 INVALID_GPIO
+#define CONFIG_SENSOR_TORCHACTIVE_LEVEL_0 0
+#define CONFIG_SENSOR_TORCHACTIVE_LEVEL_1 0
+
+
 #define PMEM_CAM_SIZE PMEM_CAM_NECESSARY
 /*****************************************************************************************
  * camera  devices

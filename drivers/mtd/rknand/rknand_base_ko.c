@@ -278,6 +278,7 @@ char GetSNSectorInfo(char * pbuf)
     return 0;
 }
 
+EXPORT_SYMBOL(GetSNSectorInfo); //Galland: required by drivers/bluetooth/vflash.c
 
 char GetSNSectorInfoBeforeNandInit(char * pbuf)
 {

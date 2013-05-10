@@ -235,6 +235,18 @@ static void *wifi_status_cb_devid;
 // Define wifi module's power and reset gpio, and gpio sensitive level 
 //
 
+//Galland: add default defines for kernel compilation
+#if defined(CONFIG_WIFI_NONE)
+#define RK30SDK_WIFI_GPIO_POWER_N       INVALID_GPIO
+#define RK30SDK_WIFI_GPIO_POWER_ENABLE_VALUE GPIO_HIGH 
+#endif
+
+//Galland: add defines for CONFIG_MT6620 (though I ignore which pin and L/H value it uses)
+#if defined(CONFIG_MT6620)
+#define RK30SDK_WIFI_GPIO_POWER_N       RK30_PIN3_PD0
+#define RK30SDK_WIFI_GPIO_POWER_ENABLE_VALUE GPIO_HIGH 
+#endif
+
 #if defined(CONFIG_RK903) || defined(CONFIG_RK901)
 #define RK30SDK_WIFI_GPIO_POWER_N       RK30_PIN3_PD0
 #define RK30SDK_WIFI_GPIO_POWER_ENABLE_VALUE GPIO_HIGH 
