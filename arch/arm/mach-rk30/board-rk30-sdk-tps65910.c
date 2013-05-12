@@ -289,12 +289,13 @@ int tps65910_post_init(struct tps65910 *tps65910)
 	printk("%s set vaux33 vcc_tp=%dmV end\n", __func__, regulator_get_voltage(ldo));
 	regulator_put(ldo);
 	udelay(100);
-
+/*Galland commented this:
 	ldo = regulator_get(NULL, "vaux33");	 //vcc_tp
 	regulator_disable(ldo);
 	regulator_put(ldo);
 	printk("--------------disable vaux33 regulator----------\n");
 	udelay(100);
+*/
 
 	dcdc = regulator_get(NULL, "vdd_cpu");	//vdd_cpu
 	regulator_set_voltage(dcdc, 1200000, 1200000);
@@ -309,14 +310,16 @@ int tps65910_post_init(struct tps65910 *tps65910)
 	printk("%s set vdd2 vcc_ddr=%dmV end\n", __func__, regulator_get_voltage(dcdc));
 	regulator_put(dcdc);
 	udelay(100);
-	#if 0 // honghaishen_test start
+
+//Galland commented: 	#if 0 // honghaishen_test start
 	ldo = regulator_get(NULL, "vdig1");	//vcc18_cif
 	regulator_set_voltage(ldo, 1800000, 1800000);
 	regulator_enable(ldo);
 	printk("%s set vdig1 vcc18_cif=%dmV end\n", __func__, regulator_get_voltage(ldo));
 	regulator_put(ldo);
 	udelay(100);
-	#endif // honghaishen_test end
+//Galland commented: 	#endif // honghaishen_test end
+
 	dcdc = regulator_get(NULL, "vaux1"); //vcc25_hdmi
 	regulator_set_voltage(dcdc,2500000,2500000);
 	regulator_enable(dcdc); 
@@ -337,14 +340,15 @@ int tps65910_post_init(struct tps65910 *tps65910)
 	printk("%s set vdac vccio_wl=%dmV end\n", __func__, regulator_get_voltage(ldo));
 	regulator_put(ldo);
 	udelay(100);
- #if 0   // honghaishen_test start
+
+//Galland commented: #if 0   // honghaishen_test start
 	ldo = regulator_get(NULL, "vmmc");  //vcc28_cif
 	regulator_set_voltage(ldo,2800000,2800000);
 	regulator_enable(ldo); 
 	printk("%s set vmmc vcc28_cif=%dmV end\n", __func__, regulator_get_voltage(ldo));
 	regulator_put(ldo);
 	udelay(100);
-#endif  // honghaishen_test end	
+//Galland commented: #endif  // honghaishen_test end	
 	printk("%s,line=%d END\n", __func__,__LINE__);
 	
 	return 0;
