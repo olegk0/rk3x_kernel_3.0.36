@@ -11,6 +11,9 @@
  * GNU General Public License for more details.
  *
  */
+
+#define GALLAND_CHANGED 1
+
 //#define DEBUG 1
 #define pr_fmt(fmt) "cpufreq: " fmt
 #include <linux/clk.h>
@@ -91,10 +94,21 @@ static unsigned int rk30_getspeed(unsigned int cpu)
 
 static bool rk30_cpufreq_is_ondemand_policy(struct cpufreq_policy *policy)
 {
+#ifdef GALLAND_CHANGED
+   /*
+   Galland >>
+   Actually this function affects not only OnDemand but, based on the
+   return expression, also interactive, conservative, hotplug governors
+   
+   To avoid losing the temperature/frequency limiting, we need to return true (safer for the system!)
+   */
+   return true;
+#else
 	char c = 0;
 	if (policy && policy->governor)
 		c = policy->governor->name[0];
 	return (c == 'o' || c == 'i' || c == 'c' || c == 'h');
+#endif
 }
 
 /**********************thermal limit**************************/
@@ -113,10 +127,16 @@ module_param(temp_limt_freq, uint, 0444);
 #define TEMP_LIMIT_FREQ 816000
 
 static const struct cpufreq_frequency_table temp_limits[] = {
+#ifdef GALLAND_CHANGED
+   {.frequency = 1200 * 1000, .index = 65},
+   {.frequency = 1008 * 1000, .index = 70},
+   {.frequency =  816 * 1000, .index = 75},
+#else
 	{.frequency = 1416 * 1000, .index = 50},
 	{.frequency = 1200 * 1000, .index = 55},
 	{.frequency = 1008 * 1000, .index = 60},
 	{.frequency =  816 * 1000, .index = 75},
+#endif
 };
 
 extern int rk30_tsadc_get_temp(unsigned int chn);
@@ -538,6 +558,8 @@ static unsigned int cpufreq_scale_limt(unsigned int target_freq, struct cpufreq_
 	if (is_ondemand && clk_get_rate(gpu_clk) > GPU_MAX_RATE) // high performance?
 		return max_freq;
 #endif
+
+#if !defined(GALLAND_CHANGED) //Galland: don't limit startup speed!
 #if !defined(CONFIG_ARCH_RK3066B)
 	if (is_ondemand && is_booting && target_freq >= 1600 * 1000) {
 		s64 boottime_ms = ktime_to_ms(ktime_get_boottime());
@@ -547,6 +569,7 @@ static unsigned int cpufreq_scale_limt(unsigned int target_freq, struct cpufreq_
 			target_freq = 1416 * 1000;
 		}
 	}
+#endif
 #endif
 #ifdef CONFIG_RK30_CPU_FREQ_LIMIT_BY_TEMP
 	if (is_ondemand && target_freq > policy->cur && policy->cur >= TEMP_LIMIT_FREQ) {
@@ -648,6 +671,9 @@ static int rk30_target(struct cpufreq_policy *policy, unsigned int target_freq, 
 	if (new_rate == rk30_getspeed(0))
 		goto out;
 	ret = clk_set_rate(cpu_clk, new_rate * 1000);
+#ifdef GALLAND_CHANGED
+   policy->cur = new_rate; //from Omegamoon kernel
+#endif   
 out:
 	mutex_unlock(&cpufreq_mutex);
 	FREQ_PRINTK_DBG("cpureq set rate (%u) end\n", new_rate);
