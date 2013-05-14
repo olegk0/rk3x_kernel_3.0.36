@@ -20,6 +20,16 @@ enum {
 	DISPLAY_SCALE_Y
 };
 
+enum rk_display_property {
+	DISPLAY_MAIN = 0,
+	DISPLAY_AUX
+};
+
+enum rk_display_source {
+	DISPLAY_SOURCE_LCDC0 = 0,
+	DISPLAY_SOURCE_LCDC1
+};
+
 /* This structure defines all the properties of a Display. */
 struct rk_display_driver {
 	void (*suspend)(struct rk_display_device *, pm_message_t state);
@@ -59,6 +69,13 @@ struct rk_display_devicelist {
 	struct rk_display_device *dev;
 };
 
+struct rkdisplay_platform_data {
+	int property;			//display screen property: main display or aux display.
+	int video_source;		//display screen video source
+	int io_pwr_pin;			//power control gpio
+	int io_reset_pin;		//reset control gpio
+	int io_switch_pin;		//cvbs/ypbpr output switch gpio
+};
 extern struct rk_display_device *rk_display_device_register(struct rk_display_driver *driver,
 					struct device *dev, void *devdata);
 extern void rk_display_device_unregister(struct rk_display_device *dev);

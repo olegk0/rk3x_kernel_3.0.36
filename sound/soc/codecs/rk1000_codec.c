@@ -1068,7 +1068,7 @@ static int rk1000_codec_proc_init(void)
 
 #endif
 
-#if 1
+#if 0 //Galland: to support RK1000 TVOut (which requires drivers/mfd/rk1000-core.c due to exported symbol rk1000_control_write_block)
 int reg_send_data(struct i2c_client *client, const char start_reg,
 				const char *buf, int count, unsigned int scl_rate)
 {
@@ -1158,8 +1158,9 @@ static void __exit rk1000_control_exit(void)
 
 module_init(rk1000_control_init);
 module_exit(rk1000_control_exit);
+#endif
 
 MODULE_DESCRIPTION("ASoC RK1000 CODEC driver");
 MODULE_AUTHOR("lhh lhh@rock-chips.com");
 MODULE_LICENSE("GPL");
-#endif 
+//Galland: #endif 

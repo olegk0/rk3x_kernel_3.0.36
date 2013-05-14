@@ -4,3 +4,4 @@
 obj-$(CONFIG_RK610_TVOUT)			+= rk610_tv.o
 obj-$(CONFIG_RK610_TVOUT_YPbPr)		+= rk610_tv_ypbpr.o
 obj-$(CONFIG_RK610_TVOUT_CVBS)		+= rk610_tv_cvbs.o
+obj-$(CONFIG_RK1000_TVOUT)			+= rk1000/

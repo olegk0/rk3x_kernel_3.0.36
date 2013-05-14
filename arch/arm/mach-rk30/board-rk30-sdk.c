@@ -1273,6 +1273,23 @@ static struct platform_device *devices[] __initdata = {
 #endif
 };
 
+#if defined(CONFIG_RK1000_TVOUT) || defined(CONFIG_RK610_TVOUT) || defined(CONFIG_CH7025_7026_TVOUT)
+static struct rkdisplay_platform_data tv_data = {
+   #ifdef CONFIG_HDMI_RK30
+   .property      = DISPLAY_AUX,
+   #else
+   .property      = DISPLAY_MAIN,
+   #endif
+   .video_source  = DISPLAY_SOURCE_LCDC0,
+   .io_pwr_pin    = INVALID_GPIO,
+   .io_reset_pin  = RK30_PIN0_PC6,
+#ifdef CONFIG_CH7025_7026_TVOUT
+   .io_switch_pin = RK30_PIN0_PC7,
+#else
+   .io_switch_pin = INVALID_GPIO,
+#endif
+};
+#endif
 // i2c
 #ifdef CONFIG_I2C0_RK30
 static struct i2c_board_info __initdata i2c0_info[] = {
@@ -1401,7 +1418,7 @@ static struct i2c_board_info __initdata i2c0_info[] = {
 			.type			= "rk610_hdmi",
 			.addr			= 0x46,
 			.flags			= 0,
-			.irq			= RK29_PIN5_PA2,
+			.irq			= RK29_PIN5_PA2, //Galland: on prev kernels this was: RK30_PIN4_PD3,
 		},
 #endif
 #ifdef CONFIG_SND_SOC_RK610
@@ -1493,17 +1510,28 @@ static struct i2c_board_info __initdata i2c2_info[] = {
 	},
 #endif
 //Galland: on Measy U2C the RK1000 is on I2C bus 2
-#if defined (CONFIG_SND_SOC_RK1000)
-	{
-		.type          = "rk1000_i2c_codec",
-		.addr          = 0x60,
-		.flags         = 0,
-	},
-	{
-		.type          = "rk1000_control",
-		.addr          = 0x40,
-		.flags         = 0,
-	},
+#if defined (CONFIG_MFD_RK1000)
+   {
+      .type       = "rk1000_control",
+      .addr       = 0x40,
+      .flags         = 0,
+      .platform_data = &tv_data,
+   },
+#ifdef CONFIG_RK1000_TVOUT
+    {
+      .type           = "rk1000_tvout",
+      .addr           = 0x42,
+      .flags          = 0,
+      .platform_data = &tv_data,
+    },
+#endif
+#ifdef CONFIG_SND_SOC_RK1000
+    {
+      .type           = "rk1000_i2c_codec",
+      .addr           = 0x60,
+      .flags          = 0,
+    },
+#endif
 #endif
 };
 #endif

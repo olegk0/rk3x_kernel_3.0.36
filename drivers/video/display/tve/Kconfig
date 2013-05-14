@@ -11,3 +11,11 @@ config RK610_TVOUT_YPbPr
 config RK610_TVOUT_CVBS
 	bool "support CVBS output"
 	depends on RK610_TVOUT
+
+
+menuconfig RK_TVENCODER
+	bool "TV Encoder support"
+    help
+       Support RockChip TV Encoder if you say y here.
+
+source "drivers/video/display/tve/rk1000/Kconfig"
