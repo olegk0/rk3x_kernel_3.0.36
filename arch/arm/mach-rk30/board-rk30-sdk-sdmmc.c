@@ -241,10 +241,12 @@ static void *wifi_status_cb_devid;
 #define RK30SDK_WIFI_GPIO_POWER_ENABLE_VALUE GPIO_HIGH 
 #endif
 
-//Galland: add defines for CONFIG_MT6620 (though I ignore which pin and L/H value it uses)
+//Galland: add defines for CONFIG_MT6620 (based on latest available RK3066 SDK schematic)
 #if defined(CONFIG_MT6620)
 #define RK30SDK_WIFI_GPIO_POWER_N       RK30_PIN3_PD0
-#define RK30SDK_WIFI_GPIO_POWER_ENABLE_VALUE GPIO_HIGH 
+#define RK30SDK_WIFI_GPIO_POWER_ENABLE_VALUE GPIO_HIGH   //marked as O_DOWN in schematic
+#define RK30SDK_WIFI_GPIO_RESET_N       RK30_PIN3_PD1
+#define RK30SDK_WIFI_GPIO_RESET_ENABLE_VALUE GPIO_HIGH   //marked as O_DOWN in schematic 
 #endif
 
 #if defined(CONFIG_RK903) || defined(CONFIG_RK901)

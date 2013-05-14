@@ -34,7 +34,7 @@
 
 
 obj-$(CONFIG_MTK_COMBO_WIFI) += wlan/
-obj-$(CONFIG_MTK_COMBO_WIFI) += p2p/
+#Galland: obj-$(CONFIG_MTK_COMBO_WIFI) += p2p/
 #BUILD_P2P=n
 
 #ifeq ($(MTK_WIFI_HOTSPOT_SUPPORT), yes)
