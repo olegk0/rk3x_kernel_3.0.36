@@ -25,12 +25,12 @@ static void rk29_sdmmc_gpio_open(int device_id, int on)
             #ifdef CONFIG_SDMMC0_RK29
             if(on)
             {
-                gpio_direction_output(GPIO3B_GPIO3B0,GPIO_HIGH);//set mmc0-clk to high
-                gpio_direction_output(GPIO3B_GPIO3B1,GPIO_HIGH);// set mmc0-cmd to high.
-                gpio_direction_output(GPIO3B_GPIO3B2,GPIO_HIGH);//set mmc0-data0 to high.
-                gpio_direction_output(GPIO3B_GPIO3B3,GPIO_HIGH);//set mmc0-data1 to high.
-                gpio_direction_output(GPIO3B_GPIO3B4,GPIO_HIGH);//set mmc0-data2 to high.
-                gpio_direction_output(GPIO3B_GPIO3B5,GPIO_HIGH);//set mmc0-data3 to high.
+                gpio_direction_output(RK30_PIN3_PB0,GPIO_HIGH);//set mmc0-clk to high
+                gpio_direction_output(RK30_PIN3_PB1,GPIO_HIGH);// set mmc0-cmd to high.
+                gpio_direction_output(RK30_PIN3_PB2,GPIO_HIGH);//set mmc0-data0 to high.
+                gpio_direction_output(RK30_PIN3_PB3,GPIO_HIGH);//set mmc0-data1 to high.
+                gpio_direction_output(RK30_PIN3_PB4,GPIO_HIGH);//set mmc0-data2 to high.
+                gpio_direction_output(RK30_PIN3_PB5,GPIO_HIGH);//set mmc0-data3 to high.
 
                 mdelay(30);
             }
@@ -76,7 +76,7 @@ static void rk29_sdmmc_gpio_open(int device_id, int on)
                 gpio_direction_output(RK30_PIN3_PC1,GPIO_HIGH);//set mmc1-data0 to high.
                 gpio_direction_output(RK30_PIN3_PC2,GPIO_HIGH);//set mmc1-data1 to high.
                 gpio_direction_output(RK30_PIN3_PC3,GPIO_HIGH);//set mmc1-data2 to high.
-                gpio_direction_output(RK30_PIN3_PC5,GPIO_HIGH);//set mmc1-data3 to high.
+                gpio_direction_output(RK30_PIN3_PC4,GPIO_HIGH);//set mmc1-data3 to high.
                 mdelay(100);
             }
             else

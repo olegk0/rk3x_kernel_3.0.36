@@ -970,10 +970,10 @@ struct rk29_sdmmc_platform_data default_sdmmc0_data = {
 	.use_dma = 0,
 #endif
 
-#if defined(CONFIG_WIFI_COMBO_MODULE_CONTROL_FUNC)
+/*Galland commented #if defined(CONFIG_WIFI_COMBO_MODULE_CONTROL_FUNC)
     .status = rk29sdk_wifi_mmc0_status,
     .register_status_notify = rk29sdk_wifi_mmc0_status_register,
-#endif
+#endif*/
 #if defined(CONFIG_SDMMC0_RK29_SDCARD_DET_FROM_GPIO)
     .detect_irq = RK29SDK_SD_CARD_DETECT_N,
     .insert_card_level = RK29SDK_SD_CARD_INSERT_LEVEL,
