@@ -93,15 +93,15 @@ static void rk29_sdmmc_gpio_open(int device_id, int on)
                 gpio_request(RK30_PIN3_PC1, "mmc1-data0");
                 gpio_direction_output(RK30_PIN3_PC1,GPIO_LOW);//set mmc1-data0 to low.
             #if defined(CONFIG_WIFI_COMBO_MODULE_CONTROL_FUNC)
-                rk29_mux_api_set(GPIO3C2_SDMMC1DATA1_NAME, GPIO3C_GPIO3C2);
+                rk30_mux_api_set(GPIO3C2_SDMMC1DATA1_NAME, GPIO3C_GPIO3C2);
                 gpio_request(RK30_PIN3_PC2, "mmc1-data1");
                 gpio_direction_output(RK30_PIN3_PC2,GPIO_LOW);//set mmc1-data1 to low.
 
-                rk29_mux_api_set(GPIO3C3_SDMMC1DATA2_NAME, GPIO3C_GPIO3C3);
+                rk30_mux_api_set(GPIO3C3_SDMMC1DATA2_NAME, GPIO3C_GPIO3C3);
                 gpio_request(RK30_PIN3_PC3, "mmc1-data2");
                 gpio_direction_output(RK30_PIN3_PC3,GPIO_LOW);//set mmc1-data2 to low.
 
-                rk29_mux_api_set(GPIO3C4_SDMMC1DATA3_NAME, GPIO3C_GPIO3C4);
+                rk30_mux_api_set(GPIO3C4_SDMMC1DATA3_NAME, GPIO3C_GPIO3C4);
                 gpio_request(RK30_PIN3_PC4, "mmc1-data3");
                 gpio_direction_output(RK30_PIN3_PC4,GPIO_LOW);//set mmc1-data3 to low.
            #endif
@@ -475,7 +475,10 @@ static struct resource resources[] = {
 
 ///////////////////////////////////////////////////////////////////////////////////
 #elif defined(CONFIG_WIFI_COMBO_MODULE_CONTROL_FUNC)
-#if defined(CONFIG_MACH_RK30_PHONE_PAD)
+
+
+/* Galland: make sure this defines are NOT used
+   #if defined(CONFIG_MACH_RK30_PHONE_PAD)
    #if defined(CONFIG_USE_SDMMC0_FOR_WIFI_DEVELOP_BOARD)
    #define USE_SDMMC_CONTROLLER_FOR_WIFI 0
    #define RK29SDK_WIFI_COMBO_GPIO_POWER_N	RK30_PIN4_PD2
@@ -505,23 +508,25 @@ static struct resource resources[] = {
     #define RK29SDK_WIFI_COMBO_GPS_SYNC          RK30_PIN3_PC7    
     
     #else
-
+*/
 //Galland: this is the configuration matching the RK3066 schematic
 //         most likely to be the one used by the current TV sticks
 
     #define USE_SDMMC_CONTROLLER_FOR_WIFI 1
     #define RK29SDK_WIFI_COMBO_GPIO_POWER_N      RK30_PIN3_PD0   //Galland: WIFI_EN in schematic
-//NO: Galland: I comment the original RESET_N to connect it to SYSRST_B
-    #define RK29SDK_WIFI_COMBO_GPIO_RESET_N      RK30_PIN3_PD1   //Galland: BT_RST  in schematic
-//    #define RK29SDK_WIFI_COMBO_GPIO_RESET_N      RK30_PIN3_PC6   //Galland: SYSRST_B  in schematic
+//Galland: I comment the original RESET_N to connect it to SYSRST_B
+//    #define RK29SDK_WIFI_COMBO_GPIO_RESET_N      RK30_PIN3_PD1   //Galland: BT_RST  in schematic
+    #define RK29SDK_WIFI_COMBO_GPIO_RESET_N      RK30_PIN3_PC6   //Galland: SYSRST_B  in schematic
 
     #define RK29SDK_WIFI_COMBO_GPIO_WIFI_INT_B   RK30_PIN3_PD2   //Galland: BT_EINT in schematic
     
     #define RK29SDK_WIFI_COMBO_GPIO_VDDIO        RK30_PIN6_PB4   //Galland: LCD_EN in schematic (though this define is unused)
     #define RK29SDK_WIFI_COMBO_GPIO_BGF_INT_B    RK30_PIN3_PC6   //Galland: SYSRST_B in schematic  
     #define RK29SDK_WIFI_COMBO_GPS_SYNC          RK30_PIN3_PC7   //Galland: BT_REG_ON in schematic    
+/*
     #endif
 #endif
+*/
 
 #define debug_combo_system 0
 
@@ -567,13 +572,19 @@ int rk29sdk_wifi_combo_module_power(int on)
     {
         //gpio_set_value(RK29SDK_WIFI_COMBO_GPIO_VDDIO, GPIO_HIGH);
         //mdelay(10);
-        gpio_set_value(RK29SDK_WIFI_COMBO_GPIO_POWER_N, GPIO_HIGH);     
+        if (gpio_direction_output(RK29SDK_WIFI_COMBO_GPIO_POWER_N, GPIO_HIGH)){
+           pr_info("%s:request combo-PMUEN on failed\n", __func__);
+           return -1;
+        }
         mdelay(10);
         pr_info("combo-module turn on power\n");
     }
     else
     {
-        gpio_set_value(RK29SDK_WIFI_COMBO_GPIO_POWER_N, GPIO_LOW);        
+        if (gpio_direction_output(RK29SDK_WIFI_COMBO_GPIO_POWER_N, GPIO_LOW)){
+           pr_info("%s:request combo-PMUEN off failed\n", __func__);
+           return -1;
+        }
         mdelay(10);
         //gpio_set_value(RK29SDK_WIFI_COMBO_GPIO_VDDIO, GPIO_LOW);
         pr_info("combo-module turn off power\n");
@@ -635,8 +646,20 @@ extern unsigned int sdio_irq_global;
 int rk29sdk_wifi_power(int on)
 {
     pr_info("%s: %d\n", __func__, on);
-    if (on){
     
+    //<--- Galland: not sure of the level for reset (probably active low since it's named reset_n?)
+    rk29_sdmmc_gpio_open(1, 0); 
+    rk29sdk_wifi_combo_module_power(1);
+    mdelay(100);
+    rk29sdk_wifi_combo_module_reset(0);
+    mdelay(100);
+    rk29sdk_wifi_combo_module_reset(1);
+    mdelay(100);
+    rk29_sdmmc_gpio_open(1, 1);     
+    rk29sdk_wifi_power_state = 1;
+    //Galland --->
+    /*
+    if (on){
         #if defined(CONFIG_SDMMC1_RK29) && !defined(CONFIG_SDMMC_RK29_OLD)  
             
           #if defined(CONFIG_USE_SDMMC0_FOR_WIFI_DEVELOP_BOARD)
@@ -665,7 +688,7 @@ int rk29sdk_wifi_power(int on)
          
     }
     
-    rk29sdk_wifi_power_state = on;
+    rk29sdk_wifi_power_state = on;*/
     return 0;
 
 }

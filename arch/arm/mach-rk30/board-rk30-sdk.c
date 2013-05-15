@@ -1005,6 +1005,15 @@ static int rk29_sdmmc1_cfg_gpio(void)
 
 #else
 
+//<--- Galland
+#if defined(CONFIG_WIFI_COMBO_MODULE_CONTROL_FUNC)
+	rk29_sdmmc_set_iomux(1, 0); //Galland: added same init for sdio1 as in above rk29_sdmmc0_cfg_gpio
+   rk29sdk_wifi_combo_module_gpio_init();
+   pr_info("rk29sdk_wifi_combo_module_gpio_init ok");
+   rk29sdk_wifi_power(1);
+#endif
+//Galland --->
+   
 #if defined(CONFIG_SDMMC1_RK29_WRITE_PROTECT)
 	gpio_request(SDMMC1_WRITE_PROTECT_PIN, "sdio-wp");
 	gpio_direction_input(SDMMC1_WRITE_PROTECT_PIN);
