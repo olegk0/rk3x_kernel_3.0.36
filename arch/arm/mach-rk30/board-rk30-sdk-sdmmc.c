@@ -511,9 +511,9 @@ static struct resource resources[] = {
 
     #define USE_SDMMC_CONTROLLER_FOR_WIFI 1
     #define RK29SDK_WIFI_COMBO_GPIO_POWER_N      RK30_PIN3_PD0   //Galland: WIFI_EN in schematic
-//Galland: I comment the original RESET_N to connect it to SYSRST_B
-//    #define RK29SDK_WIFI_COMBO_GPIO_RESET_N      RK30_PIN3_PD1   //Galland: BT_RST  in schematic
-    #define RK29SDK_WIFI_COMBO_GPIO_RESET_N      RK30_PIN3_PC6   //Galland: SYSRST_B  in schematic
+//NO: Galland: I comment the original RESET_N to connect it to SYSRST_B
+    #define RK29SDK_WIFI_COMBO_GPIO_RESET_N      RK30_PIN3_PD1   //Galland: BT_RST  in schematic
+//    #define RK29SDK_WIFI_COMBO_GPIO_RESET_N      RK30_PIN3_PC6   //Galland: SYSRST_B  in schematic
 
     #define RK29SDK_WIFI_COMBO_GPIO_WIFI_INT_B   RK30_PIN3_PD2   //Galland: BT_EINT in schematic
     
