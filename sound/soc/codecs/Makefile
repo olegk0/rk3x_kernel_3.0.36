@@ -91,6 +91,7 @@ snd-soc-rk1000-objs := rk1000_codec.o
 snd-soc-jz4740-codec-objs := jz4740.o
 snd-soc-rk610-objs := rk610_codec.o
 snd-soc-rt3261-objs := rt3261.o rt3261-dsp.o rt3261_ioctl.o rt_codec_ioctl.o
+snd-soc-rockchip-hdmi-objs := rockchip-hdmi-codec.o
 snd-soc-rt3224-objs := rt3261.o rt3261_ioctl.o rt_codec_ioctl.o
 snd-soc-rk2928-objs := rk2928_codec.o
 
@@ -195,6 +196,7 @@ obj-$(CONFIG_SND_SOC_WM_HUBS)	+= snd-soc-wm-hubs.o
 obj-$(CONFIG_SND_SOC_RK1000)	+= snd-soc-rk1000.o
 obj-$(CONFIG_SND_SOC_RK610)	+= snd-soc-rk610.o
 obj-$(CONFIG_SND_SOC_RK2928)	+= snd-soc-rk2928.o
+obj-$(CONFIG_SND_SOC_RK_HDMI_CODEC) += snd-soc-rockchip-hdmi.o
 
 # Amp
 obj-$(CONFIG_SND_SOC_LM4857)	+= snd-soc-lm4857.o

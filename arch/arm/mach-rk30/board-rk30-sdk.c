@@ -1103,6 +1103,25 @@ static struct platform_device rk30_device_adc_battery = {
 };
 #endif
 
+/*
+ * Codec for the ASoC Rockchip HDMI machine driver
+ */
+#ifdef CONFIG_SND_SOC_RK_HDMI_CODEC
+static struct platform_device rockchip_hdmi_codec = {
+   .name = "rockchip-hdmi-codec",
+   .id   = -1,
+};
+#endif
+/*
+ * Device for the ASoC Rockchip HDMI machine driver
+ */
+#ifdef CONFIG_SND_RK_SOC_HDMI
+static struct platform_device rockchip_hdmi_audio = {
+   .name = "rockchip-hdmi-audio",
+   .id   = -1,
+};
+#endif
+
 #ifdef CONFIG_RK30_PWM_REGULATOR
 const static int pwm_voltage_map[] = {
 	1000000, 1025000, 1050000, 1075000, 1100000, 1125000, 1150000, 1175000, 1200000, 1225000, 1250000, 1275000, 1300000, 1325000, 1350000, 1375000, 1400000
@@ -1279,6 +1298,12 @@ static struct platform_device *devices[] __initdata = {
 #endif
 #ifdef CONFIG_RFKILL_RK
 	&device_rfkill_rk,
+#endif
+#ifdef CONFIG_SND_SOC_RK_HDMI_CODEC
+   &rockchip_hdmi_codec,
+#endif
+#ifdef CONFIG_SND_RK_SOC_HDMI
+   &rockchip_hdmi_audio,
 #endif
 };
 
