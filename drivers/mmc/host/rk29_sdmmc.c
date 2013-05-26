@@ -1612,8 +1612,8 @@ static int rk29_sdmmc_get_cd(struct mmc_host *mmc)
         case 1:
         {
 //Galland
-cdetect = 1;
-/*           
+//cdetect = 1;
+           
             #if defined(CONFIG_USE_SDMMC1_FOR_WIFI_DEVELOP_BOARD)
             cdetect = 1;
             #else
@@ -1622,7 +1622,7 @@ cdetect = 1;
         		
             cdetect = test_bit(RK29_SDMMC_CARD_PRESENT, &host->flags)?1:0;
             #endif
-*/
+
             break;
         }
         
