@@ -25,40 +25,42 @@
 #include <linux/rk_fb.h>
 #include <asm/uaccess.h>
 
-static int _disp_get_ump_secure_id(struct fb_info *info, struct rk_fb_inf *g_fbi,
-				   unsigned long arg, int nbuf)
+static int _disp_get_ump_secure_id(struct fb_info *info, unsigned long arg, int nbuf)
 {
-	u32 __user *psecureid = (u32 __user *) arg;
-	int buf_len = 1920*1080*4;
-//	int buf_len = info->var.xres * info->var.yres * (info->var.bits_per_pixel >> 3);
-	ump_secure_id secure_id;
-        //Galland substituted for 2 lines below: int layer_id = get_fb_layer_id(&info->fix);
-        struct rk_lcdc_device_driver * dev_drv = (struct rk_lcdc_device_driver * )info->par;
-        int layer_id = dev_drv->fb_get_layer(dev_drv,info->fix.id);
-//if(nbuf>0) return -ENOTSUPP;
-//printk("\nUMP: ENTER   num_fb:%d  num_buf:%d",layer_id,nbuf);
-	if (!(info->var.yres * 2 <= info->var.yres_virtual))//IAM
-	    printk("\nUMP: Double-buffering not enabled");
+    u32 __user *psecureid = (u32 __user *) arg;
+    void __user *argp = (void __user *)arg;
+    int buf_len = FB_MAXPGSIZE;
+//    int bpp = (info->var.bits_per_pixel >> 3); //bytes per pixel
+//    int buf_len = info->var.xres * info->var.yres * bpp;
+    u32 uoffs = 0;
+    ump_secure_id secure_id;
+    struct rk_fb_inf *g_fbi = dev_get_drvdata(info->device);
+//Galland substituted for 2 lines below: int layer_id = get_fb_layer_id(&info->fix);
+    struct rk_lcdc_device_driver * dev_drv = (struct rk_lcdc_device_driver * )info->par;
+    int layer_id = dev_drv->fb_get_layer(dev_drv,info->fix.id);
+
+//printk("\nUMP: ENTER   num_fb:%d  num_buf:%d  buf_adr:%x buf_len:%x",layer_id,nbuf,info->fix.smem_start,buf_len);
+//	if (!(info->var.yres * 2 <= info->var.yres_virtual))//IAM
+//	    printk("\nUMP: Double-buffering not enabled");
 //	else
 
-	if (!g_fbi->ump_wrapped_buffer[layer_id][nbuf]) {
-		ump_dd_physical_block ump_memory_description;
+    if (!g_fbi->ump_wrapped_buffer[layer_id][nbuf]) {
+	ump_dd_physical_block ump_memory_description;
 
-		ump_memory_description.addr = info->fix.smem_start;
-		ump_memory_description.size = buf_len;
-		if (nbuf > 0) {
-		    ump_memory_description.addr += (buf_len * nbuf);
+	ump_memory_description.addr = info->fix.smem_start;
+	ump_memory_description.size = buf_len;
+	if (nbuf > 0) {
+	    ump_memory_description.addr += (buf_len * nbuf);
 //		    ump_memory_description.size = buf_len;
-		}
+        }
+
 //printk("\nUMP: nbuf:%d, addr:%X, size:%X\n",nbuf, ump_memory_description.addr,ump_memory_description.size);
-		g_fbi->ump_wrapped_buffer[layer_id][nbuf] =
-			ump_dd_handle_create_from_phys_blocks
-			(&ump_memory_description, 1);
-	}
-	secure_id = ump_dd_secure_id_get(g_fbi->
-					 ump_wrapped_buffer[layer_id][nbuf]);
+	g_fbi->ump_wrapped_buffer[layer_id][nbuf] =
+	    ump_dd_handle_create_from_phys_blocks(&ump_memory_description, 1);
+    }
+    secure_id = ump_dd_secure_id_get(g_fbi-> ump_wrapped_buffer[layer_id][nbuf]);
 //printk("UMP: secure_id:%X, arg:%X",secure_id,arg);
-	return put_user((unsigned int)secure_id, psecureid);
+    return put_user((unsigned int)secure_id, psecureid);
 }
 
 static int __init disp_ump_module_init(void)

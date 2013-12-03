@@ -12,7 +12,7 @@
 
 # set up defaults if not defined by the user
 TIMESTAMP ?= default
-OS_MEMORY_KERNEL_BUFFER_SIZE_IN_MB ?= 128
+OS_MEMORY_KERNEL_BUFFER_SIZE_IN_MB ?= 16
 USING_GPU_UTILIZATION ?= 1
 PROFILING_SKIP_PP_JOBS ?= 0
 PROFILING_SKIP_PP_AND_GP_JOBS ?= 0
@@ -103,7 +103,7 @@ mali-y += \
 ifneq ($(MALI_PLATFORM_FILES),)
 	mali-y += $(MALI_PLATFORM_FILES:.c=.o)
 endif
-        
+
 mali-$(CONFIG_MALI400_PROFILING) += linux/mali_ukk_profiling.o
 mali-$(CONFIG_MALI400_PROFILING) += linux/mali_osk_profiling.o
 
@@ -115,7 +115,7 @@ mali-$(CONFIG_SYNC) += linux/mali_sync.o linux/mali_sync_user.o
 
 # Tell the Linux build system from which .o file to create the kernel module
 obj-$(CONFIG_MALI400) := mali.o
-
+#IAM
 export EXTRA_DEFINES += -DMALI_FAKE_PLATFORM_DEVICE=1
 export EXTRA_DEFINES += -DMALI_POWER_MGMT_TEST_SUITE=1
 export EXTRA_DEFINES += -DCONFIG_MALI400_UMP=1
@@ -154,7 +154,12 @@ SVN_INFO = (cd $(src); (svn info || git svn info || \
 	"Last Changed Rev: $(MALI_RELEASE_NAME)\n" \
 	"Last Changed Date: $(MALI_RELEASE_NAME)") 2>/dev/null)
 
+SVN_REV := $(shell (cd $(src); echo "$(SVN_INFO)" | grep '^Revision: '| sed -e 's/^Revision: //' ) 2>/dev/null )
+ifeq ($(SVN_REV),)
 SVN_REV := $(MALI_RELEASE_NAME)
+else
+SVN_REV := $(MALI_RELEASE_NAME)-r$(SVN_REV)
+endif
 
 ccflags-y += -DSVN_REV_STRING=\"$(SVN_REV)\"
 

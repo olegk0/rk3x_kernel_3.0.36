@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 ARM Limited. All rights reserved.
+ * Copyright (C) 2010-2013 ARM Limited. All rights reserved.
  * 
  * This program is free software and is provided to you under the terms of the GNU General Public License version 2
  * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
@@ -124,6 +124,26 @@ int stream_create_wrapper(struct mali_session_data *session_data, _mali_uk_strea
 
 	kargs.ctx = NULL; /* prevent kernel address to be returned to user space */
 	if (0 != copy_to_user(uargs, &kargs, sizeof(_mali_uk_stream_create_s))) return -EFAULT;
+
+	return 0;
+}
+
+int sync_fence_create_empty_wrapper(struct mali_session_data *session_data, _mali_uk_fence_create_empty_s __user *uargs)
+{
+	_mali_uk_fence_create_empty_s kargs;
+
+	MALI_CHECK_NON_NULL(uargs, -EINVAL);
+
+	if (0 != get_user(kargs.stream, &uargs->stream)) return -EFAULT;
+
+	kargs.fence = mali_stream_create_empty_fence(kargs.stream);
+	if (0 > kargs.fence)
+	{
+		return kargs.fence;
+	}
+
+	kargs.ctx = NULL; /* prevent kernel address to be returned to user space */
+	if (0 != copy_to_user(uargs, &kargs, sizeof(_mali_uk_fence_create_empty_s))) return -EFAULT;
 
 	return 0;
 }

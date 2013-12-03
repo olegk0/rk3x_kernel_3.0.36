@@ -54,8 +54,12 @@
 
 #ifdef OLEGK0_CHANGED
    #define FBIOPUT_SET_COLORKEY		0x5010 //IAM
+   #define FBIOSET_DISP_PSET		0x5011 //IAM
+   #define FBIOSET_FBMEM_OFFSET		0x5012 //IAM
+   #define FBIOSET_FBMEM_CLR		0x5013 //IAM
    #define GET_UMP_SECURE_ID_BUF1 _IOWR('m', 310, unsigned int)
    #define GET_UMP_SECURE_ID_BUF2 _IOWR('m', 311, unsigned int) 
+   #define FB_MAXPGSIZE 1920*1080*4
 #endif
 
 /********************************************************************
@@ -181,6 +185,10 @@ struct layer_par {
     char name[5];
     int id;
     bool state; 	//on or off
+//IAM
+    int scale_x;
+    int scale_y;
+    
     u32	pseudo_pal[16];
     u32 y_offset;       //yuv/rgb offset  -->LCDC_WINx_YRGB_MSTx
     u32 c_offset;     //cb cr offset--->LCDC_WINx_CBR_MSTx
@@ -207,6 +215,7 @@ struct rk_lcdc_device_driver{
 	
 	struct layer_par *layer_par[RK_MAX_FB_SUPPORT];
 	struct layer_par *def_layer_par;
+
 	int num_layer;
 	int num_buf;				//the num_of buffer
 	int fb_index_base;                     //the first fb index of the lcdc device
@@ -262,7 +271,7 @@ struct rk_fb_inf {
 #endif
 };
 #ifdef CONFIG_MALI
-extern int (*disp_get_ump_secure_id)(struct fb_info *info, struct rk_fb_inf *g_fbi, unsigned long arg, int buf);
+extern int (*disp_get_ump_secure_id)(struct fb_info *info, unsigned long arg, int nbuf);
 #endif
 extern int rk_fb_register(struct rk_lcdc_device_driver *dev_drv,
 	struct rk_lcdc_device_driver *def_drv,int id);

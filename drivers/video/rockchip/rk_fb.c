@@ -233,7 +233,7 @@ static int rk_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 }
 //IAM
 #ifdef CONFIG_MALI
-int (*disp_get_ump_secure_id)(struct fb_info *info, struct rk_fb_inf *g_fbi, unsigned long arg, int buf);
+int (*disp_get_ump_secure_id)(struct fb_info *info, unsigned long arg, int nbuf);
 EXPORT_SYMBOL(disp_get_ump_secure_id);
 #endif
 static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
@@ -246,18 +246,22 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 	int ovl;	//overlay:0 win1 on the top of win0;1,win0 on the top of win1
 	int num_buf; //buffer_number
 	void __user *argp = (void __user *)arg;
-	
+//IAM
+	u32 tmp;
+	int pset[5];
+        struct layer_par *par;
+        int ret;
 #ifdef CONFIG_MALI
         int secure_id_buf_num = 0; //IAM
 #endif
-   struct rk_fb_inf *inf = dev_get_drvdata(info->device); //IAM
+	par = dev_drv->layer_par[layer_id];
 
 	switch(cmd)
 	{
  		case FBIOPUT_FBPHYADD:
 			return info->fix.smem_start;
-		case FBIOSET_YUV_ADDR:   //when in video mode, buff alloc by android
-			if((!strcmp(fix->id,"fb1"))||(!strcmp(fix->id,"fb3")))
+		case FBIOSET_YUV_ADDR: //when in video mode, buff alloc by android
+			if((!strcmp(fix->id,"fb1"))||(!strcmp(fix->id,"fb3")))//when in video mode, buff alloc by android
 			{
 				if (copy_from_user(yuv_phy, argp, 8))
 					return -EFAULT;
@@ -265,6 +269,62 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 				info->fix.mmio_start = yuv_phy[1];  //four uv
 			}
 			break;
+//IAM***************************
+		case FBIOSET_DISP_PSET:   //IAM display: offset x,y; src size w,h; scale size x,y
+		    if(fix->id[2] == '0') //fb'0' - not change
+			return -EPERM;
+		    if (copy_from_user(pset, argp, sizeof(int)*6))
+			return -EFAULT;
+		    if (pset[2]>1920 || pset[3]>1080)
+			return -EINVAL;
+		    if (pset[2]>1)
+			par->xact = pset[2];
+		    if (pset[3]>1)
+			par->yact = pset[3];
+//		    if (pset[4]>1)
+			par->scale_x = pset[4];
+//		    if (pset[5]>1)
+			par->scale_y = pset[5];
+//		    ret = 0;
+//		    if((pset[0]+par->xact) <= par->xsize){
+			    par->xpos = pset[0];
+//		    }
+//		    else
+//			ret = -EINVAL;
+//		    if((pset[1]+par->yact) <= par->ysize){
+			    par->ypos = pset[1];
+//		    }
+//		    else
+//			ret = -EINVAL;
+		    dev_drv->set_par(dev_drv,layer_id);
+		    return 0;
+		    break;
+		case FBIOSET_FBMEM_OFFSET:   //IAM offset fb buf memory
+		    if(fix->id[2] == '0') //fb'0' - not change
+    			return -EPERM;
+		    if (copy_from_user(yuv_phy, argp, 8))
+			return -EFAULT;
+		    if (yuv_phy[0]>FB_MAXPGSIZE)
+			return -EINVAL;
+		    if (yuv_phy[1]>FB_MAXPGSIZE)
+			return -EINVAL;
+		    par->smem_start = info->fix.smem_start + yuv_phy[0];  //four y
+    		    if(fix->id[2] == '1') //fb'1'
+			par->cbr_start = info->fix.mmio_start + yuv_phy[1];  //four uv
+		    dev_drv->pan_display(dev_drv,layer_id);
+		    return par->smem_start; // for check
+		    break;
+		case FBIOSET_FBMEM_CLR: // offset , len
+		    if (copy_from_user(yuv_phy, argp, 8))
+		    	return -EFAULT;
+		    tmp = yuv_phy[0] + yuv_phy[1];
+		    if(fix->id[2] == '0' && tmp > FB_MAXPGSIZE)
+		    	return -EINVAL;
+    		    if(tmp > (FB_MAXPGSIZE*2))
+		    	return -EINVAL;
+    		    memset(info->screen_base+yuv_phy[0], 0, yuv_phy[1]);
+		    break;
+//******************************
 		case FBIOSET_ENABLE:
 			if (copy_from_user(&enable, argp, sizeof(enable)))
 				return -EFAULT;
@@ -292,15 +352,14 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 			printk("rk fb use %d buffers\n",num_buf);
 			break;
 #ifdef CONFIG_MALI	/*//IAM*/
-		case GET_UMP_SECURE_ID_BUF2: /* flow trough */
-			secure_id_buf_num = 1;
+		case GET_UMP_SECURE_ID_BUF2:/* flow trough */
+			secure_id_buf_num++;
 		case GET_UMP_SECURE_ID_BUF1:
 			{
 			    if (!disp_get_ump_secure_id)
 				request_module("disp_ump");
 			    if (disp_get_ump_secure_id)
-				return disp_get_ump_secure_id(info, inf, arg,
-								secure_id_buf_num);
+				return disp_get_ump_secure_id(info, arg, secure_id_buf_num);
 			    else
 				return -ENOTSUPP;
 			}
@@ -376,12 +435,16 @@ static int rk_fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 		 return -EINVAL;
 	 }
  
-	 if( ((var->xoffset+var->xres) > info->var.xres_virtual) ||
-	     ((var->yoffset+var->yres) > (info->var.yres_virtual)) )
+//IAM	 if( ((var->xoffset+var->xres) > info->var.xres_virtual) ||
+//	     ((var->yoffset+var->yres) > (info->var.yres_virtual)) )
+	 if( ((var->xoffset+var->xres) > var->xres_virtual) ||
+	     ((var->yoffset+var->yres) > (var->yres_virtual)) )
 	 {
-		 printk("%s check_var fail 2!!! \n",info->fix.id);
-		 printk("xoffset:%d>>xres:%d>>xres_vir:%d\n",var->xoffset,var->xres,info->var.xres_virtual);
-		 printk("yoffset:%d>>yres:%d>>yres_vir:%d\n",var->yoffset,var->yres,info->var.yres_virtual);
+	 printk("\n%s check_var fail 2!!! \n",info->fix.id);
+//		 printk("xoffset:%d>>xres:%d>>xres_vir:%d\n",var->xoffset,var->xres,info->var.xres_virtual);
+//		 printk("yoffset:%d>>yres:%d>>yres_vir:%d\n",var->yoffset,var->yres,info->var.yres_virtual);
+		 printk("xoffset:%d>>xres:%d>>xres_vir:%d\n",var->xoffset,var->xres,var->xres_virtual);
+		 printk("yoffset:%d>>yres:%d>>yres_vir:%d\n",var->yoffset,var->yres,var->yres_virtual);
 		 return -EINVAL;
 	 }
 
@@ -429,13 +492,11 @@ static int rk_fb_set_par(struct fb_info *info)
 	{
 		return  -ENODEV;
 	}
-	else
+	
+	par = dev_drv->layer_par[layer_id];
+	if(dev_drv1)
 	{
-		par = dev_drv->layer_par[layer_id];
-		if(dev_drv1)
-		{
-			par2 = dev_drv1->layer_par[layer_id];
-		}
+		par2 = dev_drv1->layer_par[layer_id];
 	}
 	
 	if(var->grayscale>>8)  //if the application has specific the horizontal and vertical display size
@@ -531,6 +592,9 @@ static int rk_fb_set_par(struct fb_info *info)
 	par->ypos = ypos;
 	par->xsize = xsize;
 	par->ysize = ysize;
+//IAM
+	par->scale_x = var->xres;
+	par->scale_y = var->yres;
 
 	par->smem_start =fix->smem_start;
 	par->cbr_start = fix->mmio_start;
@@ -888,11 +952,7 @@ static int rk_request_fb_buffer(struct fb_info *fbi,int fb_id)
 	struct rk_fb_inf *fb_inf = platform_get_drvdata(g_fb_pdev);
 	if (!strcmp(fbi->fix.id,"fb0"))
 	{
-#ifdef OLEGK0_CHANGED
-            		res = platform_get_resource_byname(g_fb_pdev, IORESOURCE_MEM, "ipp buf");
-#else
 		res = platform_get_resource_byname(g_fb_pdev, IORESOURCE_MEM, "fb0 buf");
-#endif
 		if (res == NULL)
 		{
 			dev_err(&g_fb_pdev->dev, "failed to get memory for fb0 \n");
@@ -905,13 +965,30 @@ static int rk_request_fb_buffer(struct fb_info *fbi,int fb_id)
 		memset(fbi->screen_base, 0, fbi->fix.smem_len);
 		printk("fb%d:phy:%lx>>vir:%p>>len:0x%x\n",fb_id,
 		fbi->fix.smem_start,fbi->screen_base,fbi->fix.smem_len);
-#ifdef OLEGK0_CHANGED
-		//Galland: next three lines copied to fb_id 0 from olegk0's fb_id 1
-		fbi->fix.mmio_len = (fbi->fix.smem_len >> 1)& ~7;
-		fbi->fix.mmio_start = fbi->fix.smem_start + fbi->fix.mmio_len;
-#endif
 	}
+//IAM
+#ifdef OLEGK0_CHANGED
+	else if (!strcmp(fbi->fix.id,"fb1")){
+		res = platform_get_resource_byname(g_fb_pdev, IORESOURCE_MEM, "ipp buf");
+	        if (res == NULL)
+	        {
+	        	dev_err(&g_fb_pdev->dev, "failed to get win1 ipp memory \n");
+	        	ret = -ENOENT;
+	        }
+		fbi->fix.smem_start = res->start;
+		fbi->fix.smem_len = res->end - res->start + 1;
+		mem = request_mem_region(res->start, resource_size(res), g_fb_pdev->name);
+		fbi->screen_base = ioremap(res->start, fbi->fix.smem_len);
+		memset(fbi->screen_base, 0, fbi->fix.smem_len);
+		printk("fb%d:phy:%lx>>vir:%p>>len:0x%x\n",fb_id,
+		fbi->fix.smem_start,fbi->screen_base,fbi->fix.smem_len);
+	        fbi->fix.mmio_len = (fbi->fix.smem_len >> 1)& ~7;
+	        fbi->fix.mmio_start = fbi->fix.smem_start + fbi->fix.mmio_len;
+	}
+	else if (!strcmp(fbi->fix.id,"fb2"))
+#else
 	else
+#endif
 	{	
 #if !defined(CONFIG_THREE_FB_BUFFER)
 		res = platform_get_resource_byname(g_fb_pdev, IORESOURCE_MEM, "fb2 buf");
@@ -943,7 +1020,7 @@ static int rk_release_fb_buffer(struct fb_info *fbi)
 		printk("no need release null fb buffer!\n");
 		return -EINVAL;
 	}
-	if(!strcmp(fbi->fix.id,"fb1")||!strcmp(fbi->fix.id,"fb3"))  //buffer for fb1 and fb3 are alloc by android
+	if(/*IAM!strcmp(fbi->fix.id,"fb1")||*/!strcmp(fbi->fix.id,"fb3"))  //buffer for fb1 and fb3 are alloc by android
 		return 0;
 	iounmap(fbi->screen_base);
 	release_mem_region(fbi->fix.smem_start,fbi->fix.smem_len);
@@ -1148,7 +1225,7 @@ int rk_fb_register(struct rk_lcdc_device_driver *dev_drv,
 		fbi->fbops			 = &fb_ops;
 		fbi->flags			 = FBINFO_FLAG_DEFAULT;
 		fbi->pseudo_palette  = fb_inf->lcdc_dev_drv[lcdc_id]->layer_par[i]->pseudo_pal;
-		if (i == 0) //only alloc memory for main fb
+//IAM		if (i == 0) //only alloc memory for main fb
 		{
 			rk_request_fb_buffer(fbi,fb_inf->num_fb);
 		}

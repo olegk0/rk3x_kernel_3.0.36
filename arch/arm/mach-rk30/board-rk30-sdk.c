@@ -79,18 +79,34 @@
 #include <linux/gps.h>
 #endif
 
-#ifdef  CONFIG_THREE_FB_BUFFER
-#define RK30_FB0_MEM_SIZE 12*SZ_1M
-#else
-#define RK30_FB0_MEM_SIZE 8*SZ_1M
-#endif
-
 #ifdef OLEGK0_CHANGED
+
+    #ifdef  CONFIG_THREE_FB_BUFFER
+	#ifdef CONFIG_BOX_FB_1080P
+		#define RK30_FB0_MEM_SIZE 24*SZ_1M
+	#else
+		#define RK30_FB0_MEM_SIZE 12*SZ_1M
+	#endif
+    #else
+//	#ifdef CONFIG_BOX_FB_1080P
+//		#define RK30_FB0_MEM_SIZE 16*SZ_1M //IAM 1920х1080*4byte(32bit)=8Mb
+//	#else
+		#define RK30_FB0_MEM_SIZE 8*SZ_1M
+//	#endif
+    #endif
+
    #ifdef CONFIG_BOX_FB_1080P
-      #define RK30_IPP_MEM_SIZE 32*SZ_1M //IAM
+      #define RK30_IPP_MEM_SIZE 16*SZ_1M //IAM
    #else
       #define RK30_IPP_MEM_SIZE 16*SZ_1M
    #endif
+#else
+    #ifdef  CONFIG_THREE_FB_BUFFER
+	#define RK30_FB0_MEM_SIZE 12*SZ_1M
+    #else
+	#define RK30_FB0_MEM_SIZE 8*SZ_1M
+    #endif
+    #define RK30_IPP_MEM_SIZE 16*SZ_1M
 #endif
 
 
@@ -1679,8 +1695,12 @@ static void __init rk30_reserve(void)
 	resource_fb[0].start = board_mem_reserve_add("fb0", RK30_FB0_MEM_SIZE);
 	resource_fb[0].end = resource_fb[0].start + RK30_FB0_MEM_SIZE - 1;
 #ifdef OLEGK0_CHANGED
-   resource_fb[1].start = board_mem_reserve_add("ipp buf", RK30_IPP_MEM_SIZE);
-   resource_fb[1].end = resource_fb[1].start + RK30_IPP_MEM_SIZE - 1;
+    resource_fb[1].start = board_mem_reserve_add("ipp buf", RK30_IPP_MEM_SIZE);
+    resource_fb[1].end = resource_fb[1].start + RK30_IPP_MEM_SIZE - 1;
+//IAM
+#define RK30_FB2_MEM_SIZE RK30_FB0_MEM_SIZE*2
+    resource_fb[2].start = board_mem_reserve_add("fb2", RK30_FB2_MEM_SIZE);
+    resource_fb[2].end = resource_fb[2].start + RK30_FB2_MEM_SIZE - 1;
 #else
 	#if 0
 	resource_fb[1].start = board_mem_reserve_add("ipp buf", RK30_FB0_MEM_SIZE);
