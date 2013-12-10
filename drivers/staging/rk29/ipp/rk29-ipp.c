@@ -124,7 +124,7 @@ static void ipp_soft_reset(void)
 		ERR("soft reset timeout.\n");
 }
 
-int ipp_do_blit(struct rk29_ipp_req *req)
+int ipp_do_blit(const struct rk29_ipp_req *req)
 {
 	uint32_t rotate;
 	uint32_t pre_scale 	= 0;
@@ -915,23 +915,29 @@ static struct platform_driver rk29_ipp_driver = {
 	},
 };
 
+static int (*old_ipp_blit_sync)(const struct rk29_ipp_req *req);
+
 static int __init rk29_ipp_init(void)
 {
 	int ret;
 
 //	if ((ret = platform_driver_register(&rk29_ipp_driver)) != 0)
 	if ((ret = platform_driver_probe(&rk29_ipp_driver, ipp_drv_probe)) != 0)
-		{
-			ERR("Platform device register failed (%d).\n", ret);
-			return ret;
-		}
+    {
+        ERR("Platform device register failed (%d).\n", ret);
+        return ret;
+    }
 
-		INFO("Module initialized.\n");
-		return 0;
+	old_ipp_blit_sync = ipp_blit_sync;
+	ipp_blit_sync = stretch_blit;
+
+	INFO("Module initialized.\n");
+    return 0;
 }
 
 static void __exit rk29_ipp_exit(void)
 {
+    ipp_blit_sync = old_ipp_blit_sync;
 	platform_driver_unregister(&rk29_ipp_driver);
 }
 

@@ -32,7 +32,7 @@ static int _disp_get_ump_secure_id(struct fb_info *info, unsigned long arg, int 
     int buf_len = FB_MAXPGSIZE;
 //    int bpp = (info->var.bits_per_pixel >> 3); //bytes per pixel
 //    int buf_len = info->var.xres * info->var.yres * bpp;
-    u32 uoffs = 0;
+//    u32 uoffs = 0;
     ump_secure_id secure_id;
     struct rk_fb_inf *g_fbi = dev_get_drvdata(info->device);
 //Galland substituted for 2 lines below: int layer_id = get_fb_layer_id(&info->fix);
@@ -51,7 +51,6 @@ static int _disp_get_ump_secure_id(struct fb_info *info, unsigned long arg, int 
 	ump_memory_description.size = buf_len;
 	if (nbuf > 0) {
 	    ump_memory_description.addr += (buf_len * nbuf);
-//		    ump_memory_description.size = buf_len;
         }
 
 //printk("\nUMP: nbuf:%d, addr:%X, size:%X\n",nbuf, ump_memory_description.addr,ump_memory_description.size);

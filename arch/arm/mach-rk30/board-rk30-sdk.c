@@ -96,9 +96,9 @@
     #endif
 
    #ifdef CONFIG_BOX_FB_1080P
-      #define RK30_IPP_MEM_SIZE 16*SZ_1M //IAM
+      #define RK30_IPP_MEM_SIZE 32*SZ_1M //IAM
    #else
-      #define RK30_IPP_MEM_SIZE 16*SZ_1M
+      #define RK30_IPP_MEM_SIZE 32*SZ_1M
    #endif
 #else
     #ifdef  CONFIG_THREE_FB_BUFFER
@@ -1691,16 +1691,16 @@ static void __init rk30_reserve(void)
 #ifdef CONFIG_ION
 	rk30_ion_pdata.heaps[0].base = board_mem_reserve_add("ion", ION_RESERVE_SIZE);
 #endif
+
 #ifdef CONFIG_FB_ROCKCHIP
 	resource_fb[0].start = board_mem_reserve_add("fb0", RK30_FB0_MEM_SIZE);
 	resource_fb[0].end = resource_fb[0].start + RK30_FB0_MEM_SIZE - 1;
 #ifdef OLEGK0_CHANGED
+//IAM
     resource_fb[1].start = board_mem_reserve_add("ipp buf", RK30_IPP_MEM_SIZE);
     resource_fb[1].end = resource_fb[1].start + RK30_IPP_MEM_SIZE - 1;
-//IAM
-#define RK30_FB2_MEM_SIZE RK30_FB0_MEM_SIZE*2
-    resource_fb[2].start = board_mem_reserve_add("fb2", RK30_FB2_MEM_SIZE);
-    resource_fb[2].end = resource_fb[2].start + RK30_FB2_MEM_SIZE - 1;
+//    resource_fb[2].start = board_mem_reserve_add("fb2", RK30_FB0_MEM_SIZE);
+//    resource_fb[2].end = resource_fb[2].start + RK30_FB0_MEM_SIZE - 1;
 #else
 	#if 0
 	resource_fb[1].start = board_mem_reserve_add("ipp buf", RK30_FB0_MEM_SIZE);

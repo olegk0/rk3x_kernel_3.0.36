@@ -261,7 +261,7 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
  		case FBIOPUT_FBPHYADD:
 			return info->fix.smem_start;
 		case FBIOSET_YUV_ADDR: //when in video mode, buff alloc by android
-			if((!strcmp(fix->id,"fb1"))||(!strcmp(fix->id,"fb3")))//when in video mode, buff alloc by android
+			if((!strcmp(fix->id,"fb1"))||(!strcmp(fix->id,"fb2")))//when in video mode, buff alloc by android
 			{
 				if (copy_from_user(yuv_phy, argp, 8))
 					return -EFAULT;
@@ -299,7 +299,7 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 		    dev_drv->set_par(dev_drv,layer_id);
 		    return 0;
 		    break;
-		case FBIOSET_FBMEM_OFFSET:   //IAM offset fb buf memory
+		case FBIOSET_FBMEM_OFFS_SYNC:   //IAM offset fb buf memory with wait sync
 		    if(fix->id[2] == '0') //fb'0' - not change
     			return -EPERM;
 		    if (copy_from_user(yuv_phy, argp, 8))
@@ -352,9 +352,14 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 			printk("rk fb use %d buffers\n",num_buf);
 			break;
 #ifdef CONFIG_MALI	/*//IAM*/
+		case GET_UMP_SECURE_ID_BUFn:
+			if (copy_from_user(&secure_id_buf_num, argp, sizeof(secure_id_buf_num)))
+				return -EFAULT;
+			goto getump;
 		case GET_UMP_SECURE_ID_BUF2:/* flow trough */
 			secure_id_buf_num++;
 		case GET_UMP_SECURE_ID_BUF1:
+getump:
 			{
 			    if (!disp_get_ump_secure_id)
 				request_module("disp_ump");
@@ -964,7 +969,7 @@ static int rk_request_fb_buffer(struct fb_info *fbi,int fb_id)
 		fbi->screen_base = ioremap(res->start, fbi->fix.smem_len);
 		memset(fbi->screen_base, 0, fbi->fix.smem_len);
 		printk("fb%d:phy:%lx>>vir:%p>>len:0x%x\n",fb_id,
-		fbi->fix.smem_start,fbi->screen_base,fbi->fix.smem_len);
+		    fbi->fix.smem_start,fbi->screen_base,fbi->fix.smem_len);
 	}
 //IAM
 #ifdef OLEGK0_CHANGED
@@ -972,7 +977,7 @@ static int rk_request_fb_buffer(struct fb_info *fbi,int fb_id)
 		res = platform_get_resource_byname(g_fb_pdev, IORESOURCE_MEM, "ipp buf");
 	        if (res == NULL)
 	        {
-	        	dev_err(&g_fb_pdev->dev, "failed to get win1 ipp memory \n");
+	        	dev_err(&g_fb_pdev->dev, "failed to get memory for fb1 \n");
 	        	ret = -ENOENT;
 	        }
 		fbi->fix.smem_start = res->start;
@@ -981,20 +986,21 @@ static int rk_request_fb_buffer(struct fb_info *fbi,int fb_id)
 		fbi->screen_base = ioremap(res->start, fbi->fix.smem_len);
 		memset(fbi->screen_base, 0, fbi->fix.smem_len);
 		printk("fb%d:phy:%lx>>vir:%p>>len:0x%x\n",fb_id,
-		fbi->fix.smem_start,fbi->screen_base,fbi->fix.smem_len);
-	        fbi->fix.mmio_len = (fbi->fix.smem_len >> 1)& ~7;
-	        fbi->fix.mmio_start = fbi->fix.smem_start + fbi->fix.mmio_len;
+		    fbi->fix.smem_start,fbi->screen_base,fbi->fix.smem_len);
+//	        fbi->fix.mmio_len = (fbi->fix.smem_len >> 1)& ~7;
+//	        fbi->fix.mmio_start = fbi->fix.smem_start + fbi->fix.mmio_len;
 	}
 	else if (!strcmp(fbi->fix.id,"fb2"))
 #else
 	else
 #endif
 	{	
+/*IAM
 #if !defined(CONFIG_THREE_FB_BUFFER)
 		res = platform_get_resource_byname(g_fb_pdev, IORESOURCE_MEM, "fb2 buf");
 		if (res == NULL)
 		{
-			dev_err(&g_fb_pdev->dev, "failed to get win0 memory \n");
+			dev_err(&g_fb_pdev->dev, "failed to get memory for fb2 \n");
 			ret = -ENOENT;
 		}
 		fbi->fix.smem_start = res->start;
@@ -1007,8 +1013,14 @@ static int rk_request_fb_buffer(struct fb_info *fbi,int fb_id)
 		fbi->fix.smem_len   = fb_inf->fb[0]->fix.smem_len;
 		fbi->screen_base    = fb_inf->fb[0]->screen_base;
 #endif
-		printk("fb%d:phy:%lx>>vir:%p>>len:0x%x\n",fb_id,
-			fbi->fix.smem_start,fbi->screen_base,fbi->fix.smem_len);	
+*/
+		fbi->fix.smem_start = fb_inf->fb[1]->fix.smem_start+fb_inf->fb[1]->fix.smem_len-(FB_MAXPGSIZE*2);
+		fbi->fix.smem_len   = FB_MAXPGSIZE;
+		printk("fb%d:phy:%p>>len:0x%x\n",fb_id,
+			fbi->fix.smem_start,fbi->fix.smem_len);	
+
+//		printk("fb%d:phy:%lx>>vir:%p>>len:0x%x\n",fb_id,
+//			fbi->fix.smem_start,fbi->screen_base,fbi->fix.smem_len);	
 	}
     return ret;
 }

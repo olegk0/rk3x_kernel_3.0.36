@@ -1314,7 +1314,7 @@ static int rk30_fb_layer_remap(struct rk_lcdc_device_driver *dev_drv,
        if(order == FB_DEFAULT_ORDER )
 	{
 //IAM		order = FB0_WIN1_FB1_WIN0_FB2_WIN2;
-		order = 12;
+		order = FB0_WIN0_FB1_WIN1_FB2_WIN2;
 	}
 
        dev_drv->fb2_win_id  = order/100;
