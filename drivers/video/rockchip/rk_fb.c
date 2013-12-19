@@ -296,31 +296,49 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 //		    }
 //		    else
 //			ret = -EINVAL;
-		    dev_drv->set_par(dev_drv,layer_id);
-		    return 0;
+		    return dev_drv->set_par(dev_drv,layer_id);
 		    break;
 		case FBIOSET_FBMEM_OFFS_SYNC:   //IAM offset fb buf memory with wait sync
-		    if(fix->id[2] == '0') //fb'0' - not change
-    			return -EPERM;
 		    if (copy_from_user(yuv_phy, argp, 8))
 			return -EFAULT;
-		    if (yuv_phy[0]>FB_MAXPGSIZE)
+/*TODO		    if (yuv_phy[0]>FB_MAXPGSIZE)
 			return -EINVAL;
 		    if (yuv_phy[1]>FB_MAXPGSIZE)
-			return -EINVAL;
-		    par->smem_start = info->fix.smem_start + yuv_phy[0];  //four y
-    		    if(fix->id[2] == '1') //fb'1'
-			par->cbr_start = info->fix.mmio_start + yuv_phy[1];  //four uv
+			return -EINVAL;*/
+		    if(fix->id[2] != '0'){ //fb'0' - not change
+			par->smem_start = info->fix.smem_start + yuv_phy[0];  //four y
+    			if(fix->id[2] == '1') //fb'1'
+			    par->cbr_start = info->fix.mmio_start + yuv_phy[1];  //four uv
+		    }
 		    dev_drv->pan_display(dev_drv,layer_id);
 		    return par->smem_start; // for check
+		    break;
+		case FBIOSET_COLORKEY:
+		    if (get_user(tmp, (__u32 __user *)arg)) {
+			return -EFAULT;
+			break;
+		    }
+		    par->color_key = tmp;
+		    return dev_drv->set_par(dev_drv,layer_id);
+		    break;
+		case FBIO_WAITFORVSYNC:
+		    if (get_user(tmp, (__u32 __user *)arg)) {
+			return -EFAULT;
+			break;
+		    }
+		    if (tmp != 0) {
+			return -ENODEV;
+			break;
+		    }
+		    return dev_drv->pan_display(dev_drv,100);//fake layer
 		    break;
 		case FBIOSET_FBMEM_CLR: // offset , len
 		    if (copy_from_user(yuv_phy, argp, 8))
 		    	return -EFAULT;
 		    tmp = yuv_phy[0] + yuv_phy[1];
-		    if(fix->id[2] == '0' && tmp > FB_MAXPGSIZE)
-		    	return -EINVAL;
-    		    if(tmp > (FB_MAXPGSIZE*2))
+//		    if(fix->id[2] == '0' && tmp > FB_MAXPGSIZE)
+//		    	return -EINVAL;
+    		    if(tmp > info->fix.smem_len)
 		    	return -EINVAL;
     		    memset(info->screen_base+yuv_phy[0], 0, yuv_phy[1]);
 		    break;
@@ -557,14 +575,14 @@ static int rk_fb_set_par(struct fb_info *info)
 			cblen = crlen = (xvir*yvir)>>1;
 			par->y_offset = yoffset*xvir + xoffset;
 			par->c_offset = par->y_offset;
-		    	break;
+			break;
 		case HAL_PIXEL_FORMAT_YCrCb_NV12   : // YUV420---uvuvuv
 			par->format = YUV420;
 			fix->line_length = xvir;
 			cblen = crlen = (xvir*yvir)>>2;
 			par->y_offset = yoffset*xvir + xoffset;
 			par->c_offset = (yoffset>>1)*xvir + xoffset;
-		    	break;
+			break;
 		case HAL_PIXEL_FORMAT_YCrCb_444 : // yuv444
 			par->format = 5;
 			fix->line_length = xvir<<2;
@@ -1014,7 +1032,7 @@ static int rk_request_fb_buffer(struct fb_info *fbi,int fb_id)
 		fbi->screen_base    = fb_inf->fb[0]->screen_base;
 #endif
 */
-		fbi->fix.smem_start = fb_inf->fb[1]->fix.smem_start+fb_inf->fb[1]->fix.smem_len-(FB_MAXPGSIZE*2);
+		fbi->fix.smem_start = fb_inf->fb[1]->fix.smem_start+FB_MAXPGSIZE;
 		fbi->fix.smem_len   = FB_MAXPGSIZE;
 		printk("fb%d:phy:%p>>len:0x%x\n",fb_id,
 			fbi->fix.smem_start,fbi->fix.smem_len);	
@@ -1059,6 +1077,8 @@ static int init_layer_par(struct rk_lcdc_device_driver *dev_drv)
                par->id = def_par->id;
                par->support_3d = def_par->support_3d;
                dev_drv->layer_par[i] = par;
+//IAM
+               par->color_key = 0;
        }
                
        return 0;

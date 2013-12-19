@@ -53,7 +53,7 @@ static int _disp_get_ump_secure_id(struct fb_info *info, unsigned long arg, int 
 	    ump_memory_description.addr += (buf_len * nbuf);
         }
 
-//printk("\nUMP: nbuf:%d, addr:%X, size:%X\n",nbuf, ump_memory_description.addr,ump_memory_description.size);
+	printk("\nUMP: nbuf:%d, addr:%X, size:%X\n",nbuf, ump_memory_description.addr,ump_memory_description.size);
 	g_fbi->ump_wrapped_buffer[layer_id][nbuf] =
 	    ump_dd_handle_create_from_phys_blocks(&ump_memory_description, 1);
     }

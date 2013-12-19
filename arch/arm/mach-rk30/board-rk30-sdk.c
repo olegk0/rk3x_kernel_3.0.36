@@ -88,18 +88,18 @@
 		#define RK30_FB0_MEM_SIZE 12*SZ_1M
 	#endif
     #else
-//	#ifdef CONFIG_BOX_FB_1080P
-//		#define RK30_FB0_MEM_SIZE 16*SZ_1M //IAM 1920х1080*4byte(32bit)=8Mb
-//	#else
-		#define RK30_FB0_MEM_SIZE 8*SZ_1M
-//	#endif
+	#ifdef CONFIG_BOX_FB_1080P
+		#define RK30_FB0_MEM_SIZE 8*SZ_1M //IAM 1920х1080*4byte(32bit)=8Mb
+	#else
+		#define RK30_FB0_MEM_SIZE 4*SZ_1M
+	#endif
     #endif
 
-   #ifdef CONFIG_BOX_FB_1080P
-      #define RK30_IPP_MEM_SIZE 32*SZ_1M //IAM
-   #else
-      #define RK30_IPP_MEM_SIZE 32*SZ_1M
-   #endif
+//   #ifdef CONFIG_BOX_FB_1080P
+      #define RK30_IPP_MEM_SIZE RK30_FB0_MEM_SIZE*4 //IAM
+//   #else
+//      #define RK30_IPP_MEM_SIZE 32*SZ_1M
+//   #endif
 #else
     #ifdef  CONFIG_THREE_FB_BUFFER
 	#define RK30_FB0_MEM_SIZE 12*SZ_1M

@@ -53,14 +53,18 @@
 #define FBIOGET_ENABLE			0x5020
 
 #ifdef OLEGK0_CHANGED
-   #define FBIOPUT_SET_COLORKEY		0x5010 //IAM
+   #define FBIOSET_COLORKEY		0x5010 //IAM
    #define FBIOSET_DISP_PSET		0x5011 //IAM
    #define FBIOSET_FBMEM_OFFS_SYNC	0x5012 //IAM
    #define FBIOSET_FBMEM_CLR		0x5013 //IAM
    #define GET_UMP_SECURE_ID_BUF1 _IOWR('m', 310, unsigned int)
    #define GET_UMP_SECURE_ID_BUF2 _IOWR('m', 311, unsigned int) 
    #define GET_UMP_SECURE_ID_BUFn _IOWR('m', 312, unsigned int) 
+#ifdef CONFIG_BOX_FB_1080P
    #define FB_MAXPGSIZE 1920*1080*4
+#else
+   #define FB_MAXPGSIZE 1280*720*4
+#endif
 #endif
 
 /********************************************************************
@@ -189,6 +193,7 @@ struct layer_par {
 //IAM
     int scale_x;
     int scale_y;
+    u32 color_key;
     
     u32	pseudo_pal[16];
     u32 y_offset;       //yuv/rgb offset  -->LCDC_WINx_YRGB_MSTx
