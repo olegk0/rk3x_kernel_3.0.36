@@ -54,9 +54,10 @@
 
 #ifdef OLEGK0_CHANGED
    #define FBIOSET_COLORKEY		0x5010 //IAM
-   #define FBIOSET_DISP_PSET		0x5011 //IAM
-   #define FBIOSET_FBMEM_OFFS_SYNC	0x5012 //IAM
-   #define FBIOSET_FBMEM_CLR		0x5013 //IAM
+   #define FBIOSET_DISP_PSET		0x5011
+   #define FBIOSET_FBMEM_OFFS_SYNC	0x5012
+   #define FBIOSET_FBMEM_CLR		0x5013
+   #define FBIOSET_HDMI_MODE		0x5014
    #define GET_UMP_SECURE_ID_BUF1 _IOWR('m', 310, unsigned int)
    #define GET_UMP_SECURE_ID_BUF2 _IOWR('m', 311, unsigned int) 
    #define GET_UMP_SECURE_ID_BUFn _IOWR('m', 312, unsigned int) 

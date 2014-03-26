@@ -313,6 +313,13 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 		    dev_drv->pan_display(dev_drv,layer_id);
 		    return par->smem_start; // for check
 		    break;
+		case FBIOSET_HDMI_MODE:
+		    if (get_user(tmp, (__u32 __user *)arg)) {
+			return -EFAULT;
+			break;
+		    }
+		    return hdmi_setmode(tmp);
+		    break;
 		case FBIOSET_COLORKEY:
 		    if (get_user(tmp, (__u32 __user *)arg)) {
 			return -EFAULT;

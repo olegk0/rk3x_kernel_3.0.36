@@ -1,1 +1,1 @@
-make ARCH=arm CROSS_COMPILE=arm-linux-gnueabi- $1
+make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- $1

@@ -19,7 +19,7 @@
 #include <linux/rk_fb.h>
 
 /* default HDMI output video mode */
-#define HDMI_VIDEO_DEFAULT_MODE		HDMI_1920x1080p_60Hz //	HDMI_1280x720p_60Hz//
+#define HDMI_VIDEO_DEFAULT_MODE		HDMI_1280x720p_60Hz//HDMI_1920x1080p_60Hz
 
 // HDMI video source
 enum {
@@ -321,6 +321,7 @@ struct hdmi {
 
 extern struct hdmi *hdmi;
 extern int hdmi_get_hotplug(void);
+extern int hdmi_setmode(int vic);//IAM
 extern int hdmi_set_info(struct rk29fb_screen *screen, unsigned int vic);
 extern void hdmi_init_lcdc(struct rk29fb_screen *screen, struct rk29lcd_info *lcd_info);
 extern int hdmi_sys_init(void);
