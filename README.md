@@ -1,6 +1,6 @@
 Linux kernel for mk808 on the Rockchip RK3066 SoC
 
-Experimental version
+Experimental version based on Galland/rk3x_kernel_3.0.36
 
 Mali driver updated to r3p2-01rel2
 
