@@ -4,9 +4,9 @@ Experimental version based on <a href="https://github.com/radxa/linux-rockchip">
 Mali driver r3p2-01rel2
 <br>...<br>
 Binary kernel file <a href="later">here</a>
-<hr>
+
 Related files
-<br>
+<hr>
 Sources:
 <br>
 <a href="https://github.com/olegk0/xf86-video-fbdev">Video driver  version 8</a>
