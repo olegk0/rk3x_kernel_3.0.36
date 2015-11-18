@@ -4,7 +4,7 @@ Experimental version based on <a href="https://github.com/radxa/linux-rockchip">
 Mali driver r3p2-01rel2
 <br>...<br>
 Binary kernel file <a href="later">here</a>
-
+<br>...<br>
 <b>Related files</b>
 <hr>
 Sources:
