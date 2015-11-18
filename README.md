@@ -1,11 +1,11 @@
-Linux kernel for mk808 on the Rockchip RK3066 SoC<hr>
+<b>Linux kernel for mk808 on the Rockchip RK3066 SoC</b><hr>
 Experimental version based on <a href="https://github.com/radxa/linux-rockchip">radxa stable-3.0</a>
 <br>...<br>
 Mali driver r3p2-01rel2
 <br>...<br>
 Binary kernel file <a href="later">here</a>
 
-Related files
+<b>Related files</b>
 <hr>
 Sources:
 <br>
