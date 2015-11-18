@@ -13,7 +13,7 @@ https://drive.google.com/folderview?id=0B6QRwjacGTzCU3RWZ1M2d1FkcTg&usp=sharing
 Related files
 Sources:
 
-Video driver https://github.com/olegk0/xf86-video-fbdev
+Video driver https://github.com/olegk0/xf86-video-fbdev version 6
 
 Mali libs https://github.com/linux-sunxi/sunxi-mali-proprietary/tree/master/r3p2-01rel1/armhf/x11
 

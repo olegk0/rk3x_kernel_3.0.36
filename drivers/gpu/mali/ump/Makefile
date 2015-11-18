@@ -10,6 +10,9 @@
 
 # For each arch check: CROSS_COMPILE , KDIR , CFLAGS += -DARCH
 
+KDIR:=/usr/src/arm/rk/rk3x_kernel_3.0.36
+CONFIG:=pb-rk30-m400-4
+
 export ARCH ?= arm
 BUILD ?= debug
 
