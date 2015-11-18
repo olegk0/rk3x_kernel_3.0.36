@@ -21,7 +21,17 @@ MALI_PP_SCHEDULER_KEEP_SUB_JOB_STARTS_ALIGNED ?= 0
 MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP_BETWEEN_APPS ?= 0
 MALI_UPPER_HALF_SCHEDULING ?= 1
 
-MALI_PLATFORM_FILES ?= platform/arm/arm.c
+ifeq ($(TARGET_PLATFORM),)
+$(warning "Invalid TARGET_PLATFORM")
+endif
+ifeq ($(MALI_PLATFORM),)
+$(warning "Invalid MALI_PLATFORM")
+endif
+
+EXTRA_DEFINES += -DMALI_FAKE_PLATFORM_DEVICE=1
+MALI_PLATFORM_FILES = platform/$(MALI_PLATFORM)/$(TARGET_PLATFORM).c
+
+$(warning Build for:$(MALI_PLATFORM)-$(TARGET_PLATFORM))
 
 # For customer releases the Linux Device Drivers will be provided as ARM proprietary and GPL releases:
 # The ARM proprietary product will only include the license/proprietary directory
@@ -115,13 +125,6 @@ mali-$(CONFIG_SYNC) += linux/mali_sync.o linux/mali_sync_user.o
 
 # Tell the Linux build system from which .o file to create the kernel module
 obj-$(CONFIG_MALI400) := mali.o
-#IAM
-export EXTRA_DEFINES += -DMALI_FAKE_PLATFORM_DEVICE=1
-export EXTRA_DEFINES += -DMALI_POWER_MGMT_TEST_SUITE=1
-export EXTRA_DEFINES += -DCONFIG_MALI400_UMP=1
-export EXTRA_DEFINES += -DUSING_MALI_PMM=1
-# export EXTRA_DEFINES += -DMALI_CFG_REGULATOR=0
-export EXTRA_DEFINES += -DMALI_VOLTAGE_LOCK=0
 
 ccflags-y += $(EXTRA_DEFINES)
 

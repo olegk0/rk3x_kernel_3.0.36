@@ -43,6 +43,13 @@
 
 #include "fiq_debugger_ringbuf.h"
 
+#ifdef CONFIG_RK29_WATCHDOG
+extern void rk29_wdt_keepalive(void);
+#define wdt_keepalive() rk29_wdt_keepalive()
+#else
+#define wdt_keepalive() do {} while (0)
+#endif
+
 #define DEBUG_MAX 64
 #define CMD_COUNT 0x0f
 #define MAX_UNHANDLED_FIQ_COUNT 1000000
@@ -210,6 +217,7 @@ static void dump_kernel_log(struct fiq_debugger_state *state)
 	saved_oip = oops_in_progress;
 	oops_in_progress = 1;
 	for (;;) {
+		wdt_keepalive();
 		ret = log_buf_copy(buf, idx, 1023);
 		if (ret <= 0)
 			break;
@@ -219,6 +227,28 @@ static void dump_kernel_log(struct fiq_debugger_state *state)
 	}
 	oops_in_progress = saved_oip;
 }
+
+#ifdef CONFIG_RK29_LAST_LOG
+#include <linux/ctype.h>
+extern char *last_log_get(unsigned *size);
+static void dump_last_kernel_log(struct fiq_debugger_state *state)
+{
+	unsigned size, i, c;
+	char *s = last_log_get(&size);
+
+	for (i = 0; i < size; i++) {
+		if (i % 1024 == 0)
+			wdt_keepalive();
+		c = s[i];
+		if (c == '\n') {
+			state->pdata->uart_putc(state->pdev, '\r');
+			state->pdata->uart_putc(state->pdev, c);
+		} else if (isascii(c) && isprint(c)) {
+			state->pdata->uart_putc(state->pdev, c);
+		}
+	}
+}
+#endif
 
 static char *mode_name(unsigned cpsr)
 {
@@ -581,6 +611,9 @@ static char cmd_buf[][16] = {
 		{"reboot"},
 		{"irqs"},
 		{"kmsg"},
+#ifdef CONFIG_RK29_LAST_LOG
+		{"last_kmsg"},
+#endif
 		{"version"},
 		{"sleep"},
 		{"nosleep"},
@@ -601,6 +634,9 @@ static void debug_help(struct fiq_debugger_state *state)
 				" irqs          Interupt status\n"
 				" kmsg          Kernel log\n"
 				" version       Kernel version\n");
+#ifdef CONFIG_RK29_LAST_LOG
+	debug_printf(state,	" last_kmsg     Last kernel log\n");
+#endif
 	debug_printf(state,	" sleep         Allow sleep while in FIQ\n"
 				" nosleep       Disable sleep while in FIQ\n"
 				" console       Switch terminal to console\n"
@@ -669,6 +705,10 @@ static bool debug_fiq_exec(struct fiq_debugger_state *state,
 		dump_irqs(state);
 	} else if (!strcmp(cmd, "kmsg")) {
 		dump_kernel_log(state);
+#ifdef CONFIG_RK29_LAST_LOG
+	} else if (!strcmp(cmd, "last_kmsg")) {
+		dump_last_kernel_log(state);
+#endif
 	} else if (!strcmp(cmd, "version")) {
 		debug_printf(state, "%s\n", linux_banner);
 	} else if (!strcmp(cmd, "sleep")) {
@@ -1015,6 +1055,21 @@ static void debug_fiq(struct fiq_glue_handler *h, void *regs, void *svc_sp)
 	unsigned int this_cpu = THREAD_INFO(svc_sp)->cpu;
 	bool need_irq;
 
+	/* RK2928 USB-UART function, otg dp/dm default in uart status;
+	 * connect with otg cable&usb device, dp/dm will be hi-z status 
+	 * and make uart controller enter infinite fiq loop 
+	 */
+#ifdef CONFIG_RK_USB_UART
+#ifdef CONFIG_ARCH_RK2928
+	if(!(readl_relaxed(RK2928_GRF_BASE + 0x014c) & (1<<10))){//id low          
+		writel_relaxed(0x34000000, RK2928_GRF_BASE + 0x190);   //enter usb phy    
+	}
+#elif defined(CONFIG_ARCH_RK3188)
+	if(!(readl_relaxed(RK30_GRF_BASE + 0x00ac) & (1 << 13))){//id low          
+		writel_relaxed((0x0300 << 16), RK30_GRF_BASE + 0x010c);   //enter usb phy    
+	}
+#endif
+#endif
 	need_irq = debug_handle_uart_interrupt(state, this_cpu, regs, svc_sp);
 	if (need_irq)
 		debug_force_irq(state);

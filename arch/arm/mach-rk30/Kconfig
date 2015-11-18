@@ -1,18 +1,23 @@
-if ARCH_RK30
-
 config ARCH_RK30XX
+	depends on ARCH_RK30
 	bool
 
 config ARCH_RK3066B
+	depends on ARCH_RK30
 	bool
 
 choice
 	prompt "Rockchip SoC Type"
+	depends on ARCH_RK30
 	default SOC_RK3066
 
 config SOC_RK3000
 	bool "RK3000"
 	select ARCH_RK30XX
+
+config SOC_RK3028
+	bool "RK3028"
+	select ARCH_RK3066B
 
 config SOC_RK3066
 	bool "RK3066"
@@ -25,54 +30,70 @@ config SOC_RK3068
 config SOC_RK3066B
 	bool "RK3066B"
 	select ARCH_RK3066B
+	select USB_ARCH_HAS_EHCI
 
 config SOC_RK3108
 	bool "RK3108"
 	select ARCH_RK3066B
+	select USB_ARCH_HAS_EHCI
+
+config SOC_RK3168
+	bool "RK3168"
+	select ARCH_RK3066B
+	select USB_ARCH_HAS_EHCI
+
+config SOC_RK3168M
+	bool "RK3168M"
+	select ARCH_RK3066B
+	select USB_ARCH_HAS_EHCI
 
 endchoice
 
-if ARCH_RK30XX
+config IAM_CHANGES
+	bool
 
 choice
 	prompt "RK30xx Board Type"
+	depends on ARCH_RK30XX
 	default MACH_RK30_SDK
 
 config MACH_RK30_SDK
 	bool "RK30 SDK board"
+	
+config MACH_RK30_DS975
+	bool "RK30 DS975 board"
 
 config MACH_RK3066_SDK
 	bool "RK3066 SDK board"
 
 config MACH_RK30_DS1001B
         bool "RK30 DS1001B board"
-
-config MACH_RK30_PHONE_PAD
-        bool "RK30 smart phone pad board"
-        
+     
 config MACH_RK30_PHONE
 	bool "RK30 smart phone board"
+	
+config MACH_RK30_BOX_MK808
+	bool "MK808"
+	select HAVE_PWM
+	select LEDS_CLASS
+	select NEW_LEDS
+	select LEDS_PWM
+	select IAM_CHANGES
 
 config MACH_RK30_PHONE_LOQUAT
 	bool "RK30 smart phone loquat board"
 
 config MACH_RK30_PHONE_A22
         bool "RK30 smart phone a22 board"
-
-config MACH_PIPO_M3
-	bool "Pipo M3 MID device"
 	
-config MACH_RK30_CUBE_U30GT
-        bool "Cube U30GT MID"
-	
-config MACH_ODYS_GENIO
-        bool "Odys Genio MID device"
+config MACH_RK30_PHONE_PAD
+        bool "RK30 phone pad board"
 	
 endchoice
 
-if MACH_RK30_PHONE_PAD
 choice
 	prompt "RK30 phone pad board type"
+	depends on MACH_RK30_PHONE_PAD
 	default MACH_RK30_PHONE_PAD_DS763
 
 	config MACH_RK30_PHONE_PAD_DS763
@@ -82,13 +103,21 @@ choice
 	bool "c8003"
 
 endchoice
-endif
 
-endif
+choice
+	prompt "RK3028 Board Type"
+	depends on SOC_RK3028
 
-if SOC_RK3066B
+config MACH_RK3028_TB
+	bool "RK3028 Top Board"
+
+config MACH_RK3028_86V
+        bool "RK3028 86V Board"
+endchoice
+
 choice
 	prompt "RK3066B Board Type"
+	depends on SOC_RK3066B
 
 config MACH_RK3066B_FPGA
 	bool "RK3066B FPGA board"
@@ -101,16 +130,46 @@ config MACH_RK3066B_M701
 	bool "RK3066B M701 board"
 
 endchoice
-endif
 
-if SOC_RK3108
 choice
 	prompt "RK3108 Board Type"
+	depends on SOC_RK3108
 
 config MACH_RK3108_TB
 	bool "RK3108 Top Board"
 
 endchoice
-endif
 
-endif
+choice
+	prompt "RK3168 Board Type"
+	depends on SOC_RK3168
+
+config MACH_RK3168_TB
+	bool "RK3168 Top Board"
+
+config MACH_RK3168_LR097
+	bool "RK3168 LR097 JC21CA board"
+
+config MACH_RK3168_DS1006H
+	bool "RK3168 DS1006h Board"
+
+config MACH_RK3168_86V
+	bool "RK3168 86V Board"
+
+config MACH_RK3168_86V_OLD
+        bool "RK3168 86V  Old Board"
+        
+config MACH_RK3168_FAC
+        bool "RK3168 Board for factory"
+        select MACH_RK_FAC
+
+endchoice
+
+choice
+	prompt "RK3168M Board Type"
+	depends on SOC_RK3168M
+
+config MACH_RK3168M_TB
+	bool "RK3168M Top Board"
+
+endchoice

@@ -3,7 +3,19 @@
 #include "rk_hdmi.h"
 
 #ifdef CONFIG_RK_HDMI_CTL_CODEC
-extern void codec_set_spk(bool on);
+#ifdef CONFIG_MACH_RK_FAC
+	#ifdef CONFIG_SND_RK29_SOC_ES8323
+		extern void es8323_codec_set_spk(bool on);
+	#endif
+	#ifdef CONFIG_SND_RK29_SOC_RT5616
+		extern void rt5616_codec_set_spk(bool on);
+	#endif
+	#ifdef CONFIG_SND_RK_SOC_RK616
+		extern void rk616_codec_set_spk(bool on);
+	#endif
+#else
+	extern void codec_set_spk(bool on);
+#endif  
 #endif
 
 #define HDMI_MAX_TRY_TIMES	1
@@ -16,34 +28,34 @@ static void hdmi_sys_show_state(int state)
 	switch(state)
 	{
 		case HDMI_SLEEP:
-			dev_printk(KERN_INFO, hdmi->dev, "HDMI_SLEEP\n");
+			hdmi_dbg(hdmi->dev, "HDMI_SLEEP\n");
 			break;
 		case HDMI_INITIAL:
-			dev_printk(KERN_INFO, hdmi->dev, "HDMI_INITIAL\n");
+			hdmi_dbg(hdmi->dev, "HDMI_INITIAL\n");
 			break;
 		case WAIT_HOTPLUG:
-			dev_printk(KERN_INFO, hdmi->dev, "WAIT_HOTPLUG\n");
+			hdmi_dbg(hdmi->dev, "WAIT_HOTPLUG\n");
 			break;
 		case READ_PARSE_EDID:
-			dev_printk(KERN_INFO, hdmi->dev, "READ_PARSE_EDID\n");
+			hdmi_dbg(hdmi->dev, "READ_PARSE_EDID\n");
 			break;
 		case WAIT_HDMI_ENABLE:
-			dev_printk(KERN_INFO, hdmi->dev, "WAIT_HDMI_ENABLE\n");
+			hdmi_dbg(hdmi->dev, "WAIT_HDMI_ENABLE\n");
 			break;
 		case SYSTEM_CONFIG:
-			dev_printk(KERN_INFO, hdmi->dev, "SYSTEM_CONFIG\n");
+			hdmi_dbg(hdmi->dev, "SYSTEM_CONFIG\n");
 			break;
 		case CONFIG_VIDEO:
-			dev_printk(KERN_INFO, hdmi->dev, "CONFIG_VIDEO\n");
+			hdmi_dbg(hdmi->dev, "CONFIG_VIDEO\n");
 			break;
 		case CONFIG_AUDIO:
-			dev_printk(KERN_INFO, hdmi->dev, "CONFIG_AUDIO\n");
+			hdmi_dbg(hdmi->dev, "CONFIG_AUDIO\n");
 			break;
 		case PLAY_BACK:
-			dev_printk(KERN_INFO, hdmi->dev, "PLAY_BACK\n");
+			hdmi_dbg(hdmi->dev, "PLAY_BACK\n");
 			break;
 		default:
-			dev_printk(KERN_INFO, hdmi->dev, "Unkown State %d\n", state);
+			hdmi_dbg(hdmi->dev, "Unkown State %d\n", state);
 			break;
 	}
 }
@@ -68,6 +80,10 @@ int hdmi_sys_init(void)
 
 void hdmi_sys_remove(void)
 {
+	int audio_need;
+
+	audio_need = hdmi->edid.base_audio_support == 1 &&  hdmi->edid.sink_hdmi == 1;
+	
 	fb_destroy_modelist(&hdmi->edid.modelist);
 	if(hdmi->edid.audio)
 		kfree(hdmi->edid.audio);
@@ -80,13 +96,29 @@ void hdmi_sys_remove(void)
 	memset(&hdmi->edid, 0, sizeof(struct hdmi_edid));
 	INIT_LIST_HEAD(&hdmi->edid.modelist);
 	hdmi->display	= HDMI_DISABLE;
+	if(hdmi->set_vif)
+		hdmi->set_vif(hdmi->lcdc->screen1,0);
 	rk_fb_switch_screen(hdmi->lcdc->screen1, 0, hdmi->lcdc->id);
 	kobject_uevent_env(&hdmi->dev->kobj, KOBJ_REMOVE, envp);
+
 	#ifdef CONFIG_SWITCH
-	switch_set_state(&(hdmi->switch_hdmi), 0);
+	if(audio_need)
+		switch_set_state(&(hdmi->switch_hdmi), 0);
 	#endif
 	#ifdef CONFIG_RK_HDMI_CTL_CODEC
+#ifdef CONFIG_MACH_RK_FAC
+	#ifdef CONFIG_SND_RK29_SOC_ES8323
+		es8323_codec_set_spk(1);
+	#endif
+	#ifdef CONFIG_SND_RK29_SOC_RT5616
+		 rt5616_codec_set_spk(1);
+	#endif
+	#ifdef CONFIG_SND_RK_SOC_RK616
+		 rk616_codec_set_spk(1);
+	#endif 
+#else
 	codec_set_spk(1);
+#endif
 	#endif
 }
 
@@ -168,7 +200,7 @@ void hdmi_work(struct work_struct *work)
 	int hotplug, state_last;
 	int rc = HDMI_ERROR_SUCESS, trytimes = 0;
 	struct hdmi_video_para video;
-	
+
 	mutex_lock(&work_mutex);
 	/* Process hdmi command */
 	hdmi->state = hdmi_process_command();
@@ -223,18 +255,35 @@ void hdmi_work(struct work_struct *work)
 				{
 					hdmi->state = SYSTEM_CONFIG;	
 					kobject_uevent_env(&hdmi->dev->kobj, KOBJ_ADD, envp);
+					hdmi_dbg(hdmi->dev,"base_audio_support =%d,sink_hdmi = %d\n",hdmi->edid.base_audio_support,hdmi->edid.sink_hdmi );
 					#ifdef CONFIG_SWITCH
-					switch_set_state(&(hdmi->switch_hdmi), 1);
+					if(hdmi->edid.base_audio_support == 1 &&  hdmi->edid.sink_hdmi == 1)
+						switch_set_state(&(hdmi->switch_hdmi), 1);
 					#endif
 					#ifdef CONFIG_RK_HDMI_CTL_CODEC
-					codec_set_spk(0);
+					#ifdef CONFIG_MACH_RK_FAC
+						#if defined(CONFIG_SND_RK29_SOC_ES8323)
+							es8323_codec_set_spk(0);
+						#endif
+						#if defined (CONFIG_SND_RK29_SOC_RT5616)
+							rt5616_codec_set_spk(0);
+						#endif		
+						#if defined (CONFIG_SND_RK_SOC_RK616)
+							rk616_codec_set_spk(0);
+						#endif	
+					#else
+						codec_set_spk(0);
+					#endif
 					#endif
 				}
 				break;
 			case SYSTEM_CONFIG:
-				if(hdmi->autoconfig)	
-					hdmi->vic = hdmi_find_best_mode(hdmi, 0);
-				else
+                                #ifdef CONFIG_HDMI_RK616
+                                hdmi->remove();
+                                #endif
+//IAM				if(hdmi->autoconfig)	
+//					hdmi->vic = hdmi_find_best_mode(hdmi, 0);
+//				else
 					hdmi->vic = hdmi_find_best_mode(hdmi, hdmi->vic);
 				rc = hdmi_switch_fb(hdmi, hdmi->vic);
 				if(rc == HDMI_ERROR_SUCESS)

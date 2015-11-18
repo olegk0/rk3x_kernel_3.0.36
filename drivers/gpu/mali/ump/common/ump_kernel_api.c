@@ -149,7 +149,7 @@ UMP_KERNEL_API_EXPORT void ump_dd_reference_add(ump_dd_handle memh)
 
 
 
-UMP_KERNEL_API_EXPORT void ump_dd_reference_release(ump_dd_handle memh)
+UMP_KERNEL_API_EXPORT int ump_dd_reference_release(ump_dd_handle memh)
 {
 	int new_ref;
 	ump_dd_mem * mem = (ump_dd_mem*)memh;
@@ -180,6 +180,7 @@ UMP_KERNEL_API_EXPORT void ump_dd_reference_release(ump_dd_handle memh)
 	{
 		_mali_osk_lock_signal(device.secure_id_map_lock, _MALI_OSK_LOCKMODE_RW);
 	}
+	return new_ref;
 }
 
 

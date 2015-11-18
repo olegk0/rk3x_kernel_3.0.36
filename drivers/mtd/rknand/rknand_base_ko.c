@@ -17,6 +17,7 @@
 #include <linux/mtd/partitions.h>
 #include <linux/mutex.h>
 #include <linux/kthread.h>
+#include <linux/ktime.h>
 #include <linux/reboot.h>
 #include <asm/io.h>
 #include <asm/mach/flash.h>
@@ -27,7 +28,7 @@
 
 #define DRIVER_NAME	"rk29xxnand"
 
-const char rknand_base_version[] = "rknand_base.c version: 4.40 20120824";
+const char rknand_base_version[] = "rknand_base.c version: 4.40 20130420";
 #define NAND_DEBUG_LEVEL0 0
 #define NAND_DEBUG_LEVEL1 1
 #define NAND_DEBUG_LEVEL2 2
@@ -192,12 +193,14 @@ static int rknand_read(struct mtd_info *mtd, loff_t from, size_t len,
 	//printk("R %d %d \n",(int)LBA,sector);
 	//if(rknand_debug)
     //   printk("rk28xxnand_read: from=%x,sector=%x,\n",(int)LBA,sector);
+	*retlen = len;
     if(sector && gpNandInfo->ftl_read)
     {
 		ret = gpNandInfo->ftl_read(LBA, sector, buf);
+		if(ret)
+		   *retlen = 0;
     }
-	*retlen = len;
-	return 0;//ret;
+	return ret;
 }
 
 static int rknand_write(struct mtd_info *mtd, loff_t from, size_t len,
@@ -229,6 +232,19 @@ static int rknand_write(struct mtd_info *mtd, loff_t from, size_t len,
 	}
 	*retlen = len;
 	return 0;
+}
+
+static int rknand_diacard(struct mtd_info *mtd, loff_t from, size_t len)
+{
+	int ret = 0;
+	int sector = len>>9;
+	int LBA = (int)(from>>9);
+	//printk("rknand_diacard: from=%x,sector=%x,\n",(int)LBA,sector);
+    if(sector && gpNandInfo->ftl_discard)
+    {
+		ret = gpNandInfo->ftl_discard(LBA, sector);
+    }
+	return ret;
 }
 
 static int rknand_erase(struct mtd_info *mtd, struct erase_info *instr)
@@ -271,19 +287,28 @@ int GetIdBlockSysData(char * buf, int Sector)
     return 0;
 }
 
-char GetSNSectorInfo(char * pbuf)
-{
-    if(gpNandInfo->GetSNSectorInfo)
-	   return( gpNandInfo->GetSNSectorInfo( pbuf));
-    return 0;
-}
-
-EXPORT_SYMBOL(GetSNSectorInfo); //Galland: required by drivers/bluetooth/vflash.c
-
 char GetSNSectorInfoBeforeNandInit(char * pbuf)
 {
     char * sn_addr = ioremap(0x10501600,0x200);
     memcpy(pbuf,sn_addr,0x200);
+    iounmap(sn_addr);
+	//print_hex_dump(KERN_WARNING, "sn:", DUMP_PREFIX_NONE, 16,1, sn_addr, 16, 0);
+    return 0;
+} 
+
+char GetSNSectorInfo(char * pbuf)
+{
+    if(gpNandInfo->GetSNSectorInfo)
+	   return( gpNandInfo->GetSNSectorInfo( pbuf));
+    else
+       return GetSNSectorInfoBeforeNandInit(pbuf);
+}
+
+char GetVendor0InfoBeforeNandInit(char * pbuf)
+{
+    char * sn_addr = ioremap(0x10501400,0x200);
+    memcpy(pbuf,sn_addr + 8,504);
+    iounmap(sn_addr);
 	//print_hex_dump(KERN_WARNING, "sn:", DUMP_PREFIX_NONE, 16,1, sn_addr, 16, 0);
     return 0;
 } 
@@ -292,6 +317,12 @@ char GetChipSectorInfo(char * pbuf)
 {
     if(gpNandInfo->GetChipSectorInfo)
 	   return( gpNandInfo->GetChipSectorInfo( pbuf));
+	else
+	{
+        char * sn_addr = ioremap(0x10501600,0x200);
+        memcpy(pbuf,sn_addr,0x200);
+        iounmap(sn_addr);
+	}
     return 0;
 }
 
@@ -317,6 +348,12 @@ int  GetflashDataByLba(int lba,char * pbuf , int len)
 		ret = gpNandInfo->ftl_read(LBA, sector, pbuf);
 	}
 	return ret?-1:(sector<<9);
+}
+
+void rknand_dev_cache_flush(void)
+{
+    if(gpNandInfo->rknand_dev_cache_flush)
+        gpNandInfo->rknand_dev_cache_flush();
 }
 
 
@@ -375,6 +412,7 @@ static int rknand_info_init(struct rknand_info *nand_info)
 	mtd->unpoint = NULL;
 	mtd->read = rknand_read;
 	mtd->write = rknand_write;
+	mtd->discard = rknand_diacard;
 	mtd->read_oob = NULL;
 	mtd->write_oob = NULL;
 	mtd->panic_write = rknand_panic_write;

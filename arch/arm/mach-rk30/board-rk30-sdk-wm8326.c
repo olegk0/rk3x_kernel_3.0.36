@@ -253,7 +253,7 @@ int wm831x_post_init(struct wm831x *Wm831x)
 //	printk("%s set dcdc3 vcc_ddr=%dmV end\n", __func__, regulator_get_voltage(dcdc));
 	regulator_put(dcdc);
 	udelay(100);
-      #if 0 // honghaishen_test start 
+
 	ldo = regulator_get(NULL, "ldo7");	// vcc28_cif
 	regulator_set_voltage(ldo, 2800000, 2800000);
 	regulator_set_suspend_voltage(ldo, 2800000);
@@ -269,7 +269,7 @@ int wm831x_post_init(struct wm831x *Wm831x)
 //	printk("%s set ldo1 vcc18_cif=%dmV end\n", __func__, regulator_get_voltage(ldo));
 	regulator_put(ldo);
 	udelay(100);
-      #endif   // honghaishen_test end
+
 	ldo = regulator_get(NULL, "ldo8");	// vcca_33
 	regulator_set_voltage(ldo, 3300000, 3300000);
 	regulator_set_suspend_voltage(ldo, 3300000);
@@ -794,7 +794,7 @@ out:
 }
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
-void wm831x_pmu_early_suspend(struct regulator_dev *rdev)
+void wm831x_pmu_early_suspend(struct early_suspend *h)
 {
 	struct regulator *dcdc;
 	struct regulator *ldo;
@@ -833,14 +833,18 @@ void wm831x_pmu_early_suspend(struct regulator_dev *rdev)
 	udelay(100);	
 		
 }
-void wm831x_pmu_early_resume(struct regulator_dev *rdev)
+void wm831x_pmu_early_resume(struct early_suspend *h)
 {
 	struct regulator *dcdc;
 	struct regulator *ldo;
 	printk("%s\n", __func__);
 	
 	dcdc = regulator_get(NULL, "dcdc4");	//vcc_io
+	#ifdef CONFIG_MACH_RK3066_SDK
+	regulator_set_voltage(dcdc, 3300000, 3300000);
+	#else
 	regulator_set_voltage(dcdc, 3000000, 3000000);
+	#endif
 	regulator_set_mode(dcdc, REGULATOR_MODE_FAST);
 	regulator_enable(dcdc);
 	printk("%s set dcdc4 vcc_io=%dmV end\n", __func__, regulator_get_voltage(dcdc));
@@ -914,7 +918,7 @@ static struct wm831x_pdata wm831x_platdata = {
 	.settinginfo = wm831x_gpio_settinginfo,
 	.settinginfolen = ARRAY_SIZE(wm831x_gpio_settinginfo),
 	.pin_type_init = wm831x_init_pin_type,
-	.irq_base = NR_GIC_IRQS + NR_GPIO_IRQS,
+	.irq_base = IRQ_BOARD_BASE,
 #endif
 
 	/** LED1 = 0 and so on */

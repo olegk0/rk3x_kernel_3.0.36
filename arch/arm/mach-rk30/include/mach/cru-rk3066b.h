@@ -71,19 +71,16 @@ enum rk_plls_id {
 #define PLL_CLKF_SET(val)	(PLL_CLKF(val) | CRU_W_MSK(PLL_NF_SHIFT, PLL_NF_MSK))
 
 /*******************PLL CON2 BITS***************************/
-#if 0
-#define PLL_BWADJ_MSK		(0xfff)
+// "BWADJ" Just compatible with RK3188 plus
+#define PLL_BWADJ_MSK		(0xfff & 0x000)
 #define PLL_BWADJ_SHIFT		(0)
 #define PLL_CLK_BWADJ_SET(val)	((val) | CRU_W_MSK(PLL_BWADJ_SHIFT, PLL_BWADJ_MSK))
-#endif
 /*******************PLL CON3 BITS***************************/
-
-#if 0
-#define PLL_REST_MSK		(1 << 5)
-#define PLL_REST_W_MSK		(PLL_REST_MSK << 16)
-#define PLL_REST		(1 << 5)
-#define PLL_REST_RESM		(0 << 5)
-#endif
+// "RESET" Just compatible with RK3188 plus
+#define PLL_RESET_MSK		((1 & 0x0) << 5)
+#define PLL_RESET_W_MSK		(PLL_RESET_MSK << 16)
+#define PLL_RESET		(1 << 5)
+#define PLL_RESET_RESUME	(0 << 5)
 
 #define PLL_BYPASS_MSK		(1 << 0)
 #define PLL_BYPASS		(1 << 0)
@@ -113,7 +110,7 @@ enum rk_plls_id {
 
 #define CORE_CLK_DIV_W_MSK	(0x1F << 25)
 #define CORE_CLK_DIV_MSK	(0x1F << 9)
-#define CORE_CLK_DIV(i)		(((i) - 1) & 0x1F)
+#define CORE_CLK_DIV(i)		((((i) - 1) & 0x1F) << 9)
 
 #define CPU_SEL_PLL_MSK		(1 << 5)
 #define CPU_SEL_PLL_W_MSK	(1 << 21)
@@ -173,6 +170,8 @@ enum rk_plls_id {
 /*******************clksel10***************************/
 
 #define PERI_ACLK_DIV_MASK 0x1f
+#define PERI_ACLK_DIV_W_MSK	(PERI_ACLK_DIV_MASK << 16)
+#define PERI_ACLK_DIV(i)	(((i) - 1) & PERI_ACLK_DIV_MASK)
 #define PERI_ACLK_DIV_OFF 0
 
 #define PERI_HCLK_DIV_MASK 0x3

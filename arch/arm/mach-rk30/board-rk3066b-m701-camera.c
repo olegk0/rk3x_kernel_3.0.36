@@ -1,8 +1,61 @@
 #ifdef CONFIG_VIDEO_RK29
+
+#include <plat/rk_camera.h>
+/* Notes:
+
+Simple camera device registration:
+
+       new_camera_device(sensor_name,\       // sensor name, it is equal to CONFIG_SENSOR_X
+                          face,\              // sensor face information, it can be back or front
+                          pwdn_io,\           // power down gpio configuration, it is equal to CONFIG_SENSOR_POWERDN_PIN_XX
+                          flash_attach,\      // sensor is attach flash or not
+                          mir,\               // sensor image mirror and flip control information
+                          i2c_chl,\           // i2c channel which the sensor attached in hardware, it is equal to CONFIG_SENSOR_IIC_ADAPTER_ID_X
+                          cif_chl)  \         // cif channel which the sensor attached in hardware, it is equal to CONFIG_SENSOR_CIF_INDEX_X
+
+Comprehensive camera device registration:
+
+      new_camera_device_ex(sensor_name,\
+                             face,\
+                             ori,\            // sensor orientation, it is equal to CONFIG_SENSOR_ORIENTATION_X
+                             pwr_io,\         // sensor power gpio configuration, it is equal to CONFIG_SENSOR_POWER_PIN_XX
+                             pwr_active,\     // sensor power active level, is equal to CONFIG_SENSOR_RESETACTIVE_LEVEL_X
+                             rst_io,\         // sensor reset gpio configuration, it is equal to CONFIG_SENSOR_RESET_PIN_XX
+                             rst_active,\     // sensor reset active level, is equal to CONFIG_SENSOR_RESETACTIVE_LEVEL_X
+                             pwdn_io,\
+                             pwdn_active,\    // sensor power down active level, is equal to CONFIG_SENSOR_POWERDNACTIVE_LEVEL_X
+                             flash_attach,\
+                             res,\            // sensor resolution, this is real resolution or resoltuion after interpolate
+                             mir,\
+                             i2c_chl,\
+                             i2c_spd,\        // i2c speed , 100000 = 100KHz
+                             i2c_addr,\       // the i2c slave device address for sensor
+                             cif_chl,\
+                             mclk)\           // sensor input clock rate, 24 or 48
+                          
+*/
+static struct rkcamera_platform_data new_camera[] = { 
+    new_camera_device(RK29_CAM_SENSOR_HI253,
+                        back,
+                        RK30_PIN3_PB5,
+                        0,
+                        0,
+                        4,
+                        0),
+    new_camera_device(RK29_CAM_SENSOR_HI704,
+                        front,
+                        RK30_PIN3_PB4,
+                        0,
+                        0,
+                        4,
+                        0),
+    new_camera_device_end
+};
+
 /*---------------- Camera Sensor Macro Define Begin  ------------------------*/
 /*---------------- Camera Sensor Configuration Macro Begin ------------------------*/
 #define CONFIG_SENSOR_0 RK29_CAM_SENSOR_HI253						/* back camera sensor */
-#define CONFIG_SENSOR_IIC_ADDR_0	0x40
+#define CONFIG_SENSOR_IIC_ADDR_0	0x00
 #define CONFIG_SENSOR_IIC_ADAPTER_ID_0	  4
 #define CONFIG_SENSOR_ORIENTATION_0 	  90
 #define CONFIG_SENSOR_POWER_PIN_0		  INVALID_GPIO
@@ -69,7 +122,7 @@
 #define CONFIG_SENSOR_720P_FPS_FIXED_02      30000
 
 #define CONFIG_SENSOR_1 RK29_CAM_SENSOR_HI704                      /* front camera sensor 0 */
-#define CONFIG_SENSOR_IIC_ADDR_1 	    0x60
+#define CONFIG_SENSOR_IIC_ADDR_1 	    0x00
 #define CONFIG_SENSOR_IIC_ADAPTER_ID_1	  4
 #define CONFIG_SENSOR_ORIENTATION_1       270
 #define CONFIG_SENSOR_POWER_PIN_1         INVALID_GPIO
@@ -92,7 +145,7 @@
 
 #define CONFIG_SENSOR_11 RK29_CAM_SENSOR_OV2659                      /* front camera sensor 1 */
 #define CONFIG_SENSOR_IIC_ADDR_11 	    0x00
-#define CONFIG_SENSOR_IIC_ADAPTER_ID_11    3
+#define CONFIG_SENSOR_IIC_ADAPTER_ID_11    4
 #define CONFIG_SENSOR_ORIENTATION_11       270
 #define CONFIG_SENSOR_POWER_PIN_11         INVALID_GPIO
 #define CONFIG_SENSOR_RESET_PIN_11         INVALID_GPIO
@@ -154,8 +207,8 @@
 static void rk_cif_power(int on)
 {
     struct regulator *ldo_18,*ldo_28;
-	ldo_28 = regulator_get(NULL, "ldo7");	// vcc28_cif
-	ldo_18 = regulator_get(NULL, "ldo1");	// vcc18_cif
+	ldo_28 = regulator_get(NULL, "vmmc");	// vcc28_cif
+	ldo_18 = regulator_get(NULL, "vdig1");	// vcc18_cif
 	if (ldo_28 == NULL || IS_ERR(ldo_28) || ldo_18 == NULL || IS_ERR(ldo_18)){
         printk("get cif ldo failed!\n");
 		return;

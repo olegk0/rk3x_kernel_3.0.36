@@ -9,6 +9,17 @@ obj-$(CONFIG_FIQ_DEBUGGER) += rk_fiq_debugger.o
 obj-$(CONFIG_RK_EARLY_PRINTK) += early_printk.o ../kernel/debug.o
 obj-y += mem_reserve.o
 obj-y += config.o
+obj-y += cpu.o
 obj-y += sram.o
-CFLAGS_sram.o += -mthumb
-obj-$(CONFIG_DDR_TEST) += memtester.o
+obj-y += iomux.o
+obj-y += efuse.o
+obj-$(CONFIG_DDR_TEST) += memtester.o ddr_test.o
+obj-$(CONFIG_DDR_FREQ) += ddr_freq.o
+obj-$(CONFIG_DVFS) += dvfs.o
+ifdef CONFIG_IAM_CHANGES
+obj-y += pwm_iam.o
+else
+obj-y += pwm.o
+endif
+obj-$(CONFIG_RK_TIMER) += rk_timer.o
+obj-$(CONFIG_BOARD_ID) += bid/

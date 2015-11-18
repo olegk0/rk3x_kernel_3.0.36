@@ -1471,8 +1471,8 @@ static struct mfd_cell backlight_devs[] = {
  * Instantiate the generic non-control parts of the device.
  */
 
-__weak void  wm831x_pmu_early_suspend(struct regulator_dev *rdev) {}
-__weak void  wm831x_pmu_early_resume(struct regulator_dev *rdev) {}
+__weak void  wm831x_pmu_early_suspend(struct early_suspend *h) {}
+__weak void  wm831x_pmu_early_resume(struct early_suspend *h) {}
 
 int wm831x_device_init(struct wm831x *wm831x, unsigned long id, int irq)
 {
@@ -1860,13 +1860,14 @@ int wm831x_device_shutdown(struct wm831x *wm831x)
 
 	if(wm831x_set_bits(wm831x, WM831X_RTC_CONTROL, WM831X_RTC_ALAM_ENA_MASK, 0) < 0)
 			printk("%s wm831x_set_bits err\n", __FUNCTION__);   //disable rtc alam
-
+#if 0
 	if (pdata && pdata->last_deinit) {
 		ret = pdata->last_deinit(wm831x);
 		if (ret != 0) {
 			dev_info(wm831x->dev, "last_deinit() failed: %d\n", ret);
 		}
 	}
+#endif
 	//if(0 == reboot_cmd_get())
 	
 		if(wm831x_set_bits(wm831x, WM831X_POWER_STATE, WM831X_CHIP_ON_MASK, 0) < 0)

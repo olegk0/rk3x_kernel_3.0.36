@@ -92,16 +92,6 @@
 *                                 M A C R O S
 ********************************************************************************
 */
-#ifdef DFT_TAG
-#undef DFT_TAG
-#endif
-#define DFT_TAG         "[WMT-DBG]"
-
-
-/*******************************************************************************
-*                    E X T E R N A L   R E F E R E N C E S
-********************************************************************************
-*/
 
 #include "wmt_dbg.h"
 #include "wmt_core.h"
@@ -110,10 +100,19 @@
 #include "psm_core.h"
 #include "stp_core.h"
 
-
-
 #if CFG_WMT_DBG_SUPPORT
 
+
+#ifdef DFT_TAG
+#undef DFT_TAG
+#endif
+#define DFT_TAG         "[WMT-DEV]"
+
+
+
+#define WMT_DBG_PROCNAME "driver/wmt_dbg"
+
+static struct proc_dir_entry *gWmtDbgEntry = NULL;
 COEX_BUF gCoexBuf;
 
 static INT32 wmt_dbg_psm_ctrl(INT32 par1, INT32 par2, INT32 par3);
@@ -136,17 +135,12 @@ static INT32 wmt_dbg_efuse_read(INT32 par1, INT32 par2, INT32 par3);
 static INT32 wmt_dbg_efuse_write(INT32 par1, INT32 par2, INT32 par3);
 static INT32 wmt_dbg_sdio_ctrl(INT32 par1, INT32 par2, INT32 par3);
 static INT32 wmt_dbg_stp_dbg_ctrl(INT32 par1, INT32 par2, INT32 par3);
+static INT32 wmt_dbg_stp_dbg_log_ctrl(INT32 par1, INT32 par2, INT32 par3);
+static INT32 wmt_dbg_wmt_assert_ctrl(INT32 par1, INT32 par2, INT32 par3);
 
 
 
 
-#endif
-
-/*******************************************************************************
-*                          F U N C T I O N S
-********************************************************************************
-*/
-#if CFG_WMT_DBG_SUPPORT
 
 const static WMT_DEV_DBG_FUNC wmt_dev_dbg_func[] =
 {
@@ -170,7 +164,8 @@ const static WMT_DEV_DBG_FUNC wmt_dev_dbg_func[] =
     [0x11] = wmt_dbg_efuse_write,
     [0x12] = wmt_dbg_sdio_ctrl,
     [0x13] = wmt_dbg_stp_dbg_ctrl,
-    
+    [0x14] = wmt_dbg_stp_dbg_log_ctrl,
+    [0x15] = wmt_dbg_wmt_assert_ctrl,
 };
 
 INT32 wmt_dbg_psm_ctrl(INT32 par1, INT32 par2, INT32 par3)
@@ -178,17 +173,15 @@ INT32 wmt_dbg_psm_ctrl(INT32 par1, INT32 par2, INT32 par3)
 #if CFG_WMT_PS_SUPPORT
     if (0 == par2)
     {
-        //wmt_lib_ps_disable();
         wmt_lib_ps_ctrl(0);
-        WMT_INFO_FUNC("call wmt_lib_psm_disable\n");
+        WMT_INFO_FUNC("disable PSM\n");
     }
     else
     {
-        par2 = (1 >= par2 || 20000 < par2) ? STP_PSM_IDLE_TIME_SLEEP : par2;
+        par2 = (1 > par2 || 20000 < par2) ? STP_PSM_IDLE_TIME_SLEEP : par2;
         wmt_lib_ps_set_idle_time(par2);
-        //wmt_lib_ps_enable();
         wmt_lib_ps_ctrl(1);
-        WMT_INFO_FUNC("call wmt_lib_psm_enable, idle to sleep time = %d ms\n", par2);
+        WMT_INFO_FUNC("enable PSM, idle to sleep time = %d ms\n", par2);
     }
 #else
     WMT_INFO_FUNC("WMT PS not supported\n");
@@ -198,15 +191,14 @@ INT32 wmt_dbg_psm_ctrl(INT32 par1, INT32 par2, INT32 par3)
 
 INT32 wmt_dbg_dsns_ctrl(INT32 par1, INT32 par2, INT32 par3)
 {
-    if (0 == par1)
+    if (WMTDSNS_FM_DISABLE <= par2 && WMTDSNS_MAX > par2 )
     {
-        mtk_wcn_wmt_dsns_ctrl(WMTDSNS_FM_DISABLE);
-        WMT_INFO_FUNC("disalbe FM dsns function\n");
+        WMT_INFO_FUNC("DSNS type (%d)\n", par2);
+        mtk_wcn_wmt_dsns_ctrl(par2);
     }
     else
     {
-        mtk_wcn_wmt_dsns_ctrl(WMTDSNS_FM_ENABLE);
-        WMT_INFO_FUNC("enable FM dsns function\n");
+        WMT_WARN_FUNC("invalid DSNS type\n");
     }
     return 0;
 }
@@ -285,9 +277,13 @@ INT32 wmt_dbg_cmd_test_api(ENUM_WMTDRV_CMD_T cmd)
     }
     WMT_INFO_FUNC("CMD_TEST, opid(%d), par(%d, %d)\n", pOp->op.opId, pOp->op.au4OpData[0], pOp->op.au4OpData[1]);
     /*wake up chip first*/
-    wmt_lib_disable_psm_monitor();
+    if (DISABLE_PSM_MONITOR()) {
+        WMT_ERR_FUNC("wake up failed\n");
+        wmt_lib_put_op_to_free_queue(pOp);
+        return -1;
+    }
     bRet = wmt_lib_put_act_op(pOp);
-    wmt_lib_enable_psm_monitor();
+    ENABLE_PSM_MONITOR();
     if ((cmd != WMTDRV_CMD_ASSERT) && (cmd != WMTDRV_CMD_EXCEPTION))
     {
         if (MTK_WCN_BOOL_FALSE == bRet)
@@ -332,8 +328,15 @@ INT32 wmt_dbg_chip_rst(INT32 par1, INT32 par2, INT32 par3)
 {
     if (0 == par2)
     {
-        WMT_INFO_FUNC("whole chip reset test\n");
-        wmt_lib_cmb_rst(WMTRSTSRC_RESET_TEST);
+        if (mtk_wcn_stp_is_ready())
+        {
+            WMT_INFO_FUNC("whole chip reset test\n");
+            wmt_lib_cmb_rst(WMTRSTSRC_RESET_TEST);
+        }
+        else
+        {
+            WMT_INFO_FUNC("STP not ready , not to launch whole chip reset test\n");
+        }
     }
     else if (1 == par2)
     {
@@ -372,7 +375,7 @@ INT32 wmt_dbg_func_ctrl(INT32 par1, INT32 par2, INT32 par3)
 
 INT32 wmt_dbg_raed_chipid(INT32 par1, INT32 par2, INT32 par3)
 {
-    WMT_INFO_FUNC("chip version = %d\n", wmt_lib_get_hwver());
+    WMT_INFO_FUNC("chip version = %d\n", wmt_lib_get_icinfo(WMTCHIN_MAPPINGHWVER));
     return 0;
 }
 
@@ -400,9 +403,9 @@ INT32 wmt_dbg_reg_read(INT32 par1, INT32 par2, INT32 par3)
     UINT32 value = 0x0;
     UINT32 iRet = -1;
 #if 0    
-    wmt_lib_disable_psm_monitor();
+    DISABLE_PSM_MONITOR();
     iRet = wmt_core_reg_rw_raw(0, par2, &value, par3);
-    wmt_lib_enable_psm_monitor();
+    ENABLE_PSM_MONITOR();
 #endif
     iRet = wmt_lib_reg_rw(0, par2, &value, par3);
     WMT_INFO_FUNC("read combo chip register (0x%08x) with mask (0x%08x) %s, value = 0x%08x\n", \
@@ -420,9 +423,9 @@ INT32 wmt_dbg_reg_write(INT32 par1, INT32 par2, INT32 par3)
     //par3-->value to set
     UINT32 iRet = -1;
     #if 0
-    wmt_lib_disable_psm_monitor();
+    DISABLE_PSM_MONITOR();
     iRet = wmt_core_reg_rw_raw(1, par2, &par3, 0xffffffff);
-    wmt_lib_enable_psm_monitor();
+    ENABLE_PSM_MONITOR();
     #endif
     iRet = wmt_lib_reg_rw(1, par2, &par3, 0xffffffff);
     WMT_INFO_FUNC("write combo chip register (0x%08x) with value (0x%08x) %s\n", \
@@ -493,6 +496,20 @@ INT32 wmt_dbg_stp_dbg_ctrl(INT32 par1, INT32 par2, INT32 par3)
     return 0;
 }
 
+INT32 wmt_dbg_stp_dbg_log_ctrl(INT32 par1, INT32 par2, INT32 par3)
+{
+    mtk_wcn_stp_dbg_log_ctrl(0 != par2 ? 1 : 0);
+    return 0;
+}
+
+
+
+INT32 wmt_dbg_wmt_assert_ctrl(INT32 par1, INT32 par2, INT32 par3)
+{
+    mtk_wcn_stp_coredump_flag_ctrl(0 != par2 ? 1 : 0);
+    return 0;
+}
+
 
 INT32 wmt_dbg_coex_test(INT32 par1, INT32 par2, INT32 par3)
 {
@@ -507,7 +524,7 @@ INT32 wmt_dbg_rst_ctrl(INT32 par1, INT32 par2, INT32 par3)
     return 0;
 }
 
-INT32 wmt_dbg_proc_read(CHAR *page, CHAR **start, LONG off, INT32 count, INT32 *eof, VOID *data){
+static INT32 wmt_dev_dbg_read(CHAR *page, CHAR **start, off_t off, INT32 count, INT32 *eof, void *data){
     INT32 len = 0;
 
     if(off > 0){
@@ -533,7 +550,6 @@ INT32 wmt_dbg_proc_read(CHAR *page, CHAR **start, LONG off, INT32 count, INT32 *
     gCoexBuf.availSize = 0;
     return len;
 }
-
 
 INT32 wmt_dbg_ut_test(INT32 par1, INT32 par2, INT32 par3)
 {
@@ -600,13 +616,30 @@ INT32 wmt_dbg_ut_test(INT32 par1, INT32 par2, INT32 par3)
     return iRet;        
 }
 
-INT32 wmt_dbg_proc_write(CHAR *buffer){
 
-	CHAR *pBuf;
-	CHAR *pToken = NULL;
-	CHAR *pDelimiter = " \t";
-	INT32 x = 0,y = 0, z=0;
-    pBuf = buffer;
+static INT32 wmt_dev_dbg_write(struct file *file, const CHAR *buffer, ULONG count, void *data){
+    
+    CHAR buf[256];
+    CHAR *pBuf;
+    ULONG len = count;
+    INT32 x = 0,y = 0, z=0;
+    CHAR *pToken = NULL;
+    CHAR *pDelimiter = " \t";
+
+    WMT_INFO_FUNC("write parameter len = %d\n\r", (INT32)len);
+    if(len >= osal_sizeof(buf)){
+        WMT_ERR_FUNC("input handling fail!\n");
+        len = osal_sizeof(buf) - 1;
+        return -1;
+    }    
+    
+    if(copy_from_user(buf, buffer, len)){
+        return -EFAULT;
+    }
+    buf[len] = '\0';
+    WMT_INFO_FUNC("write parameter data = %s\n\r", buf);
+
+    pBuf = buf;
     pToken = osal_strsep(&pBuf, pDelimiter);
     x = NULL != pToken ? osal_strtol(pToken, NULL, 16) : 0; 
 
@@ -643,9 +676,31 @@ INT32 wmt_dbg_proc_write(CHAR *buffer){
     {
         WMT_WARN_FUNC("no handler defined for command id(0x%08x)\n\r", x);
     }
+    return len;
+}
+
+INT32 wmt_dev_dbg_setup(VOID)
+{
+    gWmtDbgEntry = create_proc_entry(WMT_DBG_PROCNAME, 0664, NULL);
+    if(gWmtDbgEntry == NULL){
+        WMT_ERR_FUNC("Unable to create /proc entry\n\r");
+        return -1;
+    }
+    gWmtDbgEntry->read_proc = wmt_dev_dbg_read;
+    gWmtDbgEntry->write_proc = wmt_dev_dbg_write;
     return 0;
 }
 
-
+INT32 wmt_dev_dbg_remove(VOID)
+{
+    if (NULL != gWmtDbgEntry)
+    {
+        remove_proc_entry(WMT_DBG_PROCNAME, NULL);
+    }
+#if CFG_WMT_PS_SUPPORT
+    wmt_lib_ps_deinit();
+#endif
+    return 0;
+}
 #endif
 

@@ -646,7 +646,8 @@ static struct rk29_bl_info rk29_bl_info = {
 	.io_deinit = rk29_backlight_io_deinit,
 	.pwm_suspend = rk29_backlight_pwm_suspend,
 	.pwm_resume = rk29_backlight_pwm_resume,
-        .min_brightness = 60
+	.min_brightness = 60,
+	.pre_div = 20000,
 };
 
 static struct platform_device rk29_device_backlight = {
@@ -1156,6 +1157,20 @@ struct rk29_sdmmc_platform_data default_sdmmc0_data = {
 };
 #endif // CONFIG_SDMMC0_RK29
 
+#ifdef CONFIG_SND_SOC_RK610
+static int rk610_codec_io_init(void)
+{
+//if need iomux.
+//Must not gpio_request
+	return 0;
+}
+
+static struct rk610_codec_platform_data rk610_codec_pdata = {
+	.spk_ctl_io = RK30_PIN4_PC6,
+	.io_init = rk610_codec_io_init,
+};
+#endif
+
 #ifdef CONFIG_SDMMC1_RK29
 #define CONFIG_SDMMC1_USE_DMA
 static int rk29_sdmmc1_cfg_gpio(void)
@@ -1369,7 +1384,7 @@ static struct i2c_board_info __initdata i2c0_info[] = {
 			.flags			= 0,
 		},
 #endif
-#ifdef CONFIG_RK610_HDMI
+#ifdef CONFIG_HDMI_RK610
 		{
 			.type			= "rk610_hdmi",
 			.addr			= 0x46,
@@ -1382,6 +1397,7 @@ static struct i2c_board_info __initdata i2c0_info[] = {
 			.type			= "rk610_i2c_codec",
 			.addr			= 0x60,
 			.flags			= 0,
+			.platform_data		= &rk610_codec_pdata,			
 		},
 #endif
 #endif

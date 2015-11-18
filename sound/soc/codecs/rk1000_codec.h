@@ -13,6 +13,9 @@
 #ifndef _RK1000_CODEC_H
 #define _RK1000_CODEC_H
 
+#define MICIN 1
+#define LINEIN 2
+
 /* RK1000 register space */
 
 #define      ACCELCODEC_R00    0x00    //ADC High Pass Filter / DSM

@@ -45,25 +45,38 @@
 #define IRQ_GPIO1                       69
 #define IRQ_GPIO2                       70
 #define IRQ_GPIO3                       71
+#define IRQ_CRYPTO                      72
 
+#ifdef CONFIG_ARCH_RK2928
 #define IRQ_PERI_AHB_USB_ARBITER        74
 #define IRQ_PERI_AHB_EMEM_ARBITER       75
+#else
+#define IRQ_PERI_AHB_USB_ARBITER        73
+#define IRQ_PERI_AHB_EMEM_ARBITER       74
+#endif
+#define IRQ_LCDC1                       75
 #define IRQ_RGA                         76
 #define IRQ_HDMI                        77
 #define IRQ_SDMMC_DETECT                78
 #define IRQ_SDIO_DETECT                 79
+#define IRQ_IEP                         80
+#define IRQ_EBC                         81
+
+#define IRQ_OTG0_ID                     83
+#define IRQ_OTG0_LINESTATE              84
+#define IRQ_OTG1_LINESTATE              85
+#define IRQ_SD_DETECTN                  86
 
 #define IRQ_ARM_PMU                     118
 
 //hhb@rock-chips.com this spi is used for fiq_debugger signal irq
 #define IRQ_UART_SIGNAL			127
-#if CONFIG_RK_DEBUG_UART >= 0 && CONFIG_RK_DEBUG_UART < 3
-#define IRQ_DEBUG_UART			(IRQ_UART0 + CONFIG_RK_DEBUG_UART)
-#endif
 
 #define NR_GIC_IRQS                     (4 * 32)
 #define NR_GPIO_IRQS                    (4 * 32)
 #define NR_BOARD_IRQS                   64
 #define NR_IRQS                         (NR_GIC_IRQS + NR_GPIO_IRQS + NR_BOARD_IRQS)
+
+#define IRQ_BOARD_BASE                  (NR_GIC_IRQS + NR_GPIO_IRQS)
 
 #endif

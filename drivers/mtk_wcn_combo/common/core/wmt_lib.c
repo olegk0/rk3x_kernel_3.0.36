@@ -1,86 +1,10 @@
-/* Copyright Statement:
- *
- * This software/firmware and related documentation ("MediaTek Software") are
- * protected under relevant copyright laws. The information contained herein
- * is confidential and proprietary to MediaTek Inc. and/or its licensors.
- * Without the prior written permission of MediaTek inc. and/or its licensors,
- * any reproduction, modification, use or disclosure of MediaTek Software,
- * and information contained herein, in whole or in part, shall be strictly prohibited.
- *
- * MediaTek Inc. (C) 2010. All rights reserved.
- *
- * BY OPENING THIS FILE, RECEIVER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND AGREES
- * THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK SOFTWARE")
- * RECEIVED FROM MEDIATEK AND/OR ITS REPRESENTATIVES ARE PROVIDED TO RECEIVER ON
- * AN "AS-IS" BASIS ONLY. MEDIATEK EXPRESSLY DISCLAIMS ANY AND ALL WARRANTIES,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NONINFRINGEMENT.
- * NEITHER DOES MEDIATEK PROVIDE ANY WARRANTY WHATSOEVER WITH RESPECT TO THE
- * SOFTWARE OF ANY THIRD PARTY WHICH MAY BE USED BY, INCORPORATED IN, OR
- * SUPPLIED WITH THE MEDIATEK SOFTWARE, AND RECEIVER AGREES TO LOOK ONLY TO SUCH
- * THIRD PARTY FOR ANY WARRANTY CLAIM RELATING THERETO. RECEIVER EXPRESSLY ACKNOWLEDGES
- * THAT IT IS RECEIVER'S SOLE RESPONSIBILITY TO OBTAIN FROM ANY THIRD PARTY ALL PROPER LICENSES
- * CONTAINED IN MEDIATEK SOFTWARE. MEDIATEK SHALL ALSO NOT BE RESPONSIBLE FOR ANY MEDIATEK
- * SOFTWARE RELEASES MADE TO RECEIVER'S SPECIFICATION OR TO CONFORM TO A PARTICULAR
- * STANDARD OR OPEN FORUM. RECEIVER'S SOLE AND EXCLUSIVE REMEDY AND MEDIATEK'S ENTIRE AND
- * CUMULATIVE LIABILITY WITH RESPECT TO THE MEDIATEK SOFTWARE RELEASED HEREUNDER WILL BE,
- * AT MEDIATEK'S OPTION, TO REVISE OR REPLACE THE MEDIATEK SOFTWARE AT ISSUE,
- * OR REFUND ANY SOFTWARE LICENSE FEES OR SERVICE CHARGE PAID BY RECEIVER TO
- * MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
- *
- * The following software/firmware and/or related documentation ("MediaTek Software")
- * have been modified by MediaTek Inc. All revisions are subject to any receiver's
- * applicable license agreements with MediaTek Inc.
- */
-
-
 /*! \file
     \brief  Declaration of library functions
 
     Any definitions in this file will be shared among GLUE Layer and internal Driver Stack.
 */
 
-/*******************************************************************************
-* Copyright (c) 2009 MediaTek Inc.
-*
-* All rights reserved. Copying, compilation, modification, distribution
-* or any other use whatsoever of this material is strictly prohibited
-* except in accordance with a Software License Agreement with
-* MediaTek Inc.
-********************************************************************************
-*/
 
-/*******************************************************************************
-* LEGAL DISCLAIMER
-*
-* BY OPENING THIS FILE, BUYER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND
-* AGREES THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK
-* SOFTWARE") RECEIVED FROM MEDIATEK AND/OR ITS REPRESENTATIVES ARE
-* PROVIDED TO BUYER ON AN "AS-IS" BASIS ONLY. MEDIATEK EXPRESSLY
-* DISCLAIMS ANY AND ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT
-* LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-* PARTICULAR PURPOSE OR NONINFRINGEMENT. NEITHER DOES MEDIATEK PROVIDE
-* ANY WARRANTY WHATSOEVER WITH RESPECT TO THE SOFTWARE OF ANY THIRD PARTY
-* WHICH MAY BE USED BY, INCORPORATED IN, OR SUPPLIED WITH THE MEDIATEK
-* SOFTWARE, AND BUYER AGREES TO LOOK ONLY TO SUCH THIRD PARTY FOR ANY
-* WARRANTY CLAIM RELATING THERETO. MEDIATEK SHALL ALSO NOT BE RESPONSIBLE
-* FOR ANY MEDIATEK SOFTWARE RELEASES MADE TO BUYER'S SPECIFICATION OR TO
-* CONFORM TO A PARTICULAR STANDARD OR OPEN FORUM.
-*
-* BUYER'S SOLE AND EXCLUSIVE REMEDY AND MEDIATEK'S ENTIRE AND CUMULATIVE
-* LIABILITY WITH RESPECT TO THE MEDIATEK SOFTWARE RELEASED HEREUNDER WILL
-* BE, AT MEDIATEK'S OPTION, TO REVISE OR REPLACE THE MEDIATEK SOFTWARE AT
-* ISSUE, OR REFUND ANY SOFTWARE LICENSE FEES OR SERVICE CHARGE PAID BY
-* BUYER TO MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
-*
-* THE TRANSACTION CONTEMPLATED HEREUNDER SHALL BE CONSTRUED IN ACCORDANCE
-* WITH THE LAWS OF THE STATE OF CALIFORNIA, USA, EXCLUDING ITS CONFLICT
-* OF LAWS PRINCIPLES.  ANY DISPUTES, CONTROVERSIES OR CLAIMS ARISING
-* THEREOF AND RELATED THERETO SHALL BE SETTLED BY ARBITRATION IN SAN
-* FRANCISCO, CA, UNDER THE RULES OF THE INTERNATIONAL CHAMBER OF COMMERCE
-* (ICC).
-********************************************************************************
-*/
 
 
 
@@ -104,17 +28,20 @@
 *                    E X T E R N A L   R E F E R E N C E S
 ********************************************************************************
 */
-
+#include "osal_typedef.h"
 #include "wmt_dbg.h"
+
+#include "wmt_dev.h"
 #include "wmt_lib.h"
 #include "wmt_conf.h"
 #include "wmt_core.h"
 #include "wmt_plat.h"
+#include "wmt_plat_stub.h"
 
 #include "stp_core.h"
 #include "btm_core.h"
 #include "psm_core.h"
-//#include "stp_sdio.h"
+#include "stp_sdio.h"
 /*******************************************************************************
 *                              C O N S T A N T S
 ********************************************************************************
@@ -154,10 +81,6 @@ static PF_WMT_SDIO_PSOP sdio_own_ctrl = NULL;
 
 DEV_WMT gDevWmt;
 
-UINT32 gWmtDbgLvl = WMT_LOG_INFO;
-//UINT32 gWmtDbgLvl = WMT_LOG_DBG;
-
-
 /*******************************************************************************
 *                  F U N C T I O N   D E C L A R A T I O N S
 ********************************************************************************
@@ -193,6 +116,7 @@ wmt_lib_pin_ctrl (
     WMT_IC_PIN_STATE stat,
     UINT32 flag
     );
+MTK_WCN_BOOL wmt_lib_hw_state_show(VOID);
 
 
 /*******************************************************************************
@@ -200,22 +124,41 @@ wmt_lib_pin_ctrl (
 ********************************************************************************
 */
 
-//void DISABLE_PSM_MONITOR(void)
-void wmt_lib_disable_psm_monitor(VOID)
+INT32 wmt_lib_psm_lock_aquire(void)
 {
-    osal_lock_sleepable_lock(&gDevWmt.psm_lock);
-#if CFG_WMT_PS_SUPPORT
-    wmt_lib_ps_disable();
-#endif
+    return osal_lock_sleepable_lock(&gDevWmt.psm_lock);
 }
 
-//void ENABLE_PSM_MONITOR(void)
-void wmt_lib_enable_psm_monitor(VOID)
+void wmt_lib_psm_lock_release(void)
+{
+    osal_unlock_sleepable_lock(&gDevWmt.psm_lock);
+}
+
+INT32 DISABLE_PSM_MONITOR(void)
+{
+    INT32 ret = 0;
+    
+    //osal_lock_sleepable_lock(&gDevWmt.psm_lock);
+    ret = wmt_lib_psm_lock_aquire();
+    if (ret) {
+        WMT_ERR_FUNC("--->lock psm_lock failed, ret=%d\n", ret);
+        return ret;
+    }
+    
+#if CFG_WMT_PS_SUPPORT
+    ret = wmt_lib_ps_disable();
+#endif
+
+    return ret;
+}
+
+void ENABLE_PSM_MONITOR(void)
 {
 #if CFG_WMT_PS_SUPPORT
     wmt_lib_ps_enable();
 #endif
-    osal_unlock_sleepable_lock(&gDevWmt.psm_lock);
+    //osal_unlock_sleepable_lock(&gDevWmt.psm_lock);
+    wmt_lib_psm_lock_release();
 }
 
 
@@ -232,11 +175,13 @@ wmt_lib_init (VOID)
     pDevWmt = &gDevWmt;
     osal_memset(&gDevWmt, 0, sizeof(gDevWmt));
 
+#if 0
     iRet = wmt_conf_read_file();
     if (iRet) {
         WMT_ERR_FUNC("read wmt config file fail(%d)\n", iRet);
         return -1;
     }
+#endif
 
     pThraed = &gDevWmt.thread;
 
@@ -282,11 +227,13 @@ wmt_lib_init (VOID)
     for (i = 0 ; i < WMTDRV_TYPE_WIFI ; i++) {
         pDevWmt->rFdrvCb.fDrvRst[i] = NULL;
     }
-    pDevWmt->hw_ver = WMTHWVER_INVALID; /* WMTHWVER_MT6620_MAX */
-    /* George: hw_ver is still unknown here, shall be read from hw and be done
-     * later. WMTHWVER_MT6620_MAX is a misleading value!!
-     */
-    /*WMT_INFO_FUNC("***********Init, hw->ver = %x\n", pDevWmt->hw_ver);*/
+    pDevWmt->hw_ver = WMTHWVER_MT6620_MAX;
+    WMT_INFO_FUNC("***********Init, hw->ver = %x\n", pDevWmt->hw_ver);
+
+    // TODO:[FixMe][GeorgeKuo]: wmt_lib_conf_init
+    /* initialize default configurations */
+    //i4Result = wmt_lib_conf_init(VOID);
+    //WMT_WARN_FUNC("wmt_drv_conf_init(%d) \n", i4Result);
 
     osal_signal_init(&pDevWmt->cmdResp);
     osal_event_init(&pDevWmt->cmdReq);
@@ -294,7 +241,7 @@ wmt_lib_init (VOID)
     /* initialize platform resources */
     if (0 != gDevWmt.rWmtGenConf.cfgExist)
     {
-
+        
         PWR_SEQ_TIME pwrSeqTime;
         pwrSeqTime.ldoStableTime = gDevWmt.rWmtGenConf.pwr_on_ldo_slot;
         pwrSeqTime.rstStableTime = gDevWmt.rWmtGenConf.pwr_on_rst_slot;
@@ -314,6 +261,7 @@ wmt_lib_init (VOID)
         WMT_ERR_FUNC("wmt_plat_init() fail(%d)\n", iRet);
         return -3;
     }
+	wmt_plat_stub_init();
 
 #if CFG_WMT_PS_SUPPORT
     iRet = wmt_lib_ps_init();
@@ -330,9 +278,14 @@ wmt_lib_init (VOID)
         return -5;
     }
 
-    /*4. register whole chip reset callback to stp_psm*/
+    /*4. register irq callback to WMT-PLAT*/
+    wmt_lib_plat_irq_cb_reg(wmt_lib_ps_irq_cb);
 
-    WMT_DBG_FUNC("ok\n");
+	/*5. register audio if control callback to WMT-PLAT*/
+	wmt_lib_plat_aif_cb_reg(wmt_lib_set_aif);
+
+	
+    WMT_DBG_FUNC("init success\n");
     return 0;
 }
 
@@ -418,10 +371,10 @@ wmt_lib_trigger_cmd_signal (
     INT32 result
     )
 {
-    /*P_OSAL_SIGNAL pSignal = &gDevWmt.cmdResp;*/
-    WMT_DBG_FUNC("wakeup cmdResp\n");
+    P_OSAL_SIGNAL pSignal = &gDevWmt.cmdResp;
     gDevWmt.cmdResult = result;
-    osal_raise_signal(&gDevWmt.cmdResp);
+    osal_raise_signal(pSignal);
+    WMT_DBG_FUNC("wakeup cmdResp\n");
     return 0;
 }
 
@@ -436,7 +389,26 @@ wmt_lib_set_patch_name (
     UCHAR *cPatchName
     )
 {
-    osal_strncpy(gDevWmt.cPatchName, cPatchName, OSAL_NAME_MAX);
+    osal_strncpy(gDevWmt.cPatchName, cPatchName, NAME_MAX);
+    return 0;
+}
+#if WMT_PLAT_ALPS    
+extern PCHAR wmt_uart_port_desc; // defined in mtk_wcn_cmb_stub_alps.cpp
+#endif
+INT32
+wmt_lib_set_uart_name(
+    CHAR *cUartName
+)
+{
+#if WMT_PLAT_ALPS
+
+    WMT_INFO_FUNC("orig uart: %s\n", wmt_uart_port_desc);
+#endif
+    osal_strncpy(gDevWmt.cUartName, cUartName, NAME_MAX);
+#if WMT_PLAT_ALPS
+    wmt_uart_port_desc = gDevWmt.cUartName;
+    WMT_INFO_FUNC("new uart: %s\n", wmt_uart_port_desc);
+#endif
     return 0;
 }
 
@@ -448,10 +420,10 @@ wmt_lib_set_hif (
     UINT32 val;
     P_WMT_HIF_CONF pHif = &gDevWmt.rWmtHifConf;
 
-    val = hifconf & 0x3;
+    val = hifconf & 0xF;
     if (STP_UART_FULL == val) {
         pHif->hifType = WMT_HIF_UART;
-	pHif->uartFcCtrl = ((hifconf & 0xc) >> 2);
+		pHif->uartFcCtrl = ((hifconf & 0xc) >> 2);
         val = (hifconf >> 8);
         pHif->au4HifConf[0] = val;
         pHif->au4HifConf[1] = val;
@@ -479,7 +451,7 @@ wmt_lib_set_hif (
         return -2;
     }
 
-    WMT_INFO_FUNC("new hifType:%d, fcCtrl:%d, baud:%d, fm:%d \n",
+     WMT_INFO_FUNC("new hifType:%d, fcCtrl:%d, baud:%d, fm:%d \n",
         pHif->hifType,
         pHif->uartFcCtrl,
         pHif->au4HifConf[0],
@@ -519,10 +491,10 @@ INT32 wmt_lib_ps_set_idle_time(UINT32 psIdleTime)
 
 INT32 wmt_lib_ps_ctrl(UINT32 state)
 {
-    if(0 == state)
+    if (0 == state)
     {
         wmt_lib_ps_disable();
-        gPsEnable = 0;
+        gPsEnable = 0;        
     }
     else
     {
@@ -532,15 +504,12 @@ INT32 wmt_lib_ps_ctrl(UINT32 state)
     return 0;
 }
 
+
 INT32 wmt_lib_ps_enable(VOID)
 {
     if(gPsEnable)
     {
         mtk_wcn_stp_psm_enable(gPsIdleTime);
-    }
-    else
-    {
-	WMT_INFO_FUNC("gPsEnable flag is not set!\n");
     }
     return 0;
 }
@@ -551,10 +520,7 @@ INT32 wmt_lib_ps_disable(VOID)
     {
         mtk_wcn_stp_psm_disable();
     }
-    else
-    {
-	WMT_INFO_FUNC("gPsEnable flag is not set!\n");
-    }
+
     return 0;
 }
 
@@ -575,7 +541,6 @@ static MTK_WCN_BOOL wmt_lib_ps_action(MTKSTP_PSM_ACTION_T action)
     P_OSAL_OP lxop;
     MTK_WCN_BOOL bRet;
     UINT32 u4Wait;
-    P_OSAL_SIGNAL pSignal;
 
     lxop = wmt_lib_get_free_op();
     if (!lxop)
@@ -583,8 +548,7 @@ static MTK_WCN_BOOL wmt_lib_ps_action(MTKSTP_PSM_ACTION_T action)
         WMT_WARN_FUNC("get_free_lxop fail \n");
         return MTK_WCN_BOOL_FALSE;
     }
-    pSignal = &lxop->signal;
-    pSignal->timeoutValue = 0;
+
     lxop->op.opId = WMT_OPID_PWR_SV;
     lxop->op.au4OpData[0] = action;
     lxop->op.au4OpData[1] = (UINT32) mtk_wcn_stp_psm_notify_stp;
@@ -607,17 +571,25 @@ static MTK_WCN_BOOL wmt_lib_ps_do_host_awake(VOID)
 {
     return wmt_lib_ps_action(HOST_AWAKE);
 }
-
+//extern int g_block_tx;
 static INT32
 wmt_lib_ps_handler (
     MTKSTP_PSM_ACTION_T action
     )
 {
     INT32 ret;
+
     ret = 0; // TODO:[FixMe][George] initial value or compile warning?
-    /*MT6620 Not Ready*/
+    //if(g_block_tx && (action == SLEEP))
+    if ((0 != mtk_wcn_stp_coredump_start_get()) && (action == SLEEP))
+    {
+        mtk_wcn_stp_psm_notify_stp(SLEEP);
+        return ret;   
+    }
+    
+    /*MT662x Not Ready*/
     if (!mtk_wcn_stp_is_ready()) {
-        WMT_INFO_FUNC("MT6620 Not Ready, Dont Send Sleep/Wakeup Command\n");
+        WMT_DBG_FUNC("MT662x Not Ready, Dont Send Sleep/Wakeup Command\n");
         mtk_wcn_stp_psm_notify_stp(ROLL_BACK);
         return 0;
     }
@@ -627,10 +599,8 @@ wmt_lib_ps_handler (
 
         if (!mtk_wcn_stp_is_sdio_mode()) {
             ret = wmt_lib_ps_do_sleep();
-            //osal_msleep(1000);
-            WMT_INFO_FUNC("enable host eirq \n");
+            WMT_DBG_FUNC("enable host eirq \n");
             wmt_plat_eirq_ctrl(PIN_BGF_EINT, PIN_STA_EINT_EN);
-            WMT_INFO_FUNC("enable host eirq done\n");
         }
         else {
             //ret = mtk_wcn_stp_sdio_do_own_set();
@@ -697,9 +667,10 @@ wmt_lib_ps_handler (
             ret = wmt_lib_ps_do_host_awake();
         }
         else {
-            WMT_INFO_FUNC("[SDIO-PS] SDIO host awake! ####\n");
+            WMT_DBG_FUNC("[SDIO-PS] SDIO host awake! ####\n");
 
             //ret = mtk_wcn_stp_sdio_do_own_clr();
+            
             if (sdio_own_ctrl) {
                 ret = (*sdio_own_ctrl)(OWN_CLR);
             }
@@ -707,7 +678,9 @@ wmt_lib_ps_handler (
                 WMT_ERR_FUNC("sdio_own_ctrl is not registered\n");
                 ret = -1;
             }
-
+            
+            //Here we set ret to 0 directly
+            ret = 0;
             if (!ret) {
                 mtk_wcn_stp_psm_notify_stp(HOST_AWAKE);
             }
@@ -753,13 +726,19 @@ wmt_lib_ps_stp_cb (
 #endif
 }
 
+
+MTK_WCN_BOOL wmt_lib_is_quick_ps_support (VOID)
+{
+    return wmt_core_is_quick_ps_support();
+}
+
 VOID
 wmt_lib_ps_irq_cb (VOID)
 {
 #if CFG_WMT_PS_SUPPORT
     wmt_lib_ps_handler(EIRQ);
 #else
-    WMT_WARN_FUNC("CFG_WMT_PS_SUPPORT is not set\n");
+    WMT_DBG_FUNC("CFG_WMT_PS_SUPPORT is not set\n");
     return ;
 #endif
 }
@@ -830,7 +809,22 @@ static INT32 wmtd_thread (void *pvData)
             goto handlerDone;
         }
 #endif
+
+        if (osal_test_bit(WMT_STAT_RST_ON, &pWmtDev->state)) {
+            /* when whole chip reset, only HW RST and SW RST cmd can execute*/
+            if ((pOp->op.opId == WMT_OPID_HW_RST) 
+                || (pOp->op.opId == WMT_OPID_SW_RST) 
+                || (pOp->op.opId == WMT_OPID_GPIO_STATE)) {
         iResult = wmt_core_opid(&pOp->op);
+            } else {
+                iResult = -2;
+                WMT_WARN_FUNC("Whole chip resetting, opid (0x%x) failed, iRet(%d)\n",  pOp->op.opId,iResult);
+            }
+        } else {
+            wmt_lib_set_current_op(pWmtDev, pOp);
+        iResult = wmt_core_opid(&pOp->op);
+            wmt_lib_set_current_op(pWmtDev, NULL);
+        }
 
         if (iResult) {
             WMT_WARN_FUNC("opid (0x%x) failed, iRet(%d)\n",  pOp->op.opId,iResult);
@@ -928,6 +922,18 @@ static P_OSAL_OP wmt_lib_get_op (
 }
 
 
+INT32 wmt_lib_put_op_to_free_queue(P_OSAL_OP pOp)
+{
+    P_DEV_WMT pWmtDev = &gDevWmt;
+    
+    if (MTK_WCN_BOOL_FALSE == wmt_lib_put_op(&pWmtDev->rFreeOpQ, pOp)) {
+        return -1;
+    } else {
+        return 0;
+    }
+}
+
+
 P_OSAL_OP wmt_lib_get_free_op (VOID)
 {
     P_OSAL_OP pOp = NULL;
@@ -963,7 +969,12 @@ MTK_WCN_BOOL wmt_lib_put_act_op (P_OSAL_OP pOp)
             WMT_ERR_FUNC("pWmtDev(0x%p), pOp(0x%p)\n", pWmtDev, pOp);
             break;
         }
-
+        if(0 != mtk_wcn_stp_coredump_start_get())
+        {
+            bCleanup = MTK_WCN_BOOL_TRUE;
+            WMT_WARN_FUNC("block tx flag is set\n");
+            break;
+        }
         pSignal = &pOp->signal;
 //        pOp->u4WaitMs = u4WaitMs;
         if (pSignal->timeoutValue) {
@@ -1058,9 +1069,9 @@ INT32 wmt_lib_reg_rw (
     lxop->op.au4OpData[3] = mask;
     pSignal->timeoutValue = MAX_EACH_WMT_CMD;
 
-    wmt_lib_disable_psm_monitor();
+    DISABLE_PSM_MONITOR();
     bRet = wmt_lib_put_act_lxop(lxop);
-    wmt_lib_enable_psm_monitor();
+    ENABLE_PSM_MONITOR();
 
     if (MTK_WCN_BOOL_FALSE != bRet) {
         WMT_DBG_FUNC("OPID_REG_RW isWrite(%u) offset(0x%x) value(0x%x) mask(0x%x) ok\n",
@@ -1078,6 +1089,19 @@ INT32 wmt_lib_reg_rw (
 }
 #endif
 
+// TODO:[ChangeFeature][George] is this function obsoleted?
+#if 0
+static VOID wmt_lib_clear_chip_id(VOID)
+{
+/*
+    gDevWmt.pChipInfo = NULL;
+*/
+    gDevWmt.hw_ver = WMTHWVER_INVALID;
+
+    return;
+}
+#endif
+
 // TODO: [FixMe][GeorgeKuo]: change this API to report real chip id, hw_ver, and
 // fw_ver instead of WMT-translated WMTHWVER
 ENUM_WMTHWVER_TYPE_T
@@ -1092,6 +1116,29 @@ wmt_lib_get_hwver (VOID)
     return gDevWmt.eWmtHwVer;
 }
 
+UINT32
+wmt_lib_get_icinfo (ENUM_WMT_CHIPINFO_TYPE_T index)
+{
+    if (WMTCHIN_CHIPID == index)
+    {
+        return gDevWmt.chip_id;
+    }
+    else if (WMTCHIN_HWVER == index)
+    {
+        return gDevWmt.hw_ver;
+    }
+    else if (WMTCHIN_MAPPINGHWVER == index)
+    {
+        return gDevWmt.eWmtHwVer;
+    }
+	else if (WMTCHIN_FWVER == index)
+	{
+	    return gDevWmt.fw_ver;
+	}
+    return 0;
+    
+}
+
 
 UCHAR* wmt_lib_def_patch_name (VOID)
 {
@@ -1103,21 +1150,27 @@ UCHAR* wmt_lib_def_patch_name (VOID)
 MTK_WCN_BOOL
 wmt_lib_is_therm_ctrl_support (VOID)
 {
+    MTK_WCN_BOOL bIsSupportTherm = MTK_WCN_BOOL_TRUE;
     // TODO:[FixMe][GeorgeKuo]: move IC-dependent checking to ic-implementation file
-    if ( (WMTHWVER_MT6620_E3 > gDevWmt.eWmtHwVer)
+    if ( ((0x6620 == gDevWmt.chip_id) && (WMTHWVER_MT6620_E3 > gDevWmt.eWmtHwVer))
         || (WMTHWVER_INVALID == gDevWmt.eWmtHwVer) ) {
         WMT_ERR_FUNC("thermal command fail: chip version(WMTHWVER_TYPE:%d) is not valid\n", gDevWmt.eWmtHwVer);
-        return MTK_WCN_BOOL_FALSE;
+        bIsSupportTherm = MTK_WCN_BOOL_FALSE;
+    }
+    if(!mtk_wcn_stp_is_ready())
+    {   
+        WMT_ERR_FUNC("thermal command can not be send: STP is not ready\n");
+        bIsSupportTherm = MTK_WCN_BOOL_FALSE;
     }
 
-    return MTK_WCN_BOOL_TRUE;
+    return bIsSupportTherm;
 }
 
 MTK_WCN_BOOL
 wmt_lib_is_dsns_ctrl_support (VOID)
 {
     // TODO:[FixMe][GeorgeKuo]: move IC-dependent checking to ic-implementation file
-    if ( (WMTHWVER_MT6620_E3 > gDevWmt.eWmtHwVer)
+    if ( ((0x6620 == gDevWmt.chip_id) && (WMTHWVER_MT6620_E3 > gDevWmt.eWmtHwVer))
         || (WMTHWVER_INVALID == gDevWmt.eWmtHwVer) ) {
         WMT_ERR_FUNC("thermal command fail: chip version(WMTHWVER_TYPE:%d) is not valid\n", gDevWmt.eWmtHwVer);
         return MTK_WCN_BOOL_FALSE;
@@ -1174,9 +1227,14 @@ static INT32 wmt_lib_pin_ctrl (WMT_IC_PIN_ID id, WMT_IC_PIN_STATE stat, UINT32 f
     pSignal->timeoutValue= MAX_EACH_WMT_CMD;
 
     /*wake up chip first*/
-    wmt_lib_disable_psm_monitor();
+    if (DISABLE_PSM_MONITOR()) {
+        WMT_ERR_FUNC("wake up failed\n");
+        wmt_lib_put_op_to_free_queue(pOp);
+        return -1;
+    }
+    
     bRet = wmt_lib_put_act_op(pOp);
-    wmt_lib_enable_psm_monitor();
+    ENABLE_PSM_MONITOR();
     if (MTK_WCN_BOOL_FALSE == bRet) {
         WMT_WARN_FUNC("PIN_ID(%d) PIN_STATE(%d) flag(%d) fail\n", id, stat, flag);
     }
@@ -1200,7 +1258,7 @@ INT32 wmt_lib_reg_rw (
     MTK_WCN_BOOL bRet;
     UINT32 value;
     P_OSAL_SIGNAL pSignal;
-
+    
     if (!pvalue) {
         WMT_WARN_FUNC("!pvalue \n");
         return -1;
@@ -1211,9 +1269,9 @@ INT32 wmt_lib_reg_rw (
         WMT_WARN_FUNC("get_free_lxop fail \n");
         return -1;
     }
-
+    
     pSignal = &pOp->signal;
-    pSignal->timeoutValue = MAX_EACH_WMT_CMD;
+    pSignal->timeoutValue = MAX_EACH_WMT_CMD;    
     value = *pvalue;
     WMT_DBG_FUNC("OPID_REG_RW isWrite(%u) offset(0x%x) value(0x%x) mask(0x%x)\n\n",
         isWrite, offset, *pvalue, mask);
@@ -1222,9 +1280,14 @@ INT32 wmt_lib_reg_rw (
     pOp->op.au4OpData[1] = offset;
     pOp->op.au4OpData[2] = (UINT32)&value;
     pOp->op.au4OpData[3] = mask;
-    wmt_lib_disable_psm_monitor();
+    if (DISABLE_PSM_MONITOR()) {
+        WMT_ERR_FUNC("wake up failed\n");
+        wmt_lib_put_op_to_free_queue(pOp);
+        return -1;
+    }
+    
     bRet = wmt_lib_put_act_op(pOp);
-    wmt_lib_enable_psm_monitor();
+    ENABLE_PSM_MONITOR();
 
     if (MTK_WCN_BOOL_FALSE != bRet) {
         WMT_DBG_FUNC("OPID_REG_RW isWrite(%u) offset(0x%x) value(0x%x) mask(0x%x) ok\n",
@@ -1252,7 +1315,7 @@ INT32 wmt_lib_efuse_rw (
     MTK_WCN_BOOL bRet;
     UINT32 value;
     P_OSAL_SIGNAL pSignal;
-
+    
     if (!pvalue) {
         WMT_WARN_FUNC("!pvalue \n");
         return -1;
@@ -1263,9 +1326,9 @@ INT32 wmt_lib_efuse_rw (
         WMT_WARN_FUNC("get_free_lxop fail \n");
         return -1;
     }
-
+    
     pSignal = &pOp->signal;
-    pSignal->timeoutValue = MAX_EACH_WMT_CMD;
+    pSignal->timeoutValue = MAX_EACH_WMT_CMD;    
     value = *pvalue;
     WMT_DBG_FUNC("OPID_EFUSE_RW isWrite(%u) offset(0x%x) value(0x%x) mask(0x%x)\n\n",
         isWrite, offset, *pvalue, mask);
@@ -1274,9 +1337,14 @@ INT32 wmt_lib_efuse_rw (
     pOp->op.au4OpData[1] = offset;
     pOp->op.au4OpData[2] = (UINT32)&value;
     pOp->op.au4OpData[3] = mask;
-    wmt_lib_disable_psm_monitor();
+    if (DISABLE_PSM_MONITOR()) {
+        WMT_ERR_FUNC("wake up failed\n");
+        wmt_lib_put_op_to_free_queue(pOp);
+        return -1;
+    }
+    
     bRet = wmt_lib_put_act_op(pOp);
-    wmt_lib_enable_psm_monitor();
+    ENABLE_PSM_MONITOR();
 
     if (MTK_WCN_BOOL_FALSE != bRet) {
         WMT_DBG_FUNC("OPID_EFUSE_RW isWrite(%u) offset(0x%x) value(0x%x) mask(0x%x) ok\n",
@@ -1333,15 +1401,22 @@ INT32 wmt_lib_host_awake_put(VOID)
 
 MTK_WCN_BOOL wmt_lib_btm_cb (MTKSTP_BTM_WMT_OP_T op)
 {
+    MTK_WCN_BOOL bRet = MTK_WCN_BOOL_FALSE;
 
     if(op == BTM_RST_OP){
         //high priority, not to enqueue into the queue of wmtd
         WMT_INFO_FUNC("Invoke whole chip reset from stp_btm!!!\n");
         wmt_lib_cmb_rst(WMTRSTSRC_RESET_STP);
+		bRet = MTK_WCN_BOOL_TRUE;
     } else if(op == BTM_DMP_OP){
+        
         WMT_WARN_FUNC("TBD!!!\n");
     }
-    return 0;
+	else if (op == BTM_GET_AEE_SUPPORT_FLAG)
+	{
+	    bRet = wmt_core_get_aee_dump_flag();
+	}
+    return bRet;
 }
 
 MTK_WCN_BOOL wmt_cdev_rstmsg_snd(ENUM_WMTRSTMSG_TYPE_T msg){
@@ -1372,23 +1447,32 @@ MTK_WCN_BOOL wmt_cdev_rstmsg_snd(ENUM_WMTRSTMSG_TYPE_T msg){
 
 VOID wmt_lib_state_init(VOID)
 {
-    UINT32 i = 0;
+    //UINT32 i = 0;
     P_DEV_WMT pDevWmt = &gDevWmt;
+    P_OSAL_OP pOp;
+    
     /* Initialize op queue */
-    RB_INIT(&pDevWmt->rFreeOpQ, WMT_OP_BUF_SIZE);
-    RB_INIT(&pDevWmt->rActiveOpQ, WMT_OP_BUF_SIZE);
+    //RB_INIT(&pDevWmt->rFreeOpQ, WMT_OP_BUF_SIZE);
+    //RB_INIT(&pDevWmt->rActiveOpQ, WMT_OP_BUF_SIZE);
+
+    while ((pOp = wmt_lib_get_op(&pDevWmt->rActiveOpQ))) {
+        osal_signal_init(&(pOp->signal));
+        wmt_lib_put_op(&pDevWmt->rFreeOpQ, pOp);
+    }
+        
     /* Put all to free Q */
+    /*
     for (i = 0; i < WMT_OP_BUF_SIZE; i++) {
          osal_signal_init(&(pDevWmt->arQue[i].signal));
          wmt_lib_put_op(&pDevWmt->rFreeOpQ, &(pDevWmt->arQue[i]));
-    }
+    }*/
     return;
 }
 
 
 INT32 wmt_lib_sdio_ctrl(UINT32 on)
 {
-
+    
     P_OSAL_OP pOp;
     MTK_WCN_BOOL bRet;
     P_OSAL_SIGNAL pSignal;
@@ -1418,6 +1502,36 @@ INT32 wmt_lib_sdio_ctrl(UINT32 on)
     return 0;
 }
 
+MTK_WCN_BOOL wmt_lib_hw_state_show(VOID)
+{
+    P_OSAL_OP pOp;
+    MTK_WCN_BOOL bRet;
+    P_OSAL_SIGNAL pSignal;
+
+
+    pOp = wmt_lib_get_free_op();
+    if (!pOp) {
+        WMT_WARN_FUNC("get_free_lxop fail\n");
+        return MTK_WCN_BOOL_FALSE;
+    }
+
+    WMT_DBG_FUNC("call WMT_OPID_HW_STATE_SHOW\n");
+
+    pSignal = &pOp->signal;
+    pOp->op.opId = WMT_OPID_GPIO_STATE;
+    pSignal->timeoutValue= MAX_GPIO_CTRL_TIME;
+
+    bRet = wmt_lib_put_act_op(pOp);
+    if (MTK_WCN_BOOL_FALSE == bRet) {
+        WMT_WARN_FUNC("WMT_OPID_HW_STATE_SHOW failed\n");
+        return MTK_WCN_BOOL_FALSE;
+    }
+    else {
+        WMT_DBG_FUNC("OPID(WMT_OPID_HW_STATE_SHOW)ok\n");
+    }
+    return MTK_WCN_BOOL_TRUE;
+}
+
 
 MTK_WCN_BOOL wmt_lib_hw_rst(VOID){
 
@@ -1435,6 +1549,8 @@ MTK_WCN_BOOL wmt_lib_hw_rst(VOID){
     osal_clear_bit(WMT_STAT_RX, &pDevWmt->state);
     osal_clear_bit(WMT_STAT_CMD, &pDevWmt->state);
 
+    /*Before do hardware reset, we show GPIO state to check if others modified our pin state accidentially*/
+    wmt_lib_hw_state_show();
     pOp = wmt_lib_get_free_op();
     if (!pOp) {
         WMT_WARN_FUNC("get_free_lxop fail\n");
@@ -1511,6 +1627,7 @@ ENUM_WMTRSTRET_TYPE_T wmt_lib_cmb_rst(ENUM_WMTRSTSRC_TYPE_T src){
     ENUM_WMTRSTRET_TYPE_T retval = WMTRSTRET_MAX;
     INT32 retries = RETRYTIMES;
     P_DEV_WMT pDevWmt = &gDevWmt;
+    P_OSAL_OP pOp;
     UCHAR *srcName[]={"WMTRSTSRC_RESET_BT",
                 "WMTRSTSRC_RESET_FM",
                 "WMTRSTSRC_RESET_GPS",
@@ -1520,6 +1637,15 @@ ENUM_WMTRSTRET_TYPE_T wmt_lib_cmb_rst(ENUM_WMTRSTSRC_TYPE_T src){
 
     if(src < WMTRSTSRC_RESET_MAX){
         WMT_INFO_FUNC("reset source = %s\n", srcName[src]);
+    }
+
+    if (WMTRSTSRC_RESET_TEST == src) {
+        pOp = wmt_lib_get_current_op(pDevWmt);
+        if (pOp && ((WMT_OPID_FUNC_ON == pOp->op.opId) 
+            || (WMT_OPID_FUNC_OFF == pOp->op.opId))) {
+            WMT_INFO_FUNC("can't do reset by test src when func on/off\n");
+            return -1;
+        }
     }
 
     //<1> Consider the multi-context combo_rst case.
@@ -1538,6 +1664,15 @@ ENUM_WMTRSTRET_TYPE_T wmt_lib_cmb_rst(ENUM_WMTRSTSRC_TYPE_T src){
         goto rstDone;
     }
 
+    // wakeup blocked opid
+    pOp = wmt_lib_get_current_op(pDevWmt);
+    if (osal_op_is_wait_for_signal(pOp)) {
+        osal_op_raise_signal(pOp, -1);
+    }
+
+    // wakeup blocked cmd
+    wmt_dev_rx_event_cb();
+    
     //<4> retry until reset flow successful
     while(retries > 0){
          //<4.1> reset combo hw
@@ -1627,4 +1762,81 @@ UINT32 wmt_lib_dbg_level_set(UINT32 level)
     return 0;
 }
 
+
+INT32 wmt_lib_set_stp_wmt_last_close(UINT32 value)
+{
+    return mtk_wcn_stp_set_wmt_last_close(value);
+}
+
+
+INT32 wmt_lib_notify_stp_sleep()
+{
+    INT32 iRet = 0x0;
+	
+    iRet = wmt_lib_psm_lock_aquire();
+    if (iRet) {
+        WMT_ERR_FUNC("--->lock psm_lock failed, iRet=%d\n", iRet);
+        return iRet;
+    }
+    
+    iRet = mtk_wcn_stp_notify_sleep_for_thermal();
+	wmt_lib_psm_lock_release();
+	
+	return iRet;
+}
+
+
+VOID wmt_lib_set_patch_num(ULONG num)
+{
+	P_DEV_WMT pWmtDev = &gDevWmt;
+	pWmtDev->patchNum = num;
+}
+
+
+VOID wmt_lib_set_patch_info(P_WMT_PATCH_INFO pPatchinfo)
+{
+	P_DEV_WMT pWmtDev = &gDevWmt;
+	if (pPatchinfo) {
+		pWmtDev->pWmtPatchInfo = pPatchinfo;
+	}
+}
+
+
+INT32 wmt_lib_set_current_op(P_DEV_WMT pWmtDev, P_OSAL_OP pOp)
+{
+    if (pWmtDev) {
+        pWmtDev->pCurOP = pOp;
+        WMT_DBG_FUNC("pOp=0x%p\n", pOp);
+        return 0;
+    } else {
+        WMT_ERR_FUNC("Invalid pointer\n");
+        return -1;
+    }
+}
+
+
+P_OSAL_OP wmt_lib_get_current_op(P_DEV_WMT pWmtDev)
+	{
+    if (pWmtDev) {
+        return pWmtDev->pCurOP;
+    } else {
+        WMT_ERR_FUNC("Invalid pointer\n");
+        return NULL;
+	}
+}
+
+INT32 wmt_lib_merge_if_flag_ctrl(UINT32 enable)
+{
+#if WMT_PLAT_ALPS
+    return wmt_plat_merge_if_flag_ctrl(enable);
+#endif
+}
+
+
+INT32 wmt_lib_merge_if_flag_get(UINT32 enable)
+{
+#if WMT_PLAT_ALPS
+    return wmt_plat_merge_if_flag_get();
+#endif
+}
 

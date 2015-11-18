@@ -22,7 +22,6 @@ static void usb_detect_do_wakeup(struct work_struct *work)
 	if (ret < 0) {
 		pr_err("%s: irq_set_irq_type(%d, %d) failed\n", __func__, irq, type);
 	}
-	
 	enable_irq(irq);
 }
 
@@ -32,12 +31,13 @@ static struct wake_lock usb_wakelock;
 
 static irqreturn_t usb_detect_irq_handler(int irq, void *dev_id)
 {
-	disable_irq_nosync(irq);
-	wake_lock_timeout(&usb_wakelock, WAKE_LOCK_TIMEOUT);	
+	disable_irq_nosync(irq); // for irq debounce
+	wake_lock_timeout(&usb_wakelock, WAKE_LOCK_TIMEOUT);
 	schedule_delayed_work(&wakeup_work, HZ / 10);
 	return IRQ_HANDLED;
 }
 
+#ifndef CONFIG_RK_USB_DETECT_BY_OTG_BVALID
 int __init board_usb_detect_init(unsigned gpio)
 {
 	int ret;
@@ -76,8 +76,9 @@ int __init board_usb_detect_init(unsigned gpio)
 
 	return 0;
 }
+#endif
 
-#if defined(CONFIG_ARCH_RK2928)
+#ifdef IRQ_OTG_BVALID
 #include <linux/io.h>
 #include <mach/iomux.h>
 
@@ -86,14 +87,22 @@ static irqreturn_t bvalid_irq_handler(int irq, void *dev_id)
 	/* clear irq */
 #ifdef CONFIG_ARCH_RK2928
 	writel_relaxed((1 << 31) | (1 << 15), RK2928_GRF_BASE + GRF_UOC0_CON5);
+#ifdef CONFIG_RK_USB_UART
+	/* usb otg dp/dm switch to usb phy */
+	writel_relaxed((3 << (12 + 16)),RK2928_GRF_BASE + GRF_UOC1_CON4);
 #endif
-#ifdef CONFIG_RK_USB_UART 
-    /* usb otg dp/dm switch to usb phy */
-    writel_relaxed((3 << (12 + 16)),RK2928_GRF_BASE + GRF_UOC1_CON4);
+#elif defined(CONFIG_ARCH_RK3188)
+	writel_relaxed((1 << 31) | (1 << 15), RK30_GRF_BASE + GRF_UOC0_CON3);
+#ifdef CONFIG_RK_USB_UART
+	/* usb otg dp/dm switch to usb phy */
+	writel_relaxed((0x0300 << 16), RK30_GRF_BASE + GRF_UOC0_CON0);
+#endif
 #endif
 
+#ifdef CONFIG_RK_USB_DETECT_BY_OTG_BVALID
 	wake_lock_timeout(&usb_wakelock, WAKE_LOCK_TIMEOUT);
 	rk28_send_wakeup_key();
+#endif
 
 	return IRQ_HANDLED;
 }
@@ -103,15 +112,19 @@ static int __init bvalid_init(void)
 	int ret;
 	int irq = IRQ_OTG_BVALID;
 
+#ifndef CONFIG_RK_USB_UART
 	if (detect_gpio != INVALID_GPIO) {
 		printk("usb detect inited by board_usb_detect_init, disable detect by bvalid irq\n");
 		return 0;
 	}
+#endif
 
+#ifdef CONFIG_RK_USB_DETECT_BY_OTG_BVALID
 	if (!wakelock_inited) {
 		wake_lock_init(&usb_wakelock, WAKE_LOCK_SUSPEND, "usb_detect");
 		wakelock_inited = true;
 	}
+#endif
 
 	ret = request_irq(irq, bvalid_irq_handler, 0, "bvalid", NULL);
 	if (ret < 0) {
@@ -122,11 +135,18 @@ static int __init bvalid_init(void)
 	/* clear & enable bvalid irq */
 #ifdef CONFIG_ARCH_RK2928
 	writel_relaxed((3 << 30) | (3 << 14), RK2928_GRF_BASE + GRF_UOC0_CON5);
+#elif defined(CONFIG_ARCH_RK3188)
+	writel_relaxed((3 << 30) | (3 << 14), RK30_GRF_BASE + GRF_UOC0_CON3);
 #endif
 
+#ifdef CONFIG_RK_USB_DETECT_BY_OTG_BVALID
 	enable_irq_wake(irq);
+#endif
 
 	return 0;
 }
+#if defined(CONFIG_ARCH_RK2928) || defined(CONFIG_ARCH_RK3188)
 late_initcall(bvalid_init);
 #endif
+#endif
+

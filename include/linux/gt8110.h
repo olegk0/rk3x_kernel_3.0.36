@@ -22,7 +22,6 @@ struct goodix_8110_platform_data {
 	int irq_pin;
         int power_control;
         int mode_check_pin;
-        int valid_indicate_pin;
         int (*hw_init) (void);
         int (*hw_exit) (void);
 };

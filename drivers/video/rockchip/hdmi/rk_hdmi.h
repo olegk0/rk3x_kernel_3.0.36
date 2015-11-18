@@ -19,7 +19,8 @@
 #include <linux/rk_fb.h>
 
 /* default HDMI output video mode */
-#define HDMI_VIDEO_DEFAULT_MODE		HDMI_1280x720p_60Hz//HDMI_1920x1080p_60Hz
+//IAM#define HDMI_VIDEO_DEFAULT_MODE			HDMI_1920x1080p_60Hz
+#define HDMI_VIDEO_DEFAULT_MODE			HDMI_1280x720p_60Hz
 
 // HDMI video source
 enum {
@@ -30,6 +31,7 @@ enum {
 /* If HDMI_ENABLE, system will auto configure output mode according to EDID 
  * If HDMI_DISABLE, system will output mode according to macro HDMI_VIDEO_DEFAULT_MODE
  */
+//#define HDMI_AUTO_CONFIGURE			HDMI_DISABLE
 #define HDMI_AUTO_CONFIGURE			HDMI_ENABLE
 
 /* default HDMI output audio mode */
@@ -239,6 +241,7 @@ struct hdmi_edid {
 	struct list_head modelist;			//Device supported display mode list
 	struct hdmi_audio *audio;			//Device supported audio info
 	int	audio_num;						//Device supported audio type number
+	int	base_audio_support;				//Device supported base audio
 };
 
 /* RK HDMI Video Configure Parameters */
@@ -301,6 +304,7 @@ struct hdmi {
 	int (*detect_hotplug)(void);
 	// call back for edid
 	int (*read_edid)(int block, unsigned char *buff);
+	int (*set_vif)(rk_screen * screen,bool connect);
 
 	// call back for hdcp operatoion
 	void (*hdcp_cb)(void);
@@ -321,7 +325,6 @@ struct hdmi {
 
 extern struct hdmi *hdmi;
 extern int hdmi_get_hotplug(void);
-extern int hdmi_setmode(int vic);//IAM
 extern int hdmi_set_info(struct rk29fb_screen *screen, unsigned int vic);
 extern void hdmi_init_lcdc(struct rk29fb_screen *screen, struct rk29lcd_info *lcd_info);
 extern int hdmi_sys_init(void);

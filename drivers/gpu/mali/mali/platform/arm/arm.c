@@ -1,375 +1,153 @@
-/* Copyright (C) 2010, 2012 ARM Limited. All rights reserved.
- *
+/*
+ * Copyright (C) 2010, 2012-2013 ARM Limited. All rights reserved.
+ * 
  * This program is free software and is provided to you under the terms of the GNU General Public License version 2
  * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
- *
+ * 
  * A copy of the licence is included with the program, and can also be obtained from Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-#include "arm.h"
 
-/* platform functions start */
-#ifdef MALI_CFG_REGULATOR
+/**
+ * @file mali_platform.c
+ * Platform specific Mali driver functions for:
+ * - Realview Versatile platforms with ARM11 Mpcore and virtex 5.
+ * - Versatile Express platforms with ARM Cortex-A9 and virtex 6.
+ */
+#include <linux/platform_device.h>
+#include <linux/version.h>
+#include <linux/pm.h>
+#ifdef CONFIG_PM_RUNTIME
+#include <linux/pm_runtime.h>
+#endif
+#include <asm/io.h>
+#include <linux/mali/mali_utgard.h>
+#include "mali_kernel_common.h"
 
-void mali_regulator_set_voltage(int min_uV, int max_uV)
+static void mali_platform_device_release(struct device *device);
+static u32 mali_read_phys(u32 phys_addr);
+#if defined(CONFIG_ARCH_REALVIEW)
+static void mali_write_phys(u32 phys_addr, u32 value);
+#endif
+
+#if defined(CONFIG_ARCH_VEXPRESS)
+
+static struct resource mali_gpu_resources_m450_mp8[] =
 {
-	int voltage;
-	min_uV = mali_gpu_vol;
-	max_uV = mali_gpu_vol;
-#if MALI_VOLTAGE_LOCK
-	if (mali_vol_lock_flag == MALI_FALSE) {
-		if (min_uV < MALI_BOTTOMLOCK_VOL || max_uV < MALI_BOTTOMLOCK_VOL) {
-			min_uV = MALI_BOTTOMLOCK_VOL;
-			max_uV = MALI_BOTTOMLOCK_VOL;
-		}
-	} else if (_mali_osk_atomic_read(&voltage_lock_status) > 0 ) {
-		if (min_uV < mali_lock_vol || max_uV < mali_lock_vol) {
-		
-			min_uV = mali_lock_vol;
-			max_uV = mali_lock_vol;
-			
-		}
-	}
-#endif
+	MALI_GPU_RESOURCES_MALI450_MP8_PMU(0xFC040000, -1, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 70, 68)
+};
 
-	_mali_osk_lock_wait(mali_dvfs_lock, _MALI_OSK_LOCKMODE_RW);
+#elif defined(CONFIG_ARCH_REALVIEW)
 
-	if( IS_ERR_OR_NULL(g3d_regulator) )
-	{
-		MALI_DEBUG_PRINT(1, ("error on mali_regulator_set_voltage : g3d_regulator is null\n"));
-		return;
-	}
-	MALI_DEBUG_PRINT(2, ("= regulator_set_voltage: %d, %d \n",min_uV, max_uV));
-
-	regulator_set_voltage(g3d_regulator,min_uV,max_uV);
-	voltage = regulator_get_voltage(g3d_regulator);
-
-	mali_gpu_vol = voltage;
-	MALI_DEBUG_PRINT(1, ("= regulator_get_voltage: %d \n",mali_gpu_vol));
-
-	_mali_osk_lock_signal(mali_dvfs_lock, _MALI_OSK_LOCKMODE_RW);
-}
-#endif
-
-unsigned long mali_clk_get_rate(void) {
-	return clk_get_rate(mali_clock);
-}
-
-mali_bool mali_clk_put(void) {
-	MALI_DEBUG_PRINT(4, ("mali_clk_put() called\n"));
-	// mali clock get always.
-	if (mali_clock != NULL) {
-		clk_put(mali_clock);
-	}
-	return MALI_TRUE;
-}
-
-mali_bool mali_clk_get(void) {
-	MALI_DEBUG_PRINT(4, ("mali_clk_get() called\n"));
-	// mali clock get always.
-	if (mali_clock == NULL) {
-		mali_clock = clk_get(NULL, GPUCLK_NAME);
-
-		if (IS_ERR(mali_clock)) {
-			MALI_PRINT( ("MALI Error : failed to get source mali clock\n"));
-			return MALI_FALSE;
-		}
-	}
-
-	return MALI_TRUE;
-}
-
-mali_bool mali_clk_set_rate(unsigned int clk, unsigned int mhz) {
-	unsigned long rate = 0;
-
-	clk = mali_gpu_clk;
-
-	MALI_DEBUG_PRINT(4, ("mali_clk_set_rate() called\n"));
-	//_mali_osk_lock_wait(mali_dvfs_lock, _MALI_OSK_LOCKMODE_RW);
-
-	if (mali_clk_get() == MALI_FALSE)
-		return MALI_FALSE;
-
-	rate = (unsigned long) clk * (unsigned long) mhz;
-	MALI_DEBUG_PRINT(3, ("= clk_set_rate : %d , %d \n",clk, mhz ));
-
-	if (clk_enable(mali_clock) < 0)
-		return MALI_FALSE;
-
-	clk_set_rate(mali_clock, rate);
-	rate = clk_get_rate(mali_clock);
-
-		mali_gpu_clk = (int) (rate / mhz);
-
-	GPU_MHZ = mhz;
-	MALI_DEBUG_PRINT(3, ("= clk_get_rate: %d \n",mali_gpu_clk));
-
-//	mali_clk_put(MALI_FALSE);
-
-	//_mali_osk_lock_signal(mali_dvfs_lock, _MALI_OSK_LOCKMODE_RW);
-
-	return MALI_TRUE;
-}
-
-mali_bool init_mali_clock(void) {
-	mali_bool ret = MALI_TRUE;
-
-	gpu_power_state = 0;
-	MALI_DEBUG_PRINT(4, ("init_mali_clock() called\n"));
-	if (mali_clock != 0)
-		return ret; // already initialized
-
-	mali_dvfs_lock = _mali_osk_lock_init(
-			_MALI_OSK_LOCKFLAG_NONINTERRUPTABLE | _MALI_OSK_LOCKFLAG_ONELOCK, 0,
-			0);
-	if (mali_dvfs_lock == NULL)
-		return _MALI_OSK_ERR_FAULT;
-
-	if (mali_clk_get() == MALI_FALSE)
-		return MALI_FALSE;
-
-	clk_set_rate(mali_clock, GPUMINCLK);
-
-	if (mali_clk_set_rate(mali_gpu_clk, GPU_MHZ) == MALI_FALSE) {
-		ret = MALI_FALSE;
-		goto err_clock_get;
-	}
-
-	MALI_PRINT(("init_mali_clock mali_clock %p \n", mali_clock));
-
-#ifdef MALI_CFG_REGULATOR
-#if USING_MALI_PMM
-	g3d_regulator = regulator_get(&mali_gpu_device.dev, "vdd_core");
-#else
-	g3d_regulator = regulator_get(NULL, "vdd_core");
-#endif
-
-	if (IS_ERR(g3d_regulator))
-	{
-		MALI_PRINT( ("MALI Error : failed to get vdd_g3d\n"));
-		ret = MALI_FALSE;
-		goto err_regulator;
-	}
-
-//	regulator_enable(g3d_regulator);
-
-	MALI_DEBUG_PRINT(1, ("= regulator_enable -> use cnt: %d \n",mali_regulator_get_usecount()));
-	mali_regulator_set_voltage(mali_gpu_vol, mali_gpu_vol);
-#endif
-
-	MALI_DEBUG_PRINT(2, ("MALI Clock is set at mali driver\n"));
-
-	MALI_DEBUG_PRINT(3,
-			("::clk_put:: %s mali_parent_clock - normal\n", __FUNCTION__));
-	MALI_DEBUG_PRINT(3,
-			("::clk_put:: %s mpll_clock  - normal\n", __FUNCTION__));
-
-//	mali_clk_put(MALI_FALSE);
-
-	return MALI_TRUE;
-
-#ifdef MALI_CFG_REGULATOR
-	err_regulator:
-	regulator_put(g3d_regulator);
-#endif
-
-	err_clock_get: 
-//	mali_clk_put(MALI_TRUE);
-
-	return ret;
-}
-
-mali_bool deinit_mali_clock(void) {
-	if (mali_clock == 0)
-		return MALI_TRUE;
-
-#ifdef MALI_CFG_REGULATOR
-	if (g3d_regulator)
-	{
-		regulator_put(g3d_regulator);
-		g3d_regulator=NULL;
-	}
-#endif
-	clk_set_rate(mali_clock, GPUMINCLK);
-	clk_disable(mali_clock);
-	mali_clk_put();
-
-	return MALI_TRUE;
-}
-
-_mali_osk_errcode_t enable_mali_clocks(void) {
-	int err;
-	err = clk_enable(mali_clock);
-	MALI_DEBUG_PRINT(3,
-			("enable_mali_clocks mali_clock %p error %d \n", mali_clock, err));
-
-	mali_clk_set_rate(mali_gpu_clk, GPU_MHZ);
-	MALI_SUCCESS;
-}
-
-_mali_osk_errcode_t disable_mali_clocks(void) {
-	clk_disable(mali_clock);
-	MALI_DEBUG_PRINT(3, ("disable_mali_clocks mali_clock %p \n", mali_clock));
-
-	MALI_SUCCESS;
-}
-
-_mali_osk_errcode_t gpu_power_domain_control(int bpower_on) {
-	if (bpower_on) {
-		u32 timeout;
-//		pmu_set_power_domain(PD_GPU,1);
-		timeout = 10;
-		while (!pmu_power_domain_is_on(PD_GPU)){
-			if (timeout == 0) {
-				MALI_PRINTF(("Power domain  enable failed.\n"));
-				return -ETIMEDOUT;
-			}
-			timeout--;
-			_mali_osk_time_ubusydelay(100);
-		}
-		
-		
-	} else {
-		u32 timeout;
-//		pmu_set_power_domain(PD_GPU,0);
-		/* Wait max 1ms */
-		timeout = 10;
-		while (pmu_power_domain_is_on(PD_GPU)) {
-			if (timeout == 0) {
-				MALI_PRINTF(("Power domain  disable failed.\n" ));
-				return -ETIMEDOUT;
-			}
-			timeout--;
-			_mali_osk_time_ubusydelay(100);
-		}
-
-	}
-
-	MALI_SUCCESS;
-}
-
-_mali_osk_errcode_t mali_platform_init(void) {
-	MALI_DEBUG_PRINT(4, ("mali_platform_init() called\n"));
-	MALI_CHECK(init_mali_clock(), _MALI_OSK_ERR_FAULT);
-#if MALI_VOLTAGE_LOCK
-	_mali_osk_atomic_init(&voltage_lock_status, 0);
-#endif
-
-	MALI_SUCCESS;
-}
-
-_mali_osk_errcode_t mali_platform_powerdown(u32 cores) {
-	MALI_DEBUG_PRINT(3,
-			("power down is called in mali_platform_powerdown state %x core %x \n", gpu_power_state, cores));
-
-	if (gpu_power_state != 0) // power down after state is 0
-			{
-		gpu_power_state = gpu_power_state & (~cores);
-		if (gpu_power_state == 0) {
-			MALI_DEBUG_PRINT( 3, ("disable clock\n"));
-			disable_mali_clocks();
-		}
-	} else {
-		MALI_PRINT(
-				("mali_platform_powerdown gpu_power_state == 0 and cores %x \n", cores));
-	}
-
-	MALI_SUCCESS;
-}
-
-_mali_osk_errcode_t mali_platform_powerup(u32 cores) {
-	MALI_DEBUG_PRINT(3,
-			("power up is called in mali_platform_powerup state %x core %x \n", gpu_power_state, cores));
-
-	if (gpu_power_state == 0) // power up only before state is 0
-			{
-		gpu_power_state = gpu_power_state | cores;
-
-		if (gpu_power_state != 0) {
-			MALI_DEBUG_PRINT(4, ("enable clock \n"));
-			enable_mali_clocks();
-		}
-	} else {
-		gpu_power_state = gpu_power_state | cores;
-	}
-
-	MALI_SUCCESS;
-}
-void mali_gpu_utilization_handler(u32 utilization) {
-	if (bPoweroff == 0) {
-	}
-}
-
-#if MALI_POWER_MGMT_TEST_SUITE
-u32 pmu_get_power_up_down_info(void)
+static struct resource mali_gpu_resources_m200[] =
 {
-	return 4095;
-}
+	MALI_GPU_RESOURCES_MALI200(0xC0000000, -1, -1, -1)
+};
+
+static struct resource mali_gpu_resources_m300[] =
+{
+	MALI_GPU_RESOURCES_MALI300_PMU(0xC0000000, -1, -1, -1, -1)
+};
+
+static struct resource mali_gpu_resources_m400_mp1[] =
+{
+	MALI_GPU_RESOURCES_MALI400_MP1_PMU(0xC0000000, -1, -1, -1, -1)
+};
+
+static struct resource mali_gpu_resources_m400_mp2[] =
+{
+	MALI_GPU_RESOURCES_MALI400_MP2_PMU(0xC0000000, -1, -1, -1, -1, -1, -1)
+};
 
 #endif
 
-
-#if MALI_VOLTAGE_LOCK
-int mali_voltage_lock_push(int lock_vol)
+static struct platform_device mali_gpu_device =
 {
-	int prev_status = _mali_osk_atomic_read(&voltage_lock_status);
+	.name = MALI_GPU_NAME_UTGARD,
+	.id = 0,
+	.dev.release = mali_platform_device_release,
+};
 
-	if (prev_status < 0) {
-		MALI_PRINT(("gpu voltage lock status is not valid for push\n"));
-		return -1;
-	}
-	if (prev_status == 0) {
-		mali_lock_vol = lock_vol;
-		if (mali_gpu_vol < mali_lock_vol)
-		mali_regulator_set_voltage(mali_lock_vol, mali_lock_vol);
-	} else {
-		MALI_PRINT(("gpu voltage lock status is already pushed, current lock voltage : %d\n", mali_lock_vol));
-		return -1;
-	}
-
-	return _mali_osk_atomic_inc_return(&voltage_lock_status);
-}
-
-int mali_voltage_lock_pop(void)
+static struct mali_gpu_device_data mali_gpu_data =
 {
-	if (_mali_osk_atomic_read(&voltage_lock_status) <= 0) {
-		MALI_PRINT(("gpu voltage lock status is not valid for pop\n"));
-		return -1;
-	}
-	return _mali_osk_atomic_dec_return(&voltage_lock_status);
-}
-
-int mali_voltage_lock_init(void)
-{
-	mali_vol_lock_flag = MALI_TRUE;
-
-	MALI_SUCCESS;
-}
+#if defined(CONFIG_ARCH_VEXPRESS)
+	.shared_mem_size =256 * 1024 * 1024, /* 256MB */
+#elif defined(CONFIG_ARCH_REALVIEW)
+	.dedicated_mem_start = 0x80000000, /* Physical start address (use 0xD0000000 for old indirect setup) */
+	.dedicated_mem_size = 0x10000000, /* 256MB */
 #endif
-/* platform functions end */
+	.fb_start = 0xe0000000,
+	.fb_size = 0x01000000,
+};
 
-int mali_platform_device_register(void) {
+int mali_platform_device_register(void)
+{
 	int err = -1;
+#if defined(CONFIG_ARCH_REALVIEW)
+	u32 m400_gp_version;
+#endif
+
 	MALI_DEBUG_PRINT(4, ("mali_platform_device_register() called\n"));
-	/* FIXME: Not sure if this is the place. */
-	gpu_power_domain_control(1);
-	mali_platform_init();
 
-	err = platform_device_add_resources(&mali_gpu_device,
-			mali_gpu_resources_m400_mp4,
-			sizeof(mali_gpu_resources_m400_mp4)
-					/ sizeof(mali_gpu_resources_m400_mp4[0]));
+	/* Detect present Mali GPU and connect the correct resources to the device */
+#if defined(CONFIG_ARCH_VEXPRESS)
 
-	if (0 == err) {
-		err = platform_device_add_data(&mali_gpu_device, &mali_gpu_data,
-				sizeof(mali_gpu_data));
-		if (0 == err) {
+	if (mali_read_phys(0xFC020000) == 0x00010100)
+	{
+		MALI_DEBUG_PRINT(4, ("Registering Mali-450 MP8 device\n"));
+		err = platform_device_add_resources(&mali_gpu_device, mali_gpu_resources_m450_mp8, sizeof(mali_gpu_resources_m450_mp8) / sizeof(mali_gpu_resources_m450_mp8[0]));
+	}
+
+#elif defined(CONFIG_ARCH_REALVIEW)
+
+	m400_gp_version = mali_read_phys(0xC000006C);
+	if (m400_gp_version == 0x00000000 && (mali_read_phys(0xC000206c) & 0xFFFF0000) == 0x0A070000)
+	{
+		MALI_DEBUG_PRINT(4, ("Registering Mali-200 device\n"));
+		err = platform_device_add_resources(&mali_gpu_device, mali_gpu_resources_m200, sizeof(mali_gpu_resources_m200) / sizeof(mali_gpu_resources_m200[0]));
+		mali_write_phys(0xC0010020, 0xA); /* Enable direct memory mapping for FPGA */
+	}
+	else if ((m400_gp_version & 0xFFFF0000) == 0x0C070000)
+	{
+		MALI_DEBUG_PRINT(4, ("Registering Mali-300 device\n"));
+		err = platform_device_add_resources(&mali_gpu_device, mali_gpu_resources_m300, sizeof(mali_gpu_resources_m300) / sizeof(mali_gpu_resources_m300[0]));
+		mali_write_phys(0xC0010020, 0xA); /* Enable direct memory mapping for FPGA */
+	}
+	else if ((m400_gp_version & 0xFFFF0000) == 0x0B070000)
+	{
+		u32 fpga_fw_version = mali_read_phys(0xC0010000);
+		if (fpga_fw_version == 0x130C008F || fpga_fw_version == 0x110C008F)
+		{
+			/* Mali-400 MP1 r1p0 or r1p1 */
+			MALI_DEBUG_PRINT(4, ("Registering Mali-400 MP1 device\n"));
+			err = platform_device_add_resources(&mali_gpu_device, mali_gpu_resources_m400_mp1, sizeof(mali_gpu_resources_m400_mp1) / sizeof(mali_gpu_resources_m400_mp1[0]));
+			mali_write_phys(0xC0010020, 0xA); /* Enable direct memory mapping for FPGA */
+		}
+		else if (fpga_fw_version == 0x130C000F)
+		{
+			/* Mali-400 MP2 r1p1 */
+			MALI_DEBUG_PRINT(4, ("Registering Mali-400 MP2 device\n"));
+			err = platform_device_add_resources(&mali_gpu_device, mali_gpu_resources_m400_mp2, sizeof(mali_gpu_resources_m400_mp2) / sizeof(mali_gpu_resources_m400_mp2[0]));
+			mali_write_phys(0xC0010020, 0xA); /* Enable direct memory mapping for FPGA */
+		}
+	}
+
+#endif
+
+	if (0 == err)
+	{
+		err = platform_device_add_data(&mali_gpu_device, &mali_gpu_data, sizeof(mali_gpu_data));
+		if (0 == err)
+		{
 			/* Register the platform device */
 			err = platform_device_register(&mali_gpu_device);
-			if (0 == err) {
+			if (0 == err)
+			{
 #ifdef CONFIG_PM_RUNTIME
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
 				pm_runtime_set_autosuspend_delay(&(mali_gpu_device.dev), 1000);
 				pm_runtime_use_autosuspend(&(mali_gpu_device.dev));
+#endif
 				pm_runtime_enable(&(mali_gpu_device.dev));
 #endif
 
@@ -383,13 +161,49 @@ int mali_platform_device_register(void) {
 	return err;
 }
 
-void mali_platform_device_unregister(void) {
+void mali_platform_device_unregister(void)
+{
 	MALI_DEBUG_PRINT(4, ("mali_platform_device_unregister() called\n"));
-	deinit_mali_clock();
-	gpu_power_domain_control(0);
+
 	platform_device_unregister(&mali_gpu_device);
+
+#if defined(CONFIG_ARCH_REALVIEW)
+	mali_write_phys(0xC0010020, 0x9); /* Restore default (legacy) memory mapping */
+#endif
 }
 
-void mali_platform_device_release(struct device *device) {
+static void mali_platform_device_release(struct device *device)
+{
 	MALI_DEBUG_PRINT(4, ("mali_platform_device_release() called\n"));
 }
+
+static u32 mali_read_phys(u32 phys_addr)
+{
+	u32 phys_addr_page = phys_addr & 0xFFFFE000;
+	u32 phys_offset    = phys_addr & 0x00001FFF;
+	u32 map_size       = phys_offset + sizeof(u32);
+	u32 ret = 0xDEADBEEF;
+	void *mem_mapped = ioremap_nocache(phys_addr_page, map_size);
+	if (NULL != mem_mapped)
+	{
+		ret = (u32)ioread32(((u8*)mem_mapped) + phys_offset);
+		iounmap(mem_mapped);
+	}
+
+	return ret;
+}
+
+#if defined(CONFIG_ARCH_REALVIEW)
+static void mali_write_phys(u32 phys_addr, u32 value)
+{
+	u32 phys_addr_page = phys_addr & 0xFFFFE000;
+	u32 phys_offset    = phys_addr & 0x00001FFF;
+	u32 map_size       = phys_offset + sizeof(u32);
+	void *mem_mapped = ioremap_nocache(phys_addr_page, map_size);
+	if (NULL != mem_mapped)
+	{
+		iowrite32(value, ((u8*)mem_mapped) + phys_offset);
+		iounmap(mem_mapped);
+	}
+}
+#endif

@@ -4,6 +4,7 @@ obj-$(CONFIG_LOGO)			+= logo.o
 obj-$(CONFIG_LOGO_LINUX_MONO)		+= logo_linux_mono.o
 obj-$(CONFIG_LOGO_LINUX_VGA16)		+= logo_linux_vga16.o
 obj-$(CONFIG_LOGO_LINUX_CLUT224)	+= logo_linux_clut224.o
+obj-$(CONFIG_LOGO_PIPO_CLUT224)	    += logo_pipo_clut224.o
 obj-$(CONFIG_LOGO_BLACKFIN_CLUT224)	+= logo_blackfin_clut224.o
 obj-$(CONFIG_LOGO_BLACKFIN_VGA16)	+= logo_blackfin_vga16.o
 obj-$(CONFIG_LOGO_DEC_CLUT224)		+= logo_dec_clut224.o
@@ -16,8 +17,11 @@ obj-$(CONFIG_LOGO_SUPERH_VGA16)		+= logo_superh_vga16.o
 obj-$(CONFIG_LOGO_SUPERH_CLUT224)	+= logo_superh_clut224.o
 obj-$(CONFIG_LOGO_M32R_CLUT224)		+= logo_m32r_clut224.o
 obj-$(CONFIG_LOGO_G3_CLUT224)		+= logo_g3_clut224.o
+obj-$(CONFIG_LOGO_LINUX_800x480_CLUT224)        += logo_linux_800x480_clut224.o
 obj-$(CONFIG_LOGO_LINUX_BMP_SUNSET)	+= logo_sunset_bmp.o
-
+obj-$(CONFIG_LOGO_LINUX_BMP_ANDROID)     += logo_android_bmp.o
+obj-$(CONFIG_LOGO_LINUX_BMP_RADXA)     += logo_radxa_bmp.o
+obj-$(CONFIG_LOGO_LOWERPOWER_WARNING)   += logo_linux_lowerpower_clut224.o
 
 obj-$(CONFIG_LOGO_CHARGER_CLUT224)         += logo_charger00_clut224.o logo_charger01_clut224.o logo_charger02_clut224.o logo_charger03_clut224.o logo_charger04_clut224.o logo_charger05_clut224.o logo_charger06_clut224.o logo_charger07_clut224.o logo_charger08_clut224.o 
 

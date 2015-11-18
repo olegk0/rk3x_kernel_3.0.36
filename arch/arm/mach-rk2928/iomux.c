@@ -215,6 +215,9 @@ int __init rk2928_iomux_init(void)
 {
 	int i;
 	printk("%s\n",__func__);
+
+	iomux_init();
+
 	for(i=0;i<ARRAY_SIZE(rk30_muxs);i++)
 	{
 		if(rk30_muxs[i].flags != DEFAULT)

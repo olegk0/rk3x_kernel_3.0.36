@@ -29,12 +29,75 @@
 #include <linux/slab.h> // to be compatible with linux kernel 3.2.15
 #include <linux/gpio.h>
 #include <mach/board.h>
+#ifdef CONFIG_RK_CONFIG
+#include <mach/config.h>
+#endif
 #include <linux/input/mt.h>
 
 #ifdef SITRONIX_MONITOR_THREAD
 #include <linux/kthread.h>
 //#include <mach/gpio.h>
 #endif // SITRONIX_MONITOR_THREAD
+
+#define TP_MODULE_NAME  SITRONIX_I2C_TOUCH_DRV_NAME
+#ifdef CONFIG_RK_CONFIG
+
+enum {
+#if defined(RK2926_SDK_DEFAULT_CONFIG)
+        DEF_EN = 1,
+#else
+        DEF_EN = 0,
+#endif
+        DEF_IRQ = 0x008001b0,
+        DEF_RST = 0X000001a3,
+        DEF_I2C = 2, 
+        DEF_ADDR = 0x60,
+        DEF_X_MAX = 800,
+        DEF_Y_MAX = 480,
+};
+static int en = DEF_EN;
+module_param(en, int, 0644);
+
+static int irq = DEF_IRQ;
+module_param(irq, int, 0644);
+static int rst =DEF_RST;
+module_param(rst, int, 0644);
+
+static int i2c = DEF_I2C;            // i2c channel
+module_param(i2c, int, 0644);
+static int addr = DEF_ADDR;           // i2c addr
+module_param(addr, int, 0644);
+static int x_max = DEF_X_MAX;
+module_param(x_max, int, 0644);
+static int y_max = DEF_Y_MAX;
+module_param(y_max, int, 0644);
+
+static int tp_hw_init(void)
+{
+        int ret = 0;
+
+        ret = gpio_request(get_port_config(irq).gpio, "tp_irq");
+        if(ret < 0){
+                printk("%s: gpio_request(irq gpio) failed\n", __func__);
+                return ret;
+        }
+
+        ret = port_output_init(rst, 1, "tp_rst");
+        if(ret < 0){
+                printk("%s: port(rst) output init faild\n", __func__);
+                return ret;
+        }
+        mdelay(10);
+        port_output_off(rst);
+        mdelay(10);
+        port_output_on(rst);
+        msleep(300);
+
+         return 0;
+}
+#include "rk_tp.c"
+#endif
+
 
 #define DRIVER_AUTHOR           "Sitronix, Inc."
 #define DRIVER_NAME             "sitronix"
@@ -107,6 +170,7 @@ struct sitronix_ts_data {
 	uint8_t touch_protocol_type;
 	uint8_t pixel_length;
 	int suspend_state;
+        int irq;
 };
 
 static unsigned char initkey_code[] =
@@ -240,7 +304,7 @@ long	 sitronix_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			UpgradeMsg("IOCTL_SMT_ENABLE_IRQ\n");
 			if(!sitronix_ts_irq_on){
 				sitronix_ts_irq_on = 1;
-				enable_irq(sitronix_ts_gpts->client->irq);
+				enable_irq(sitronix_ts_gpts->irq);
 #ifdef SITRONIX_MONITOR_THREAD
 				atomic_set(&iMonitorThreadPostpone,1);
 				SitronixMonitorThread = kthread_run(sitronix_ts_monitor_thread,"Sitronix","Monitorthread");
@@ -253,7 +317,7 @@ long	 sitronix_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			UpgradeMsg("IOCTL_SMT_DISABLE_IRQ\n");
 			if(sitronix_ts_irq_on){
 				sitronix_ts_irq_on = 0;
-				disable_irq_nosync(sitronix_ts_gpts->client->irq);
+				disable_irq_nosync(sitronix_ts_gpts->irq);
 #ifdef SITRONIX_MONITOR_THREAD
 				if(SitronixMonitorThread){
 					kthread_stop(SitronixMonitorThread);
@@ -690,6 +754,8 @@ static void sitronix_ts_work_func(struct work_struct *work)
 	uint8_t PixelCount = 0;
 	static uint8_t all_clear = 1;
 
+      struct ft5x0x_platform_data *pdata=ts->client->dev.platform_data;
+
 	DbgMsg("%s\n",  __FUNCTION__);
 	if(ts->suspend_state){
 		goto exit_invalid_data;
@@ -760,8 +826,24 @@ static void sitronix_ts_work_func(struct work_struct *work)
 				input_mt_slot(ts->input_dev, i);
 				input_report_abs(ts->input_dev,  ABS_MT_TRACKING_ID, i);
 				input_report_abs(ts->input_dev,  ABS_MT_TOUCH_MAJOR, 200);
-				input_report_abs(ts->input_dev,  ABS_MT_POSITION_X, MTDStructure[i].Pixel_X);
-				input_report_abs(ts->input_dev,  ABS_MT_POSITION_Y, MTDStructure[i].Pixel_Y);
+
+				#ifdef CONFIG_RK_CONFIG
+                                input_report_abs(ts->input_dev,  ABS_MT_POSITION_X, MTDStructure[i].Pixel_X);
+        			input_report_abs(ts->input_dev,  ABS_MT_POSITION_Y, MTDStructure[i].Pixel_Y);
+				#else
+				if( pdata && (pdata->direction_otation) )
+				{
+				      int temp_x , temp_y ;
+				      temp_x = MTDStructure[i].Pixel_X ;
+				      temp_y = MTDStructure[i].Pixel_Y ;
+				      pdata->direction_otation(&temp_x,&temp_y);
+                                input_report_abs(ts->input_dev,  ABS_MT_POSITION_X, temp_x);
+				      input_report_abs(ts->input_dev,  ABS_MT_POSITION_Y, temp_y);
+				}else{
+        				input_report_abs(ts->input_dev,  ABS_MT_POSITION_X, MTDStructure[i].Pixel_X);
+        				input_report_abs(ts->input_dev,  ABS_MT_POSITION_Y, MTDStructure[i].Pixel_Y);
+				}
+				#endif
 				input_report_abs(ts->input_dev,  ABS_MT_WIDTH_MAJOR, 100);
 				DbgMsg("lr[%d](%d, %d)+\n", i, MTDStructure[i].Pixel_X, MTDStructure[i].Pixel_Y);
 			}else if(MTDStructure[i].Current_Pressed_area == AREA_NONE){
@@ -799,7 +881,7 @@ static void sitronix_ts_work_func(struct work_struct *work)
 #ifdef SITRONIX_INT_POLLING_MODE
 		if (ts->use_irq){
 			sitronix_ts_irq_on = 1;
-			enable_irq(ts->client->irq);
+			enable_irq(ts->irq);
 		}
 #endif // SITRONIX_INT_POLLING_MODE
 	}
@@ -809,7 +891,7 @@ exit_invalid_data:
 #if defined(SITRONIX_LEVEL_TRIGGERED)
 	if (ts->use_irq){
 		sitronix_ts_irq_on = 1;
-		enable_irq(ts->client->irq);
+		enable_irq(ts->irq);
 	}
 #endif // defined(SITRONIX_LEVEL_TRIGGERED)
 	if ((2 <= i2cErrorCount)){
@@ -832,7 +914,7 @@ static irqreturn_t sitronix_ts_irq_handler(int irq, void *dev_id)
 //	printk("lr:%s\n", __FUNCTION__);
 #if defined(SITRONIX_LEVEL_TRIGGERED) || defined(SITRONIX_INT_POLLING_MODE)
 	sitronix_ts_irq_on = 0;
-	disable_irq_nosync(ts->client->irq);
+	disable_irq_nosync(ts->irq);
 #endif // defined(SITRONIX_LEVEL_TRIGGERED) || defined(SITRONIX_INT_POLLING_MODE)
 #ifdef SITRONIX_MONITOR_THREAD
 	atomic_set(&iMonitorThreadPostpone,1);
@@ -856,6 +938,16 @@ static int sitronix_ts_probe(struct i2c_client *client, const struct i2c_device_
 	struct ft5x0x_platform_data *pdata;
 	uint8_t dev_status = 0;
 
+#ifdef CONFIG_RK_CONFIG
+        struct port_config irq_cfg = get_port_config(irq);
+
+        client->irq = irq_cfg.gpio;
+        tp_hw_init();
+#else
+	pdata = client->dev.platform_data;
+	if(pdata->init_platform_hw)
+		pdata->init_platform_hw();
+#endif
 	printk("lr------> %s start ------\n", __FUNCTION__);
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		ret = -ENODEV;
@@ -873,8 +965,9 @@ static int sitronix_ts_probe(struct i2c_client *client, const struct i2c_device_
 	INIT_DELAYED_WORK(&ts->work, sitronix_ts_work_func);
 #endif // SITRONIX_INT_POLLING_MODE
 	ts->client = client;
+        if(client->irq != INVALID_GPIO)
+                ts->irq = gpio_to_irq(client->irq);
 	i2c_set_clientdata(client, ts);
-	pdata = client->dev.platform_data;
 #if 0
 	if(pdata->reset_ic){
 		ts->reset_ic = pdata->reset_ic;
@@ -882,8 +975,6 @@ static int sitronix_ts_probe(struct i2c_client *client, const struct i2c_device_
 		mdelay(SITRONIX_TS_CHANGE_MODE_DELAY);
 	}
 #endif
-	if(pdata->init_platform_hw)
-		pdata->init_platform_hw();
 
 	sitronix_ts_gpts = ts;
 
@@ -976,9 +1067,13 @@ static int sitronix_ts_probe(struct i2c_client *client, const struct i2c_device_
 	ts->max_touches = 5;
 
 	input_mt_init_slots(ts->input_dev, ts->max_touches);
-
+#ifdef CONFIG_RK_CONFIG
+	input_set_abs_params(ts->input_dev,ABS_MT_POSITION_X, 0, x_max, 0, 0);
+	input_set_abs_params(ts->input_dev,ABS_MT_POSITION_Y, 0, y_max, 0, 0);
+#else
 	input_set_abs_params(ts->input_dev,ABS_MT_POSITION_X, 0, 800, 0, 0);
 	input_set_abs_params(ts->input_dev,ABS_MT_POSITION_Y, 0, 480, 0, 0);
+#endif
 	input_set_abs_params(ts->input_dev,ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
 
 	for (i = 0; i < ARRAY_SIZE(initkey_code); i++) {
@@ -992,12 +1087,16 @@ static int sitronix_ts_probe(struct i2c_client *client, const struct i2c_device_
 	}
 
 	ts->suspend_state = 0;
-	if (client->irq){
-#ifdef SITRONIX_LEVEL_TRIGGERED
-		ret = request_irq(client->irq, sitronix_ts_irq_handler, IRQF_TRIGGER_LOW | IRQF_DISABLED, client->name, ts);
-#else
-		ret = request_irq(client->irq, sitronix_ts_irq_handler, IRQF_TRIGGER_FALLING | IRQF_DISABLED, client->name, ts);
-#endif // SITRONIX_LEVEL_TRIGGERED
+	if (ts->irq){
+        #ifdef CONFIG_RK_CONFIG
+		ret = request_irq(ts->irq, sitronix_ts_irq_handler,  irq_cfg.irq.irq_flags | IRQF_DISABLED, client->name, ts);
+        #else
+                #ifdef SITRONIX_LEVEL_TRIGGERED
+		ret = request_irq(ts->irq, sitronix_ts_irq_handler, IRQF_TRIGGER_LOW | IRQF_DISABLED, client->name, ts);
+                #else
+		ret = request_irq(ts->irq, sitronix_ts_irq_handler, IRQF_TRIGGER_FALLING | IRQF_DISABLED, client->name, ts);
+                #endif // SITRONIX_LEVEL_TRIGGERED
+        #endif // CONFIG_RK_CONFIG
 		if (ret == 0){
 			sitronix_ts_irq_on = 1;
 			ts->use_irq = 1;
@@ -1050,7 +1149,7 @@ static int sitronix_ts_remove(struct i2c_client *client)
       	}
 #endif // SITRONIX_MONITOR_THREAD
 	if (ts->use_irq)
-		free_irq(client->irq, ts);
+		free_irq(ts->irq, ts);
 	else
 		hrtimer_cancel(&ts->timer);
 	input_unregister_device(ts->input_dev);
@@ -1076,13 +1175,13 @@ static int sitronix_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 #endif // SITRONIX_MONITOR_THREAD
 	if(ts->use_irq){
 		sitronix_ts_irq_on = 0;
-		disable_irq_nosync(ts->client->irq);
+		disable_irq_nosync(ts->irq);
 	}
 	ts->suspend_state = 1;
 
 	ret = sitronix_ts_set_powerdown_bit(ts, 1);
 #ifdef SITRONIX_WAKE_UP_TOUCH_BY_INT
-	gpio_direction_output(irq_to_gpio(client->irq), 1);
+	gpio_direction_output(client->irq, 1);
 #endif // SITRONIX_WAKE_UP_TOUCH_BY_INT
 	DbgMsg("%s return\n", __FUNCTION__);
 
@@ -1108,7 +1207,7 @@ static int sitronix_ts_resume(struct i2c_client *client)
 	DbgMsg("%s\n", __FUNCTION__);
 
 #ifdef SITRONIX_WAKE_UP_TOUCH_BY_INT
-	gpio = irq_to_gpio(client->irq);
+	gpio = client->irq;
 	gpio_set_value(gpio, 0);
 	gpio_direction_input(gpio);
 #else
@@ -1118,7 +1217,7 @@ static int sitronix_ts_resume(struct i2c_client *client)
 	ts->suspend_state = 0;
 	if(ts->use_irq){
 		sitronix_ts_irq_on = 1;
-		enable_irq(ts->client->irq);
+		enable_irq(ts->irq);
 	}
 #ifdef SITRONIX_MONITOR_THREAD
 	atomic_set(&iMonitorThreadPostpone,1);
@@ -1174,12 +1273,19 @@ static struct file_operations nc_fops = {
 };
 #endif // SITRONIX_FW_UPGRADE_FEATURE
 
-static int __devinit sitronix_ts_init(void)
+static int __init sitronix_ts_init(void)
 {
 #ifdef SITRONIX_FW_UPGRADE_FEATURE
 	int result;
 	int err = 0;
 #endif // SITRONIX_FW_UPGRADE_FEATURE
+
+#ifdef CONFIG_RK_CONFIG
+        int ret = tp_board_init();
+
+        if(ret < 0)
+                return ret;
+#endif
 	printk("Sitronix touch driver %d.%d.%d\n", DRIVER_MAJOR, DRIVER_MINOR, DRIVER_PATCHLEVEL);
 	printk("Release date: %s\n", DRIVER_DATE);
 #ifdef SITRONIX_FW_UPGRADE_FEATURE
@@ -1208,6 +1314,8 @@ static int __devinit sitronix_ts_init(void)
 	}
 	device_create(sitronix_class, NULL, MKDEV(sitronix_major, 0), NULL, SITRONIX_I2C_TOUCH_DEV_NAME);
 #endif // SITRONIX_FW_UPGRADE_FEATURE
+
+
 	return i2c_add_driver(&sitronix_ts_driver);
 }
 

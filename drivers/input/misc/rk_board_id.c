@@ -78,6 +78,7 @@ static int _rk_get_board_id(struct board_id_private_data *id)
 		
 		DBG("%s:gpio:%d,value:%d\n",__func__,id->pdata->gpio_pin[i],value1);
 	}
+
 	id->board_id = result;
 
 	

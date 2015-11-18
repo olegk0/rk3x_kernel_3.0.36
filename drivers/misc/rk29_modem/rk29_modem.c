@@ -106,7 +106,7 @@ static ssize_t modem_status_read(struct class *cls, char *_buf)
 
     return sprintf(_buf, "%d\n", rk29_modem->status);
 }
-static CLASS_ATTR(modem_status, 0666, modem_status_read, modem_status_write);
+static CLASS_ATTR(modem_status, 0664, modem_status_read, modem_status_write);
 
 int __devinit rk29_modem_suspend(struct platform_device *pdev, pm_message_t state)
 {
@@ -235,19 +235,6 @@ static int rk29_modem_dev_init(struct rk29_modem_t *rk29_modem)
 
         // 默认 AP is ready
         gpio_direction_output(rk29_modem->ap_ready->io_addr, rk29_modem->ap_ready->enable);
-    }
-
-    if( rk29_modem->bp_disable )
-    {
-        ret = gpio_request(rk29_modem->bp_disable->io_addr, "bp_disable");
-        if(ret != 0)
-        {
-            gpio_free(rk29_modem->bp_disable->io_addr);
-            printk(">>>>>> AP ready io request failed!\n");
-            return ret;
-        }
-
-        gpio_direction_output(rk29_modem->bp_disable->io_addr, rk29_modem->bp_disable->enable);
     }
 
 // 设置 bb_wakeup_ap 的irq，用于ap挂起之后，由bb来唤醒ap

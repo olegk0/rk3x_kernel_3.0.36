@@ -46,16 +46,20 @@
 #include <linux/sensor-dev.h>
 #include <linux/mfd/tps65910.h>
 #include <linux/regulator/rk29-pwm-regulator.h>
+#if defined(CONFIG_MODEM_SOUND)
+#include "../../../drivers/misc/modem_sound.h"
+#endif
 #if defined(CONFIG_HDMI_RK30)
 	#include "../../../drivers/video/rockchip/hdmi/rk_hdmi.h"
 #endif
+#include "../../../drivers/headset_observe/rk_headset.h"
 
 #if defined(CONFIG_SPIM_RK29)
 #include "../../../drivers/spi/rk29_spim.h"
 #endif
 
 #if defined(CONFIG_SC6610)
-#include <linux/mu509.h>
+#include <linux/sc6610.h>
 #endif
 
 #include "board-rk2928-phonepad-camera.c" 
@@ -66,6 +70,8 @@
 #else
 #define RK30_FB0_MEM_SIZE 8*SZ_1M
 #endif
+
+int __sramdata g_pmic_type =  0;
 
 static struct spi_board_info board_spi_devices[] = {
 };
@@ -414,87 +420,72 @@ static struct sensor_platform_data mma7660_info = {
 
 #if defined (CONFIG_GS_KXTIK)
 #define KXTIK_INT_PIN         RK2928_PIN3_PD1
-#if 0
-
-static int kxtik_init_hw(void)
-{
-	int ret = 0;
-	
-	ret = gpio_request(KXTIK_INT_PIN,"kxtik_irq");
-	if(ret){
-		printk("kxtik gpio request fail!\n");
-		return ret;
-	}
-	else{
-		gpio_direction_input(KXTIK_INT_PIN);
-	}
-	return ret;
-}
-static void kxtik_exit_hw(void)
-{
-	gpio_free(KXTIK_INT_PIN);
-}
-
-static struct gsensor_platform_data kxtik_pdata = {
-	.swap_xy = 0,
-	.swap_xyz = 1,
-	.init_platform_hw = kxtik_init_hw,
-	.exit_platform_hw = kxtik_exit_hw,
-	.orientation = {-1, 0, 0, 0, 0, -1, 0, 1, 0},
-};
-
-#endif
-static int kxtik_init_platform_hw(void)
-{
-	printk("%s: >>>>>>>>>>>>>>>>\n\n\n", __func__);
-	return 0;
-}
 
 static struct sensor_platform_data kxtik_pdata = {
 	.type = SENSOR_TYPE_ACCEL,
 	.irq_enable = 1,
 	.poll_delay_ms = 30,
-	.init_platform_hw = kxtik_init_platform_hw,
 	.orientation = {-1, 0, 0, 0, 0, -1, 0, 1, 0},
-	//.orientation = {0, 1, 0, 0, 0, -1, 1, 0, 0},
 };
 
 #endif /* CONFIG_GS_KXTIK*/
 
-#ifdef CONFIG_INPUT_AP321XX
-#define AP321XX_INT_PIN         RK2928_PIN0_PC6
+#ifdef CONFIG_LS_AP321XX
+#define LS_AP321XX_INT_PIN         RK2928_PIN0_PC6
 
-static int AP321XX_init_hw(void)
-{
-	int ret = 0;
-	ret = gpio_request(AP321XX_INT_PIN, NULL);
-	if (ret != 0)
-	{
-		gpio_free(AP321XX_INT_PIN);
-		printk(KERN_ERR "request AP321XX_INT_PIN fail!\n");
-		return -1;
-	}
-	else
-	{
-		gpio_direction_input(AP321XX_INT_PIN);
-	}
-	return 0;
-}
-
-static void AP321XX_exit_hw(void)
-{
-	gpio_free(AP321XX_INT_PIN);
-	return;
-}
-
-static struct ap321xx_platform_data ap321xx_info = {
-	.init_platform_hw = AP321XX_init_hw,
-	.exit_platform_hw = AP321XX_exit_hw,
+static struct sensor_platform_data ls_ap321xx_info = {
+	.type = SENSOR_TYPE_LIGHT,
+	.irq_enable = 1,
+	.poll_delay_ms = 500,
 };
+#endif
+#ifdef CONFIG_PS_AP321XX
+#define PS_AP321XX_INT_PIN         RK2928_PIN0_PC6
 
+static struct sensor_platform_data ps_ap321xx_info = {
+	.type = SENSOR_TYPE_PROXIMITY,
+	.irq_enable = 1,
+	.poll_delay_ms = 500,
+};
 #endif
 
 #if defined(CONFIG_BATTERY_RK30_ADC)||defined(CONFIG_BATTERY_RK30_ADC_FAC)
+#define   CHARGE_OK_PIN  RK2928_PIN1_PA0
+#define   DC_DET_PIN     RK2928_PIN1_PA5
+int rk30_battery_adc_io_init(void){
+	int ret = 0;
+		
+	//dc charge detect pin
+	ret = gpio_request(DC_DET_PIN, NULL);
+	if (ret) {
+		printk("failed to request dc_det gpio\n");
+		return ret ;
+	}
+
+	gpio_pull_updown(DC_DET_PIN, 0);//important
+	ret = gpio_direction_input(DC_DET_PIN);
+	if (ret) {
+		printk("failed to set gpio dc_det input\n");
+		return ret ;
+	}
+	
+	//charge ok pin
+	ret = gpio_request(CHARGE_OK_PIN, NULL);
+	if (ret) {
+		printk("failed to request charge_ok gpio\n");
+		return ret ;
+	}
+
+	gpio_pull_updown(CHARGE_OK_PIN, 1);//important
+	ret = gpio_direction_input(CHARGE_OK_PIN);
+	if (ret) {
+		printk("failed to set gpio charge_ok input\n");
+		return ret ;
+	}
+	
+	return 0;
+
+}
 static struct rk30_adc_battery_platform_data rk30_adc_battery_platdata = {
         .dc_det_pin      = RK2928_PIN1_PA5,
         .batt_low_pin    = INVALID_GPIO,
@@ -502,6 +493,8 @@ static struct rk30_adc_battery_platform_data rk30_adc_battery_platdata = {
         .charge_ok_pin   = RK2928_PIN1_PA0,
         .dc_det_level    = GPIO_LOW,  //
         .charge_ok_level = GPIO_HIGH,
+
+        .io_init = rk30_battery_adc_io_init,
 };
 
 static struct platform_device rk30_device_adc_battery = {
@@ -516,7 +509,7 @@ static struct platform_device rk30_device_adc_battery = {
 
 #if CONFIG_RK30_PWM_REGULATOR
 const static int pwm_voltage_map[] = {
-	1000000, 1025000, 1050000, 1075000, 1100000, 1125000, 1150000, 1175000, 1200000, 1225000, 1250000, 1275000, 1300000, 1325000, 1350000, 1375000, 1400000
+	950000,975000,1000000, 1025000, 1050000, 1075000, 1100000, 1125000, 1150000, 1175000, 1200000, 1225000, 1250000, 1275000, 1300000, 1325000, 1350000, 1375000, 1400000
 };
 
 static struct regulator_consumer_supply pwm_dcdc1_consumers[] = {
@@ -549,9 +542,9 @@ static struct pwm_platform_data pwm_regulator_info[1] = {
 		.pwm_iomux_gpio = GPIO0D_GPIO0D4,
 		.pwm_voltage = 1200000,
 		.suspend_voltage = 1050000,
-		.min_uV = 1000000,
+		.min_uV = 950000,
 		.max_uV	= 1400000,
-		.coefficient = 455,	//45.5%
+		.coefficient = 504,	//50.4%
 		.pwm_voltage_map = pwm_voltage_map,
 		.init_data	= &pwm_regulator_init_dcdc[0],
 	},
@@ -566,6 +559,22 @@ struct platform_device pwm_regulator_device[1] = {
 		}
 	},
 };
+#endif
+
+#if defined(CONFIG_MODEM_SOUND)
+
+struct modem_sound_data modem_sound_info = {
+	.spkctl_io = RK2928_PIN3_PD4,
+	.spkctl_active = GPIO_HIGH,
+};
+
+struct platform_device modem_sound_device = {
+	.name = "modem_sound",
+	.id = -1,
+	.dev		= {
+	.platform_data = &modem_sound_info,
+		}
+	};
 #endif
 /**************************************************************************************************
  * SDMMC devices,  include the module of SD,MMC,and sdio.noted by xbw at 2012-03-05
@@ -719,11 +728,11 @@ static int sc6610_io_deinit(void)
         return 0;
 }
 
-struct rk29_mu509_data rk29_sc6610_info = {
+struct rk29_sc6610_data rk29_sc6610_info = {
         .io_init = sc6610_io_init,
         .io_deinit = sc6610_io_deinit,
         .bp_power = RK2928_PIN3_PC2,//RK29_PIN0_PB4,
-        .bp_reset = NULL,//RK29_PIN0_PB3,
+        .bp_reset = INVALID_GPIO,//RK29_PIN0_PB3,
         .bp_wakeup_ap = RK2928_PIN3_PC3,//RK29_PIN0_PC2,
         .ap_wakeup_bp = RK2928_PIN3_PC4,//RK29_PIN0_PB0, 
         .modem_assert = RK2928_PIN3_PC5,
@@ -735,6 +744,52 @@ struct platform_device rk29_device_sc6610 = {
                 .platform_data = &rk29_sc6610_info,
         }
     };
+#endif
+#if defined (CONFIG_RK_HEADSET_DET) || defined (CONFIG_RK_HEADSET_IRQ_HOOK_ADC_DET)
+static int rk_headset_io_init(int gpio)
+{
+	int ret;
+	ret = gpio_request(gpio, "headset_io");
+	if(ret) 
+		return ret;
+
+	rk30_mux_api_set(GPIO1B4_SPI_CSN1_NAME, GPIO1B_GPIO1B4);
+	gpio_pull_updown(gpio, PullDisable);
+	gpio_direction_input(gpio);
+	mdelay(50);
+	return 0;
+};
+
+static int rk_hook_io_init(int gpio)
+{
+	int ret;
+	ret = gpio_request(gpio, "hook_io");
+	if(ret) 
+		return ret;
+
+	rk30_mux_api_set(GPIO0D1_UART2_CTSN_NAME, GPIO0D_GPIO0D1);
+	gpio_pull_updown(gpio, PullDisable);
+	gpio_direction_input(gpio);
+	mdelay(50);
+	return 0;
+};
+
+struct rk_headset_pdata rk_headset_info = {
+		.Headset_gpio		= RK2928_PIN1_PB4,
+		.Hook_gpio  = RK2928_PIN0_PD1,
+		.Hook_down_type = HOOK_DOWN_HIGH,
+		.headset_in_type = HEADSET_IN_HIGH,
+		.hook_key_code = KEY_MEDIA,
+		.headset_io_init = rk_headset_io_init,
+		.hook_io_init = rk_hook_io_init,
+};
+struct platform_device rk_device_headset = {
+		.name	= "rk_headsetdet",
+		.id 	= 0,
+		.dev    = {
+			    .platform_data = &rk_headset_info,
+		}
+};
 #endif
 #ifdef CONFIG_SND_SOC_RK2928
 static struct resource resources_acodec[] = {
@@ -782,14 +837,140 @@ static struct platform_device *devices[] __initdata = {
         &rk29_device_sc6610,
 
 #endif
+#if defined (CONFIG_RK_HEADSET_DET) ||  defined (CONFIG_RK_HEADSET_IRQ_HOOK_ADC_DET)
+	&rk_device_headset,
+#endif
+#if defined (CONFIG_MODEM_SOUND)
+ &modem_sound_device,
+#endif
 };
 //i2c
 #ifdef CONFIG_I2C0_RK30
 #ifdef CONFIG_MFD_TPS65910
 #define TPS65910_HOST_IRQ        RK2928_PIN3_PC6
-#include "board-rk2928-phonepad-tps65910.c"
+#define PMU_POWER_SLEEP RK2928_PIN1_PA1
+
+static struct pmu_info  tps65910_dcdc_info[] = {
+	{
+		.name          = "vdd_cpu",   //arm
+		.min_uv          = 1200000,
+		.max_uv         = 1200000,
+	},
+	{
+		.name          = "vdd2",    //ddr
+		.min_uv          = 1200000,
+		.max_uv         = 1200000,
+	},
+	{
+		.name          = "vio",   //vcc_io
+		.min_uv          = 3300000,
+		.max_uv         = 3300000,
+	},
+	
+};
+static  struct pmu_info  tps65910_ldo_info[] = {
+	#if defined(CONFIG_MACH_RK2928_TB) || defined(CONFIG_MACH_RK2926_TB)
+	{
+		.name          = "vpll",   //vcc25
+		.min_uv          = 2500000,
+		.max_uv         = 2500000,
+	},
+	{
+		.name          = "vdig1",    //vcc18_cif
+		.min_uv          = 1800000,
+		.max_uv         = 1800000,
+	},
+	{
+		.name          = "vdac",   //vccio_wl
+		.min_uv          = 1800000,
+		.max_uv         = 1800000,
+	},
+	#else
+	{
+		.name          = "vdig1",    //vcc18_cif
+		.min_uv          = 1500000,
+		.max_uv         = 1500000,
+	},
+
+	{
+		.name          = "vdig2",   //vdd11
+		.min_uv          = 1200000,
+		.max_uv         = 1200000,
+	},
+	{
+		.name          = "vaux1",   //vcc28_cif
+		.min_uv          = 2800000,
+		.max_uv         = 2800000,
+	},
+	{
+		.name          = "vaux2",   //vcca33
+		.min_uv          = 3300000,
+		.max_uv         = 3300000,
+	},
+	{
+		.name          = "vaux33",   //vcc_tp
+		.min_uv          = 3300000,
+		.max_uv         = 3300000,
+	},
+	{
+		.name          = "vmmc",   //
+		.min_uv          = 3300000,
+		.max_uv         = 3300000,
+	},
+	#endif
+ };
+
+#include "board-rk2928-sdk-tps65910.c"
 #endif
+
 #ifdef CONFIG_REGULATOR_ACT8931
+
+#if defined(CONFIG_MACH_RK2928_SDK)
+#define ACT8931_CHGSEL_PIN RK2928_PIN0_PD0
+#else
+#define ACT8931_CHGSEL_PIN RK2928_PIN1_PA1
+#endif
+
+static struct pmu_info  act8931_dcdc_info[] = {
+	{
+		.name          = "act_dcdc1",   //vcc_io
+		.min_uv          = 3300000,
+		.max_uv         = 3300000,
+	},
+	{
+		.name          = "act_dcdc2",    //ddr
+		.min_uv          = 1500000,
+		.max_uv         = 1500000,
+	},
+	{
+		.name          = "vdd_cpu",   //vdd_arm
+		.min_uv          = 1200000,
+		.max_uv         = 1200000,
+	},
+	
+};
+static  struct pmu_info  act8931_ldo_info[] = {
+	{
+		.name          = "act_ldo1",   //vcc28_cif
+		.min_uv          = 2800000,
+		.max_uv         = 2800000,
+	},
+	{
+		.name          = "act_ldo2",    //vcc18_cif
+		.min_uv          = 1800000,
+		.max_uv         = 1800000,
+	},
+	{
+		.name          = "act_ldo3",    //vcca30
+		.min_uv          = 3000000,
+		.max_uv         = 3000000,
+	},
+	{
+		.name          = "act_ldo4",    //vcc_wl
+		.min_uv          = 3300000,
+		.max_uv         = 3300000,
+	},
+};
 #include "board-rk2928-sdk-act8931.c"
 #endif
 
@@ -836,15 +1017,26 @@ static struct i2c_board_info __initdata i2c1_info[] = {
 		},
 #endif
 
-#ifdef CONFIG_INPUT_AP321XX
+#ifdef CONFIG_LS_AP321XX
         {
-                .type                   = "ap321xx",
+                .type                   = "ls_ap321xx",
                 .addr                   = 0x1E,
                 .flags                  = 0,
-                .irq                     = AP321XX_INT_PIN,
-                .platform_data = &ap321xx_info
+                .irq                     = LS_AP321XX_INT_PIN,
+                .platform_data = &ls_ap321xx_info
         },
 #endif
+
+#ifdef CONFIG_PS_AP321XX
+        {
+                .type                   = "ps_ap321xx",
+                .addr                   = 0x1E,
+                .flags                  = 0,
+                .irq                     = PS_AP321XX_INT_PIN,
+                .platform_data = &ps_ap321xx_info
+        },
+#endif
+
 #ifdef CONFIG_RDA5990
 #define RDA_WIFI_CORE_ADDR (0x13)
 #define RDA_WIFI_RF_ADDR (0x14) //correct add is 0x14

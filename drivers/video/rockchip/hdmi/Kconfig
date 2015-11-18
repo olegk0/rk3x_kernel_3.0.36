@@ -1,6 +1,7 @@
 menuconfig RK_HDMI
-       bool "Rockchip HDMI support"
-       select FB_MODE_HELPERS
+	depends on DISPLAY_SUPPORT
+	bool "Rockchip HDMI support"
+	select FB_MODE_HELPERS
        
 if RK_HDMI
 source "drivers/video/rockchip/hdmi/chips/Kconfig"

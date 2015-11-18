@@ -1,6 +1,8 @@
 config MALI400
 	tristate "Mali-300/400/450 support"
+	depends on MALI
 	depends on ARM
+	select FB
 	select DMA_SHARED_BUFFER
 	---help---
 	  This enables support for the ARM Mali-300, Mali-400, and Mali-450
@@ -12,6 +14,7 @@ config MALI400
 config MALI400_DEBUG
 	bool "Enable debug in Mali driver"
 	depends on MALI400
+	default n
 	---help---
 	  This enabled extra debug checks and messages in the Mali driver.
 
@@ -33,6 +36,7 @@ config MALI400_INTERNAL_PROFILING
 config MALI400_UMP
 	bool "Enable UMP support"
 	depends on MALI400
+	default y
 	---help---
 	  This enables support for the UMP memory sharing API in the Mali driver.
 
@@ -50,7 +54,7 @@ config MALI_DMA_BUF_MAP_ON_ATTACH
 config MALI_SHARED_INTERRUPTS
 	bool "Support for shared interrupts"
 	depends on MALI400
-	default n
+	default y
 	---help---
 	  Adds functionality required to properly support shared interrupts.  Without this support,
 	  the device driver will fail during insmod if it detects shared interrupts.  Works even if

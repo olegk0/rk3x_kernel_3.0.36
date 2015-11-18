@@ -2,9 +2,7 @@
 # Display drivers configuration
 #
 
-menu "Display device support"
-
-config DISPLAY_SUPPORT
+menuconfig DISPLAY_SUPPORT
 	tristate "Display panel/monitor support"
 	depends on FB_RK29 || FB_ROCKCHIP
 	---help---
@@ -21,9 +19,11 @@ config DISPLAY_SUPPORT
 
 comment "Display hardware drivers"
 	depends on DISPLAY_SUPPORT
-source "drivers/video/display/screen/Kconfig"
-source "drivers/video/display/transmitter/Kconfig"
-source "drivers/video/display/tve/Kconfig"
 
-endmenu
+source "drivers/video/rockchip/hdmi/Kconfig"
+source "drivers/video/rockchip/screen/Kconfig"
+
+if ARCH_RK29
+source "drivers/video/display/screen/Kconfig"
+endif
 

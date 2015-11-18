@@ -47,6 +47,7 @@
 #include <linux/mutex.h>
 #include <linux/usb/audio.h>
 #include <linux/usb/audio-v2.h>
+#include <linux/switch.h>
 
 #include <sound/control.h>
 #include <sound/core.h>
@@ -85,6 +86,7 @@ static int nrpacks = 8;		/* max. number of packets per urb */
 static int async_unlink = 1;
 static int device_setup[SNDRV_CARDS]; /* device parameter for this card */
 static int ignore_ctl_error;
+struct switch_dev *usbaudiosdev;
 
 module_param_array(index, int, NULL, 0444);
 MODULE_PARM_DESC(index, "Index value for the USB audio adapter.");
@@ -114,6 +116,7 @@ MODULE_PARM_DESC(ignore_ctl_error,
 static DEFINE_MUTEX(register_mutex);
 static struct snd_usb_audio *usb_chip[SNDRV_CARDS];
 static struct usb_driver usb_audio_driver;
+#define USB_AUDIO_CARD_NUM 2
 
 /*
  * disconnect streams
@@ -323,7 +326,7 @@ static int snd_usb_audio_create(struct usb_device *dev, int idx,
 		return -ENXIO;
 	}
 
-	err = snd_card_create(index[idx], id[idx], THIS_MODULE, 0, &card);
+	err = snd_card_create(/*index[idx]*/USB_AUDIO_CARD_NUM, id[idx], THIS_MODULE, 0, &card);
 	if (err < 0) {
 		snd_printk(KERN_ERR "cannot create card instance %d\n", idx);
 		return err;
@@ -335,7 +338,7 @@ static int snd_usb_audio_create(struct usb_device *dev, int idx,
 		return -ENOMEM;
 	}
 
-	mutex_init(&chip->shutdown_mutex);
+	init_rwsem(&chip->shutdown_rwsem);
 	chip->index = idx;
 	chip->dev = dev;
 	chip->card = card;
@@ -418,7 +421,6 @@ static int snd_usb_audio_create(struct usb_device *dev, int idx,
 	}
 
 	snd_usb_audio_create_proc(chip);
-
 	*rchip = chip;
 	return 0;
 }
@@ -554,9 +556,11 @@ static void snd_usb_audio_disconnect(struct usb_device *dev, void *ptr)
 
 	chip = ptr;
 	card = chip->card;
-	mutex_lock(&register_mutex);
-	mutex_lock(&chip->shutdown_mutex);
+	down_write(&chip->shutdown_rwsem);
 	chip->shutdown = 1;
+	up_write(&chip->shutdown_rwsem);
+
+	mutex_lock(&register_mutex);
 	chip->num_interfaces--;
 	if (chip->num_interfaces <= 0) {
 		snd_card_disconnect(card);
@@ -573,13 +577,12 @@ static void snd_usb_audio_disconnect(struct usb_device *dev, void *ptr)
 			snd_usb_mixer_disconnect(p);
 		}
 		usb_chip[chip->index] = NULL;
-		mutex_unlock(&chip->shutdown_mutex);
 		mutex_unlock(&register_mutex);
 		snd_card_free_when_closed(card);
 	} else {
-		mutex_unlock(&chip->shutdown_mutex);
 		mutex_unlock(&register_mutex);
 	}
+	switch_set_state(usbaudiosdev, 0);
 }
 
 /*
@@ -592,6 +595,7 @@ static int usb_audio_probe(struct usb_interface *intf,
 	chip = snd_usb_audio_probe(interface_to_usbdev(intf), intf, id);
 	if (chip) {
 		usb_set_intfdata(intf, chip);
+		switch_set_state(usbaudiosdev, 1);
 		return 0;
 	} else
 		return -EIO;
@@ -609,16 +613,20 @@ int snd_usb_autoresume(struct snd_usb_audio *chip)
 {
 	int err = -ENODEV;
 
+	down_read(&chip->shutdown_rwsem);
 	if (!chip->shutdown && !chip->probing)
 		err = usb_autopm_get_interface(chip->pm_intf);
+	up_read(&chip->shutdown_rwsem);
 
 	return err;
 }
 
 void snd_usb_autosuspend(struct snd_usb_audio *chip)
 {
+	down_read(&chip->shutdown_rwsem);
 	if (!chip->shutdown && !chip->probing)
 		usb_autopm_put_interface(chip->pm_intf);
+	up_read(&chip->shutdown_rwsem);
 }
 
 static int usb_audio_suspend(struct usb_interface *intf, pm_message_t message)
@@ -716,12 +724,22 @@ static int __init snd_usb_audio_init(void)
 		printk(KERN_WARNING "invalid nrpacks value.\n");
 		return -EINVAL;
 	}
+	usbaudiosdev = kzalloc(sizeof(usbaudiosdev),GFP_KERNEL);
+	usbaudiosdev->name = "usb_audio";
+	switch_dev_register(usbaudiosdev);
+	if(!usbaudiosdev){
+    	printk(">>rk30 usb-audio kmalloc fail!");
+    	return -ENOMEM;
+	}
+
+
 	return usb_register(&usb_audio_driver);
 }
 
 static void __exit snd_usb_audio_cleanup(void)
 {
 	usb_deregister(&usb_audio_driver);
+	kfree(usbaudiosdev);
 }
 
 module_init(snd_usb_audio_init);

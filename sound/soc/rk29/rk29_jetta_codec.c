@@ -22,6 +22,10 @@
 #include "../codecs/rk610_codec.h"
 #include "rk29_pcm.h"
 #include "rk29_i2s.h"
+#ifdef CONFIG_MACH_RK_FAC
+#include <plat/config.h>
+extern int codec_type;
+#endif
 
 #if 0
 #define	DBG(x...)	printk(KERN_ERR x)
@@ -127,7 +131,11 @@ static struct snd_soc_ops rk29_ops = {
 static struct snd_soc_dai_link rk29_dai = {
 	.name = "RK610_CODEC",
 	.stream_name = "RK610 CODEC PCM",
+#if defined(CONFIG_MACH_RK3168_DS1006H)|| defined(CONFIG_MACH_RK3168_LR097)
+	.codec_name = "RK610_CODEC.4-0060",
+#else
 	.codec_name = "RK610_CODEC.0-0060",
+#endif
 	.platform_name = "rockchip-audio",
 #if defined(CONFIG_SND_RK29_SOC_I2S_8CH)	
 	.cpu_dai_name = "rk29_i2s.0",
@@ -151,6 +159,10 @@ static struct platform_device *rk29_snd_device;
 static int __init audio_card_init(void)
 {
 	int ret =0;	
+#ifdef CONFIG_MACH_RK_FAC
+	if(codec_type!=CODEC_TYPE_RK616)
+		return -1;
+#endif	 
 	DBG("Enter::%s----%d\n",__FUNCTION__,__LINE__);
 	rk29_snd_device = platform_device_alloc("soc-audio", -1);
 	if (!rk29_snd_device) {

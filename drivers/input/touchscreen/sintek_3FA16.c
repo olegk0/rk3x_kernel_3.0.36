@@ -19,7 +19,7 @@
 #include <mach/gpio.h>
 #include <linux/irq.h>
 #include <mach/board.h>
-#include "BQ.h"
+#include "malata.h"
 
 
 #define MAX_SUPPORT_POINT	2// //  4
@@ -145,26 +145,26 @@ static inline int p1003_check_firmwork(struct ts_p1003 *ts)
 	//printk("sintek reg[4] = %x ,reg[5] = %x, reg[6] = %x, reg[7] = %x\n" , buf[4],buf[5],buf[6],buf[7]);
 	buf[0] = 0xa4; /*automatically jump sleep mode*/
 	//buf[0] =  0x0;
-	data = i2c_master_reg8_send(ts->client, BQ_POWER_MODE, buf, 1, 100*1000);
+	data = i2c_master_reg8_send(ts->client, MALATA_POWER_MODE, buf, 1, 100*1000);
 	if(data < 0){
 		printk("i2c io error %d line=%d\n", data,__LINE__);
 		return data;
 	}
 	buf[0] = 0x03;
-	data = i2c_master_reg8_send(ts->client, BQ_SPECOP, buf, 1, 100*1000);
+	data = i2c_master_reg8_send(ts->client, MALATA_SPECOP, buf, 1, 100*1000);
 	if(data < 0){
 		printk( "i2c io error %d line=%d\n", data,__LINE__);
 		return data;
 	}
 	#if 0
 	buf[0] = 0x80;
-	data = i2c_master_reg8_send(ts->client, BQ_INT_MODE, buf, 1, 200*1000);
+	data = i2c_master_reg8_send(ts->client, MALATA_INT_MODE, buf, 1, 200*1000);
 	if(data < 0){
 		printk( "i2c io error %d line=%d\n", data,__LINE__);
 		return data;
 	}
 	#endif
-	data = i2c_master_reg8_recv(ts->client, BQ_DATA_INFO, buf, 4, 100*1000);
+	data = i2c_master_reg8_recv(ts->client, MALATA_DATA_INFO, buf, 4, 100*1000);
 	if(data < 0){
 		printk( "i2c io error %d line=%d\n", data,__LINE__);
 		return data;
@@ -174,8 +174,8 @@ static inline int p1003_check_firmwork(struct ts_p1003 *ts)
     return data;
 }
 
-#define DATA_START	BQ_DATA_INFO
-#define DATA_END	BQ_DATA_END
+#define DATA_START	MALATA_DATA_INFO
+#define DATA_END	MALATA_DATA_END
 #define DATA_LEN	(DATA_END - DATA_START)
 #define DATA_OFF(x) ((x) - DATA_START)
 
@@ -191,11 +191,11 @@ static inline int p1003_read_values(struct ts_p1003 *ts, struct multitouch_event
 	}
 #if 0
 	if(buf[0]==0xff){
-		printk("BQ_TOUCH_NUM is 0xff full\n");
+		printk("MALATA_TOUCH_NUM is 0xff full\n");
 		return -1;
 	}
 #endif
-	///printk("BQ_TOUCH_NUM = %x\n",buf[0]);
+	///printk("MALATA_TOUCH_NUM = %x\n",buf[0]);
 	if(buf[0] == 1)
 	{
 		ts->pendown = 1;
@@ -218,14 +218,14 @@ static inline int p1003_read_values(struct ts_p1003 *ts, struct multitouch_event
 		//printk("-->%s i2c io error %d line=%d\n",__FUNCTION__, data,__LINE__);
 		//return data;
 	//}
-	tc->point_data[0].x = buf[DATA_OFF(BQ_POS_X0_HI+2)] << 8;
-	tc->point_data[0].x |= buf[DATA_OFF(BQ_POS_X0_LO+2)];
-	tc->point_data[0].y = buf[DATA_OFF(BQ_POS_Y0_HI+2) ]<< 8;
-	tc->point_data[0].y |= buf[DATA_OFF(BQ_POS_Y0_LO+2)];
-	tc->point_data[1].x = buf[DATA_OFF(BQ_POS_X1_HI+2) ]<< 8;
-	tc->point_data[1].x |= buf[DATA_OFF(BQ_POS_X1_LO+2)];
-	tc->point_data[1].y = buf[DATA_OFF(BQ_POS_Y1_HI+2) ]<< 8;
-	tc->point_data[1].y |= buf[DATA_OFF(BQ_POS_Y1_LO+2)];
+	tc->point_data[0].x = buf[DATA_OFF(MALATA_POS_X0_HI+2)] << 8;
+	tc->point_data[0].x |= buf[DATA_OFF(MALATA_POS_X0_LO+2)];
+	tc->point_data[0].y = buf[DATA_OFF(MALATA_POS_Y0_HI+2) ]<< 8;
+	tc->point_data[0].y |= buf[DATA_OFF(MALATA_POS_Y0_LO+2)];
+	tc->point_data[1].x = buf[DATA_OFF(MALATA_POS_X1_HI+2) ]<< 8;
+	tc->point_data[1].x |= buf[DATA_OFF(MALATA_POS_X1_LO+2)];
+	tc->point_data[1].y = buf[DATA_OFF(MALATA_POS_Y1_HI+2) ]<< 8;
+	tc->point_data[1].y |= buf[DATA_OFF(MALATA_POS_Y1_LO+2)];
 	//printk("sintek tc->point_data[0].x= %d tc->point_data[0].y=%d\n ",tc->point_data[0].x,tc->point_data[0].y);
 	//printk("sintek tc->point_data[1].x= %d tc->point_data[1].y=%d\n ",tc->point_data[1].x,tc->point_data[1].y);
 //	tc->point_data[0].status = 0;
@@ -249,7 +249,7 @@ static void p1003_work(struct work_struct *work)
 	buf[0] = 0x03;
 	DBG("Enter:%s %d\n",__FUNCTION__,__LINE__);
 	if(ts->delayed_work_tp == 1){
-		data = i2c_master_reg8_send(ts->client, BQ_SPECOP, buf, 1, 100*1000);
+		data = i2c_master_reg8_send(ts->client, MALATA_SPECOP, buf, 1, 100*1000);
 		if(data < 0){
 			printk( "i2c io error %d line=%d\n", data,__LINE__);
 		}
@@ -314,7 +314,7 @@ static void Sintek_work_delay(struct work_struct *work)
 	int data;
     char buf[10];	
 	buf[0] = 0x03;
-	data = i2c_master_reg8_send(ts->client, BQ_SPECOP, buf, 1, 100*1000);
+	data = i2c_master_reg8_send(ts->client, MALATA_SPECOP, buf, 1, 100*1000);
 	if(data < 0)
 		printk( "i2c io error %d line=%d\n", data,__LINE__);
 	return;
@@ -328,7 +328,7 @@ static ssize_t pc1003_touchdebug_show(struct device *dev,struct device_attribute
 	 buf[0] = 0x03;
 	 printk("Enter:%s %d\n",__FUNCTION__,__LINE__);
 	 printk("Touchscreen correct!!\n");
-	 data = i2c_master_reg8_send(ts_pub->client, BQ_SPECOP, buf, 1, 100*1000);
+	 data = i2c_master_reg8_send(ts_pub->client, MALATA_SPECOP, buf, 1, 100*1000);
 		 if(data < 0){
 			printk( "i2c io error %d line=%d\n", data,__LINE__);
 	 }

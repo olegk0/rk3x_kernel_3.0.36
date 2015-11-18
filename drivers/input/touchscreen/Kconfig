@@ -11,6 +11,18 @@ menuconfig INPUT_TOUCHSCREEN
 
 if INPUT_TOUCHSCREEN
 
+config CT36X_TS
+	tristate "CT36X touchscreens support"
+
+config TOUCHSCREEN_GSLX680
+		tristate "gslX680 touchscreen panel support "
+		depends on I2C2_RK29 || I2C2_RK30
+config TOUCHSCREEN_GSLX680_RK3168
+		tristate "gslX680 rk3168 touchscreen panel support "
+		depends on I2C2_RK29 || I2C2_RK30
+config TOUCHSCREEN_GSLX680_RK3028
+		tristate "gslX680 rk3028 touchscreen panel support "
+		depends on I2C2_RK29 || I2C2_RK30
 config TOUCHSCREEN_XPT2046_SPI
 	tristate "XPT2046 based touchscreens:SPI Interface"
 	depends on SPIM_RK29
@@ -135,6 +147,9 @@ config TOUCHSCREEN_GT8XX
                 default 800
                 help
                   goodix touch max y resolution
+
+config TOUCHSCREEN_CT36X
+	tristate "CT36X based touchscreens"
 
 config RK28_I2C_TS_NTP070
 	tristate "NTP070 based touchscreens: NTP070 Interface"
@@ -969,7 +984,15 @@ config LAIBAO_TS
 config TOUCHSCREEN_GT801_IIC
 	tristate "GT801_IIC based touchscreens"
 	depends on I2C2_RK29
-	
+
+config TOUCHSCREEN_GT811_IIC
+	tristate "GT811_IIC based touchscreens"
+	depends on I2C2_RK29 || I2C2_RK30
+
+config TOUCHSCREEN_86V_GT811_IIC
+	tristate "RK3168_86V GT811_IIC based touchscreens"
+	depends on I2C2_RK29 || I2C2_RK30
+		
 config TOUCHSCREEN_GT82X_IIC
 	tristate "GT82x_IIC based touchscreens"
 	depends on I2C2_RK30
@@ -1042,13 +1065,9 @@ config TOUCHSCREEN_FT5406
 
 	  If unsure, say N(but it's safe to say "Y").
 
-config TOUCHSCREEN_GT9110_BQ
-	tristate "GT9110 based touchscreens"
-	help
-	  Say Y here if you have a touchscreen interface using the
-	  gt9110 controller.
-	  
-	  If unsure, say N (but it's safe to say "Y").
+config TOUCHSCREEN_FT5X0X
+		tristate "ft5x0x touchscreen panel support "
+		depends on I2C2_RK29 || I2C2_RK30
 
 config ATMEL_MXT1386
         tristate "ATMEL_MXT1386 touchscreen panel support"
@@ -1079,4 +1098,8 @@ config ATMEL_MXT1386
                 default n
                 help
                   RK29 ATMEL_MXT1386 touch debug
+comment "zet62xx support" 
+source  "drivers/input/touchscreen/zet62xx/Kconfig"  
+comment "AW5X0X support" 
+source  "drivers/input/touchscreen/aw5x0x/Kconfig"
 endif

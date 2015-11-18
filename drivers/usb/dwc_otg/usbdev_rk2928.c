@@ -8,6 +8,9 @@
 #include <mach/gpio.h>
 #include <mach/iomux.h>
 #include <mach/cru.h>
+#ifdef CONFIG_RK_CONFIG
+#include <mach/config.h>
+#endif
 
 #include "usbdev_rk.h"
 #include "dwc_otg_regs.h"
@@ -16,7 +19,9 @@
 #define GRF_REG_BASE RK2928_GRF_BASE
 #define USBOTG_SIZE    RK2928_USBOTG20_SIZE
 #define USBGRF_SOC_STATUS0	(GRF_REG_BASE+0x14c)
+#define USBGRF_UOC0_CON0	(GRF_REG_BASE+0x16c)
 #define USBGRF_UOC0_CON5	(GRF_REG_BASE+0x17c)
+#define USBGRF_UOC1_CON0	(GRF_REG_BASE+0x180)
 #define USBGRF_UOC1_CON4    (GRF_REG_BASE+0X190)
 #define USBGRF_UOC1_CON5	(GRF_REG_BASE+0x194)
 
@@ -93,19 +98,30 @@ void usb20otg_hw_init(void)
     *otg_phy_con1 = 0x1D5 |(0x1ff<<16);   // enter suspend.
 #endif
     // usb phy config init
+    *(unsigned int *)(USBGRF_UOC0_CON0) = 0x07e70350;
 
     // other hardware init
-    rk30_mux_api_set(GPIO3C1_OTG_DRVVBUS_NAME, GPIO3C_OTG_DRVVBUS);    
+#ifdef CONFIG_RK_CONFIG
+    otg_drv_init(0);
+#else
+    #if defined(CONFIG_MACH_RK2926_V86)
+    #else
+    rk30_mux_api_set(GPIO3C1_OTG_DRVVBUS_NAME, GPIO3C_OTG_DRVVBUS);  
+    #endif  
+#endif
 }
 void usb20otg_phy_suspend(void* pdata, int suspend)
 {
     struct dwc_otg_platform_data *usbpdata=pdata;
     unsigned int * otg_phy_con1 = (unsigned int*)(USBGRF_UOC0_CON5);
+    unsigned int * otg_phy_con2 = (unsigned int*)(USBGRF_UOC0_CON0);
     if(suspend){
+        *otg_phy_con2 = (1<<12 | 1<<(12+16));//otg io set to High-Z state
         *otg_phy_con1 = 0x55 |(0x7f<<16);   // enter suspend.
         usbpdata->phy_status = 1;
     }
     else{
+        *otg_phy_con2 = 1<<(12+16);
         *otg_phy_con1 = (0x01<<16);    // exit suspend.
         usbpdata->phy_status = 0;
     }
@@ -196,6 +212,12 @@ void dwc_otg_uart_mode(void* pdata, int enter_usb_uart_mode)
 
 void usb20otg_power_enable(int enable)
 {
+#ifdef CONFIG_RK_CONFIG
+        if(enable)
+                otg_drv_on();
+        else
+                otg_drv_off();
+#endif
 }
 struct dwc_otg_platform_data usb20otg_pdata = {
     .phyclk = NULL,
@@ -239,19 +261,24 @@ static struct resource usb20_host_resource[] = {
 void usb20host_hw_init(void)
 {
     // usb phy config init
-    *(unsigned int *)(USBGRF_UOC0_CON5+4) = 0x07e00350;
+    *(unsigned int *)(USBGRF_UOC1_CON0) = 0x07e70350;
     // other haredware init
-    
+#ifdef CONFIG_RK_CONFIG
+    host_drv_init(1);
+#endif
 }
 void usb20host_phy_suspend(void* pdata, int suspend)
 {
     struct dwc_otg_platform_data *usbpdata=pdata;
     unsigned int * otg_phy_con1 = (unsigned int*)(USBGRF_UOC1_CON5);
+    unsigned int * otg_phy_con2 = (unsigned int*)(USBGRF_UOC1_CON0);
     if(suspend){
+        *otg_phy_con2 = (1 << 12 | 1 << (12+16));//host io set to High-Z state
         *otg_phy_con1 = 0x1D5 |(0x1ff<<16);   // enter suspend.
         usbpdata->phy_status = 1;
     }
     else{
+        *otg_phy_con2 = (1 << 12+16);//host io exit High-Z state
         *otg_phy_con1 = (0x01<<16);    // exit suspend.
         usbpdata->phy_status = 0;
     }
@@ -318,6 +345,12 @@ int usb20host_get_status(int id)
 }
 void usb20host_power_enable(int enable)
 {
+#ifdef CONFIG_RK_CONFIG
+        if(enable)
+                host_drv_on();
+        else
+                host_drv_off();
+#endif
 }
 struct dwc_otg_platform_data usb20host_pdata = {
     .phyclk = NULL,
@@ -344,12 +377,18 @@ struct platform_device device_usb20_host = {
 #endif
 static int __init usbdev_init_devices(void)
 {
+        int ret = 0;
 #ifdef CONFIG_USB20_OTG
-	platform_device_register(&device_usb20_otg);
+	ret = platform_device_register(&device_usb20_otg);
+        if(ret < 0){
+                printk("%s: platform_device_register(usb20_otg) failed\n", __func__);
+                return ret;
+        }
 #endif
 #ifdef CONFIG_USB20_HOST
-	platform_device_register(&device_usb20_host);
+	ret = platform_device_register(&device_usb20_host);
 #endif
+        return ret;
 }
 arch_initcall(usbdev_init_devices);
 #endif

@@ -1,4 +1,3 @@
-/* Now 1024x600*/
 #include <linux/fb.h>
 #include <linux/delay.h>
 #include "../../rk29_fb.h"
@@ -20,13 +19,13 @@
 
 #define V_PW			10
 #define V_BP			6
-#define V_VD			600
+#define V_VD			768
 #define V_FP			16
 
-#define LCD_WIDTH   142 // 196// 142  // 202
-#define LCD_HEIGHT  106 // 147 //106//  152
+#define LCD_WIDTH   196// 142  // 202
+#define LCD_HEIGHT  147 //106//  152
 /* Other */
-#define DCLK_POL		0 // 
+#define DCLK_POL		1 // 
 #define SWAP_RB			0
 
 void set_lcd_info(struct rk29fb_screen *screen, struct rk29lcd_info *lcd_info )

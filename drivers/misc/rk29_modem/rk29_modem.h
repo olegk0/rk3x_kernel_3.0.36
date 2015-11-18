@@ -19,7 +19,6 @@ struct rk29_modem_t {
     struct rk29_io_t *modem_power;
     // 当AP就绪或者未就绪时，通过 ap_ready 这个IO来通知BP。
     struct rk29_io_t *ap_ready;
-	struct rk29_io_t *bp_disable;
     // 当BP接收到短信或者来电时，通过 bp_wakeup_ap 这个IRQ来唤醒AP
     struct rk29_irq_t *bp_wakeup_ap;
     // 当前modem状态，目前只用到MODEM_ENABLE(上电)、MODEM_DISABLE(下电)
@@ -44,5 +43,4 @@ void rk29_modem_exit(void);
 int rk29_modem_init(struct rk29_modem_t *rk29_modem);
 int rk29_modem_suspend(struct platform_device *pdev, pm_message_t state);
 int rk29_modem_resume(struct platform_device *pdev);
-int rk29_modem_change_status(struct rk29_modem_t *rk29_modem, int status);
 

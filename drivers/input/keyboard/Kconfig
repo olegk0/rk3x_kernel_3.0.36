@@ -19,13 +19,6 @@ config KEYS_RK29
 	help
 	  rk29 keyboard drivers(gpio and adc)
 
-config HALL_KEY
-	tristate "hall key"
-	depends on PLAT_RK
-	default n
-	help
-	  rk29 hall key drivers
-
 config SYNAPTICS_SO340010
 	tristate "Synaptics So340010 TouchPad KEY"
 	depends on I2C

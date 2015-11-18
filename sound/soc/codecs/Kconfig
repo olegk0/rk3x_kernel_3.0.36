@@ -32,6 +32,8 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_CX20442
 	select SND_SOC_DA7210 if I2C
 	select SND_SOC_DFBMCS320
+	select SND_SOC_ES8323 if SND_SOC_I2C_AND_SPI
+	select SND_SOC_ES8323_PCM if SND_SOC_I2C_AND_SPI
 	select SND_SOC_JZ4740_CODEC if SOC_JZ4740
 	select SND_SOC_LM4857 if I2C
 	select SND_SOC_MAX98088 if I2C
@@ -41,7 +43,8 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_PCM3008
 	select SND_SOC_SGTL5000 if I2C
 	select SND_SOC_SN95031 if INTEL_SCU_IPC
-	select SND_SOC_SPDIF
+	select SND_SOC_HDMI_I2S
+	select SND_SOC_HDMI_SPDIF
 	select SND_SOC_SSM2602 if SND_SOC_I2C_AND_SPI
 	select SND_SOC_STAC9766 if SND_SOC_AC97_BUS
 	select SND_SOC_TLV320AIC23 if I2C
@@ -77,11 +80,14 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_WM8900 if I2C
 	select SND_SOC_RT5621 if I2C
 	select SND_SOC_RT5631 if I2C
+	select SND_SOC_RT5631_PHONE if I2C
 	select SND_SOC_RT5625 if I2C
 	select SND_SOC_RT3261 if I2C
 	select SND_SOC_RT3224 if I2C
 	select SND_SOC_RT5623 if I2C
+	select SND_SOC_RT5616 if I2C
 	select SND_SOC_RK610 if I2C
+	select SND_SOC_RK616 if I2C
 	select SND_SOC_WM8903 if I2C
 	select SND_SOC_WM8904 if I2C
 	select SND_SOC_WM8915 if I2C
@@ -203,6 +209,8 @@ config SND_SOC_DFBMCS320
 config SND_SOC_DMIC
 	tristate
 
+config SND_SOC_ES8323
+	tristate
 config SND_SOC_MAX98088
        tristate
 
@@ -222,7 +230,10 @@ config SND_SOC_SGTL5000
 config SND_SOC_SN95031
 	tristate
 
-config SND_SOC_SPDIF
+config SND_SOC_HDMI_I2S
+	tristate
+
+config SND_SOC_HDMI_SPDIF
 	tristate
 
 config SND_SOC_SSM2602
@@ -329,16 +340,24 @@ config SND_SOC_RT5621
 config SND_SOC_RT5623
 	tristate
 
+config SND_SOC_RT5616
+	tristate
+	
 config SND_SOC_RT5631
 	tristate
-
+	
+config SND_SOC_RT5631_PHONE
+	tristate
+	
 config SND_SOC_RT5625
 	tristate
 
 config SND_SOC_RT3224
+	select SND_HWDEP
 	tristate
 
 config SND_SOC_RT3261
+	select SND_HWDEP
 	tristate
 
 config SND_SOC_WM8903
@@ -415,6 +434,10 @@ config SND_SOC_RK610
 	tristate
 	depends on MFD_RK610
 
+config SND_SOC_RK616
+	tristate
+	depends on MFD_RK616
+
 # Amp
 config SND_SOC_LM4857
 	tristate
@@ -435,5 +458,6 @@ config SND_SOC_RK2928
 	tristate
 	depends on ARCH_RK2928
 
-config SND_SOC_RK_HDMI_CODEC
+config SND_SOC_RK3026
 	tristate
+	depends on ARCH_RK3026

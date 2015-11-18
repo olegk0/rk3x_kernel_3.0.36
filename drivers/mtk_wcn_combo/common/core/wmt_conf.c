@@ -1,37 +1,3 @@
-/* Copyright Statement:
- *
- * This software/firmware and related documentation ("MediaTek Software") are
- * protected under relevant copyright laws. The information contained herein
- * is confidential and proprietary to MediaTek Inc. and/or its licensors.
- * Without the prior written permission of MediaTek inc. and/or its licensors,
- * any reproduction, modification, use or disclosure of MediaTek Software,
- * and information contained herein, in whole or in part, shall be strictly prohibited.
- *
- * MediaTek Inc. (C) 2010. All rights reserved.
- *
- * BY OPENING THIS FILE, RECEIVER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND AGREES
- * THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK SOFTWARE")
- * RECEIVED FROM MEDIATEK AND/OR ITS REPRESENTATIVES ARE PROVIDED TO RECEIVER ON
- * AN "AS-IS" BASIS ONLY. MEDIATEK EXPRESSLY DISCLAIMS ANY AND ALL WARRANTIES,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NONINFRINGEMENT.
- * NEITHER DOES MEDIATEK PROVIDE ANY WARRANTY WHATSOEVER WITH RESPECT TO THE
- * SOFTWARE OF ANY THIRD PARTY WHICH MAY BE USED BY, INCORPORATED IN, OR
- * SUPPLIED WITH THE MEDIATEK SOFTWARE, AND RECEIVER AGREES TO LOOK ONLY TO SUCH
- * THIRD PARTY FOR ANY WARRANTY CLAIM RELATING THERETO. RECEIVER EXPRESSLY ACKNOWLEDGES
- * THAT IT IS RECEIVER'S SOLE RESPONSIBILITY TO OBTAIN FROM ANY THIRD PARTY ALL PROPER LICENSES
- * CONTAINED IN MEDIATEK SOFTWARE. MEDIATEK SHALL ALSO NOT BE RESPONSIBLE FOR ANY MEDIATEK
- * SOFTWARE RELEASES MADE TO RECEIVER'S SPECIFICATION OR TO CONFORM TO A PARTICULAR
- * STANDARD OR OPEN FORUM. RECEIVER'S SOLE AND EXCLUSIVE REMEDY AND MEDIATEK'S ENTIRE AND
- * CUMULATIVE LIABILITY WITH RESPECT TO THE MEDIATEK SOFTWARE RELEASED HEREUNDER WILL BE,
- * AT MEDIATEK'S OPTION, TO REVISE OR REPLACE THE MEDIATEK SOFTWARE AT ISSUE,
- * OR REFUND ANY SOFTWARE LICENSE FEES OR SERVICE CHARGE PAID BY RECEIVER TO
- * MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
- *
- * The following software/firmware and/or related documentation ("MediaTek Software")
- * have been modified by MediaTek Inc. All revisions are subject to any receiver's
- * applicable license agreements with MediaTek Inc.
- */
 
 #ifdef DFT_TAG
 #undef DFT_TAG
@@ -40,6 +6,7 @@
 
 
 #include "osal_typedef.h"
+//#include "osal.h"
 #include "wmt_lib.h"
 #include "wmt_dev.h"
 #include "wmt_conf.h"
@@ -52,9 +19,8 @@
 struct parse_data {
     PCHAR name;
     INT32 (*parser)(P_DEV_WMT pWmtDev, const struct parse_data *data,const PCHAR value);
-    // TODO:[FixMe][George] "writer" is not a writer, just a checker getting value and transforming it to a string for checking and debugging
-    // TODO:[FixMe][George] variable write IS DONE in parser!
     PCHAR (*writer)(P_DEV_WMT pWmtDev, const struct parse_data *data);
+    /*PCHAR param1, *param2, *param3;*/
     // TODO:[FixMe][George] CLARIFY WHAT SHOULD BE USED HERE!!!
     PCHAR param1;
     PCHAR param2;
@@ -173,17 +139,19 @@ static const struct parse_data wmtcfg_fields[] = {
 
     { INT(coex_misc_ext_pta_on) },
     { INT(coex_misc_ext_feature_set) },
-
+    
     { CHAR(wmt_gps_lna_pin) },
     { CHAR(wmt_gps_lna_enable) },
-
+ 
     { CHAR(pwr_on_rtc_slot) },
     { CHAR(pwr_on_ldo_slot) },
     { CHAR(pwr_on_rst_slot) },
     { CHAR(pwr_on_off_slot) },
     { CHAR(pwr_on_on_slot) },
-
-
+    { CHAR(co_clock_flag) },
+    
+    { INT(sdio_driving_cfg) },
+    
 };
 
 #define NUM_WMTCFG_FIELDS (osal_sizeof(wmtcfg_fields) / osal_sizeof(wmtcfg_fields[0]))
@@ -205,7 +173,7 @@ static INT32 wmt_conf_parse_char(P_DEV_WMT pWmtDev, const struct parse_data *dat
     return 0;
 }
 
-static PCHAR wmt_conf_write_char(P_DEV_WMT pWmtDev, const struct parse_data *data)
+static PCHAR  wmt_conf_write_char(P_DEV_WMT pWmtDev, const struct parse_data *data)
 {
     PCHAR src;
     INT32 res;
@@ -218,7 +186,7 @@ static PCHAR wmt_conf_write_char(P_DEV_WMT pWmtDev, const struct parse_data *dat
         return NULL;
     res = osal_snprintf(value, 20, "0x%x", *src);
     if (res < 0 || res >= 20) {
-        osal_vfree(value);
+        osal_free(value);
         return NULL;
     }
     value[20 - 1] = '\0';
@@ -259,7 +227,7 @@ static PCHAR  wmt_conf_write_short(P_DEV_WMT pWmtDev, const struct parse_data *d
         return NULL;
     res = osal_snprintf(value, 20, "0x%x", *src);
     if (res < 0 || res >= 20) {
-        osal_vfree(value);
+        osal_free(value);
         return NULL;
     }
     value[20 - 1] = '\0';
@@ -299,7 +267,7 @@ static PCHAR  wmt_conf_write_int(P_DEV_WMT pWmtDev, const struct parse_data *dat
         return NULL;
     res = osal_snprintf(value, 20, "0x%x", *src);
     if (res < 0 || res >= 20) {
-        osal_vfree(value);
+        osal_free(value);
         return NULL;
     }
     value[20 - 1] = '\0';
@@ -439,10 +407,8 @@ static INT32 wmt_conf_parse (
 
         //WMT_DBG_FUNC("parse (key: #%s#, value: #%s#)\n", pKey, pVal);
         ret = wmt_conf_parse_pair(pWmtDev, pKey, pVal);
-        if (!ret) {
-            WMT_DBG_FUNC("parse (%s, %s)\n", pKey, pVal);
-        }
-        else {
+        WMT_WARN_FUNC("parse (%s, %s, %d)\n", pKey, pVal, ret);
+        if (ret) {
             WMT_WARN_FUNC("parse fail (%s, %s, %d)\n", pKey, pVal, ret);
         }
     }
@@ -450,16 +416,36 @@ static INT32 wmt_conf_parse (
     for (i = 0; i < NUM_WMTCFG_FIELDS; i++) {
         const struct parse_data *field = &wmtcfg_fields[i];
         pa = field->writer(pWmtDev, field);
-        if (pa)
+        if(pa)
         {
-            WMT_DBG_FUNC("#%d(%s)=>%s\n", i, field->name,  pa);
-            osal_vfree(pa);
+            WMT_INFO_FUNC("#%d(%s)=>%s\n", i, field->name,  pa);
+            osal_free(pa);
         } else {
             WMT_ERR_FUNC("failed to parse '%s'.\n", field->name);
         }
     }
-    osal_vfree(pBuf);
+    osal_free(pBuf);
     return 0;
+}
+
+
+INT32  wmt_conf_set_cfg_file(const CHAR *name)
+{
+    if (NULL == name)
+    {
+        WMT_ERR_FUNC("name is NULL\n");
+        return -1;
+    }
+	if (osal_strlen(name) >= osal_sizeof(gDevWmt.cWmtcfgName))
+	{
+	    WMT_ERR_FUNC("name is too long, length=%d, expect to < %d \n", osal_strlen(name), osal_sizeof(gDevWmt.cWmtcfgName));
+	    return -2;
+	}
+	osal_memset(&gDevWmt.cWmtcfgName[0], 0, osal_sizeof(gDevWmt.cWmtcfgName));
+	osal_strcpy(&(gDevWmt.cWmtcfgName[0]), name);
+	WMT_ERR_FUNC("WMT config file is set to (%s)\n", &(gDevWmt.cWmtcfgName[0]));
+	
+	return 0;
 }
 
 
@@ -468,21 +454,23 @@ INT32  wmt_conf_read_file(VOID)
     INT32 ret = -1;
 
     osal_memset(&gDevWmt.rWmtGenConf, 0, osal_sizeof(gDevWmt.rWmtGenConf));
-    //osal_memset(&gDevWmt.pWmtCfg, 0, osal_sizeof(gDevWmt.pWmtCfg));
+    osal_memset(&gDevWmt.pWmtCfg, 0, osal_sizeof(gDevWmt.pWmtCfg));
+	
+	#if 0
     osal_memset(&gDevWmt.cWmtcfgName[0], 0, osal_sizeof(gDevWmt.cWmtcfgName));
 
     osal_strncat(&(gDevWmt.cWmtcfgName[0]), CUST_CFG_WMT_PREFIX, osal_sizeof(CUST_CFG_WMT_PREFIX));
     osal_strncat(&(gDevWmt.cWmtcfgName[0]), CUST_CFG_WMT, osal_sizeof(CUST_CFG_WMT));
-
+    #endif
+	
     if (!osal_strlen(&(gDevWmt.cWmtcfgName[0])))
     {
         WMT_ERR_FUNC("empty Wmtcfg name\n");
         osal_assert(0);
         return ret;
     }
-
-    //if ( 0 == wmt_dev_patch_get(&gDevWmt.cWmtcfgName[0], (osal_firmware **)&gDevWmt.pWmtCfg, 0) )
-    if ( 0 == wmt_dev_patch_get(&gDevWmt.cWmtcfgName[0], (OSAL_FIRMWARE **)&gDevWmt.pWmtCfg, 0) )
+    WMT_INFO_FUNC("WMT config file:%s\n", &(gDevWmt.cWmtcfgName[0]));
+    if ( 0 == wmt_dev_patch_get(&gDevWmt.cWmtcfgName[0], (osal_firmware **)&gDevWmt.pWmtCfg, 0) )
     {
         /*get full name patch success*/
         WMT_INFO_FUNC("get full file name(%s) buf(0x%p) size(%d)\n",
@@ -502,14 +490,15 @@ INT32  wmt_conf_read_file(VOID)
             osal_assert(0);
             ret = -1;
         }
+        wmt_dev_patch_put((osal_firmware **)&gDevWmt.pWmtCfg);
 /*
         if (gDevWmt.pWmtCfg)
         {
             if (gDevWmt.pWmtCfg->data)
             {
-                osal_vfree(gDevWmt.pWmtCfg->data);
+                osal_free(gDevWmt.pWmtCfg->data);
             }
-            osal_vfree(gDevWmt.pWmtCfg);
+            osal_free(gDevWmt.pWmtCfg);
             gDevWmt.pWmtCfg = 0;
         }
 */
@@ -517,7 +506,7 @@ INT32  wmt_conf_read_file(VOID)
     }
     else
     {
-        WMT_ERR_FUNC("read wmt.cfg file fails\n");
+        WMT_ERR_FUNC("read %s file fails\n", &(gDevWmt.cWmtcfgName[0]));
         osal_assert(0);
 
         gDevWmt.rWmtGenConf.cfgExist = 0;

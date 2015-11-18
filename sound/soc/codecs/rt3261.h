@@ -150,6 +150,7 @@
 #define RT3261_BIAS_CUR1			0x12
 #define RT3261_BIAS_CUR3			0x14
 #define RT3261_CLSD_INT_REG1			0x1c
+#define RT3261_CHPUMP_INT_REG1      0x24 //bard 11-6
 #define RT3261_MAMP_INT_REG2			0x37
 #define RT3261_CHOP_DAC_ADC			0x3d
 #define RT3261_MIXER_INT_REG			0x3f
@@ -384,9 +385,6 @@
 #define RT3261_M_DAC_R2_DAC_R_SFT		9
 #define RT3261_DAC_R2_DAC_R_VOL_MASK		(0x1 << 8)
 #define RT3261_DAC_R2_DAC_R_VOL_SFT		8
-
-#define RT3261_CHPUMP_INT_REG1                    0x24 //bard 11-6
-
 
 /* DSP Path Control 1 (0x2d) */
 #define RT3261_RXDP_SRC_MASK			(0x1 << 15)
@@ -2123,6 +2121,11 @@ enum {
 	RT3261_DMIC2,
 };
 
+enum {
+	RT3261_ASRC_DIS,
+	RT3261_ASRC_EN,
+};
+
 struct rt3261_pll_code {
 	bool m_bp; /* Indicates bypass m code or not. */
 	int m_code;
@@ -2146,6 +2149,7 @@ struct rt3261_priv {
 	int pll_out;
 
 	int dmic_en;
+	int asrc_en;
 	int dsp_sw; /* expected parameter setting */
 	bool dsp_play_pass;
 	bool dsp_rec_pass;

@@ -222,7 +222,7 @@ UMP_KERNEL_API_EXPORT void ump_dd_reference_add(ump_dd_handle mem);
  *
  * @param mem Handle to UMP memory.
  */
-UMP_KERNEL_API_EXPORT void ump_dd_reference_release(ump_dd_handle mem);
+UMP_KERNEL_API_EXPORT int ump_dd_reference_release(ump_dd_handle mem);
 
 
 #ifdef __cplusplus

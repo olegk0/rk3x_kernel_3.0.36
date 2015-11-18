@@ -1,6 +1,7 @@
 config UMP
 	tristate "UMP support"
-	depends on ARM
+	depends on MALI
+	depends on ARM && MALI400
 	---help---
 	  This enables support for the UMP memory allocation and sharing API.
 
@@ -13,4 +14,3 @@ config UMP_DEBUG
 	default y
 	---help---
 	  This enabled extra debug checks and messages in UMP.
-

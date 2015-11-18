@@ -29,6 +29,7 @@
 #include <mach/iomux.h>
 #include <linux/workqueue.h>
 #include "rk610_codec.h"
+#include <mach/board.h>
 
 #define RK610_PROC
 #ifdef RK610_PROC
@@ -42,13 +43,20 @@
 //you can look soc-core.c the resume source.s
 #define RESUME_PROBLEM 0
 
-#if defined(CONFIG_ARCH_RK3066B)
+//old control method,please filling rk610_codec_platform_data into Board-xx-xx.c
+//qjb 2013-01-14
+#if 0
+#if defined(CONFIG_MACH_RK3168_DS1006H)|| defined(CONFIG_MACH_RK3168_LR097)
+#define RK610_SPK_CTRL_PIN  RK30_PIN2_PD7
+#elif defined(CONFIG_ARCH_RK3066B)
 #define RK610_SPK_CTRL_PIN  RK30_PIN2_PA0
 #elif defined(CONFIG_ARCH_RK30)
 #define RK610_SPK_CTRL_PIN  RK30_PIN4_PC6
 #else
 #define RK610_SPK_CTRL_PIN  RK29_PIN6_PB6
 #endif
+#endif
+
 //1:set pll from rk610
 #define RK610_CTL_PLL 0
 
@@ -61,20 +69,22 @@
 #define	DBG(x...)
 #endif
 
-//it can change rk610 output volume 
-//0x0000 ~ 0xFFFF
+//rk610 output volume,DAC Digital Gain
+//0x0000 ~ 0xF42					
 #define Volume_Output 0xF42
-//it can change rk610 input volume
-//0x00 ~ 0x0E
+//0x0 ~ 0x3f(bit0-bit5)	 max=0x0(+6DB) min=0x3f(-60DB)	//Analog Gain
+#define Volume_Codec_PA 0x0
+
+//rk610 input volume,rk610 can not adjust the recording volume 
 #define Volume_Input 0x07
+
+
 
 #define OUT_CAPLESS  (1)   //是否为无电容输出，1:无电容输出，0:有电容输出
 
-static u32 gVolReg = 0x00;  ///0x0f; //用于记录音量寄存器
-//static u32 gCodecVol = 0x0f;
 static u8 gR0AReg = 0;  //用于记录R0A寄存器的值，用于改变采样率前通过R0A停止clk
 static u8 gR0BReg = 0;  //用于记录R0B寄存器的值，用于改变采样率前通过R0B停止interplate和decimation
-//static u8 gR1314Reg = 0;  //用于记录R13,R14寄存器的值，用于FM音量为0时
+
 
 /*
  * rk610 register cache
@@ -103,10 +113,12 @@ struct rk610_codec_priv {
 
 	struct delayed_work rk610_delayed_work;
 	unsigned int spk_ctrl_io;
+	unsigned int pa_enable_time;
 	bool hdmi_ndet;
 #if RESUME_PROBLEM
 	int rk610_workstatus;
 #endif
+	struct rk610_codec_platform_data *pdata;
 };
 
 void codec_set_spk(bool on)
@@ -121,9 +133,9 @@ void codec_set_spk(bool on)
 	
 	rk610_codec->hdmi_ndet = on;
 	if(on)
-		gpio_set_value(RK610_SPK_CTRL_PIN, GPIO_HIGH);
+		gpio_set_value(rk610_codec->spk_ctrl_io, GPIO_HIGH);
 	else
-		gpio_set_value(RK610_SPK_CTRL_PIN, GPIO_LOW);			
+		gpio_set_value(rk610_codec->spk_ctrl_io, GPIO_LOW);			
 }
 EXPORT_SYMBOL(codec_set_spk);
 
@@ -357,6 +369,7 @@ static int rk610_codec_set_bias_level(struct snd_soc_codec *codec,
 #endif
 		printk("rk610 standby\n");
 		spk_ctrl_fun(GPIO_LOW);
+		rk610_codec_write(codec,ACCELCODEC_R0A, ASC_CLK_DISABLE);
 		rk610_codec_write(codec, ACCELCODEC_R1D, 0xFE);
 		rk610_codec_write(codec, ACCELCODEC_R1E, 0xFF);
 		rk610_codec_write(codec, ACCELCODEC_R1F, 0xFF);
@@ -365,6 +378,7 @@ static int rk610_codec_set_bias_level(struct snd_soc_codec *codec,
 	case SND_SOC_BIAS_OFF:
 		printk("rk610 power off\n");
 		spk_ctrl_fun(GPIO_LOW);
+		rk610_codec_write(codec,ACCELCODEC_R0A, ASC_CLK_DISABLE);		
 		rk610_codec_write(codec, ACCELCODEC_R1D, 0xFF);
 		rk610_codec_write(codec, ACCELCODEC_R1E, 0xFF);
 		rk610_codec_write(codec, ACCELCODEC_R1F, 0xFF);
@@ -388,7 +402,7 @@ static int rk610_codec_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 
 	DBG("Enter::%s----%d\n",__FUNCTION__,__LINE__);
 
-#ifdef RK610_CTL_PLL
+#if RK610_CTL_PLL
 	if(rk610_codec_pll_set(freq))
 		return -EINVAL;
 #endif
@@ -427,7 +441,11 @@ static int rk610_codec_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	struct rk610_codec_priv *rk610_codec =snd_soc_codec_get_drvdata(codec);
 	u16 iface = 0;
 
-	spk_ctrl_fun(GPIO_LOW);
+//modify 2013-06-27
+	if(rk610_codec->pa_enable_time<300)
+		spk_ctrl_fun(GPIO_LOW);
+	else
+		spk_ctrl_fun(GPIO_HIGH);
 	rk610_codec_write(codec,ACCELCODEC_R1D, 0x2a);  //setup Vmid and Vref, other module power down
 	rk610_codec_write(codec,ACCELCODEC_R1E, 0x40);  ///|ASC_PDASDML_ENABLE);
 
@@ -527,7 +545,7 @@ static int rk610_codec_pcm_hw_params(struct snd_pcm_substream *substream,
 	#endif
 	rk610_codec_write(codec, ACCELCODEC_R09, iface);
 	if (coeff >= 0){
-	    rk610_codec_write(codec, ACCELCODEC_R00, srate|coeff_div[coeff].bclk);
+	//    rk610_codec_write(codec, ACCELCODEC_R00, srate|coeff_div[coeff].bclk);
 		rk610_codec_write(codec, ACCELCODEC_R0A, (coeff_div[coeff].sr << 1) | coeff_div[coeff].usb|ASC_CLKNODIV|ASC_CLK_ENABLE);
 	}
 	rk610_codec_write(codec,ACCELCODEC_R0B, gR0BReg);
@@ -559,11 +577,13 @@ static int rk610_codec_mute(struct snd_soc_dai *dai, int mute)
 	{
 	//	rk610_codec_write(codec,ACCELCODEC_R1D, 0x2a);  //setup Vmid and Vref, other module power down
 	//	rk610_codec_write(codec,ACCELCODEC_R1E, 0x40);  ///|ASC_PDASDML_ENABLE);
-		rk610_codec_write(codec,ACCELCODEC_R17, gVolReg|ASC_OUTPUT_ACTIVE|ASC_CROSSZERO_EN);  //AOL gVolReg|ASC_OUTPUT_ACTIVE|ASC_CROSSZERO_EN);  //AOL
-		rk610_codec_write(codec,ACCELCODEC_R18, gVolReg|ASC_OUTPUT_ACTIVE|ASC_CROSSZERO_EN); //gVolReg|ASC_OUTPUT_ACTIVE|ASC_CROSSZERO_EN);  //AOR
+		rk610_codec_write(codec,ACCELCODEC_R17, Volume_Codec_PA|ASC_OUTPUT_ACTIVE|ASC_CROSSZERO_EN);  //AOL Volume_Codec_PA|ASC_OUTPUT_ACTIVE|ASC_CROSSZERO_EN);  //AOL
+		rk610_codec_write(codec,ACCELCODEC_R18, Volume_Codec_PA|ASC_OUTPUT_ACTIVE|ASC_CROSSZERO_EN); //Volume_Codec_PA|ASC_OUTPUT_ACTIVE|ASC_CROSSZERO_EN);  //AOR
         rk610_codec_write(codec,ACCELCODEC_R04, ASC_INT_ACTIVE_L|ASC_INT_ACTIVE_R|ASC_SIDETONE_L_OFF|ASC_SIDETONE_R_OFF);
 		rk610_codec_write(codec,ACCELCODEC_R19, 0x7F);  //AOM
-		msleep(300);
+
+		if(rk610_codec->pa_enable_time == 0)
+			msleep(300);
 		#if OUT_CAPLESS
     	rk610_codec_write(codec,ACCELCODEC_R1F, 0x09|ASC_PDMIXM_ENABLE);
     	#else
@@ -572,7 +592,14 @@ static int rk610_codec_mute(struct snd_soc_dai *dai, int mute)
 	//	schedule_delayed_work(&rk610_codec->rk610_delayed_work, 0);
 	//	rk610_codec_reg_read();
 		if(rk610_codec->hdmi_ndet)
-			spk_ctrl_fun(GPIO_HIGH);
+			if(rk610_codec->pa_enable_time == 0 )
+				spk_ctrl_fun(GPIO_HIGH);
+			else if(rk610_codec->pa_enable_time > 0 && rk610_codec->pa_enable_time < 300){
+				spk_ctrl_fun(GPIO_HIGH);
+				msleep(rk610_codec->pa_enable_time)	;
+			}
+			else if(rk610_codec->pa_enable_time >=300 && rk610_codec->pa_enable_time < 1000)
+				msleep(rk610_codec->pa_enable_time);
     }
 
     return 0;
@@ -581,13 +608,16 @@ static int rk610_codec_mute(struct snd_soc_dai *dai, int mute)
 static void rk610_delayedwork_fun(struct work_struct *work)
 {
     struct snd_soc_codec *codec = rk610_codec_codec;
+	struct rk610_codec_priv *rk610_codec =snd_soc_codec_get_drvdata(codec);	
+	struct rk610_codec_platform_data *pdata= rk610_codec->pdata;	
 	DBG("--------%s----------\n",__FUNCTION__);
-
-	#if OUT_CAPLESS
-	rk610_codec_write(codec,ACCELCODEC_R1F, 0x09|ASC_PDMIXM_ENABLE);
-	#else
-	rk610_codec_write(codec,ACCELCODEC_R1F, 0x09|ASC_PDMIXM_ENABLE|ASC_PDPAM_ENABLE);
-	#endif
+	if(!pdata->boot_depop){
+		#if OUT_CAPLESS
+		rk610_codec_write(codec,ACCELCODEC_R1F, 0x09|ASC_PDMIXM_ENABLE);
+		#else
+		rk610_codec_write(codec,ACCELCODEC_R1F, 0x09|ASC_PDMIXM_ENABLE|ASC_PDPAM_ENABLE);
+		#endif
+	}
 	spk_ctrl_fun(GPIO_HIGH);
 }
 
@@ -649,6 +679,8 @@ static int rk610_codec_resume(struct snd_soc_codec *codec)
 void rk610_codec_reg_set(void)
 {
     struct snd_soc_codec *codec = rk610_codec_codec;
+	struct rk610_codec_priv *rk610_codec =snd_soc_codec_get_drvdata(codec);	
+	struct rk610_codec_platform_data *pdata= rk610_codec->pdata;
     unsigned int digital_gain;
 	unsigned int mic_vol = Volume_Input;
 	rk610_codec_write(codec,ACCELCODEC_R1D, 0x30);
@@ -694,24 +726,29 @@ void rk610_codec_reg_set(void)
     rk610_codec_write(codec,ACCELCODEC_R0A, ASC_NORMAL_MODE|(0x10 << 1)|ASC_CLKNODIV|ASC_CLK_DISABLE);
     gR0AReg = ASC_NORMAL_MODE|(0x10 << 1)|ASC_CLKNODIV|ASC_CLK_DISABLE;
     //2Config audio  interface
-    rk610_codec_write(codec,ACCELCODEC_R09, ASC_I2S_MODE|ASC_16BIT_MODE|ASC_NORMAL_LRCLK|ASC_LRSWAP_DISABLE|ASC_MASTER_MODE|ASC_NORMAL_BCLK);
-    rk610_codec_write(codec,ACCELCODEC_R00, ASC_HPF_ENABLE|ASC_DSM_MODE_DISABLE|ASC_SCRAMBLE_DISABLE|ASC_DITHER_ENABLE|ASC_BCLKDIV_4);
+    rk610_codec_write(codec,ACCELCODEC_R09, ASC_I2S_MODE|ASC_16BIT_MODE|ASC_NORMAL_LRCLK|ASC_LRSWAP_DISABLE|ASC_NORMAL_BCLK);
+    rk610_codec_write(codec,ACCELCODEC_R00, ASC_HPF_ENABLE|ASC_DSM_MODE_ENABLE|ASC_SCRAMBLE_ENABLE|ASC_DITHER_ENABLE|ASC_BCLKDIV_4);
     //2volume,input,output
     digital_gain = Volume_Output;
-    rk610_codec_write(codec,ACCELCODEC_R05, (digital_gain >> 8) & 0xFF);
-    rk610_codec_write(codec,ACCELCODEC_R06, digital_gain & 0xFF);
-    rk610_codec_write(codec,ACCELCODEC_R07, (digital_gain >> 8) & 0xFF);
-    rk610_codec_write(codec,ACCELCODEC_R08, digital_gain & 0xFF);
-
+	
+	if(rk610_codec_read(codec,ACCELCODEC_R05)!=0x0f) {
+		rk610_codec_write(codec,ACCELCODEC_R05, (digital_gain >> 8) & 0xFF);
+		rk610_codec_write(codec,ACCELCODEC_R06, digital_gain & 0xFF);
+	}
+	if(rk610_codec_read(codec,ACCELCODEC_R07)!=0x0f){
+		rk610_codec_write(codec,ACCELCODEC_R07, (digital_gain >> 8) & 0xFF);
+		rk610_codec_write(codec,ACCELCODEC_R08, digital_gain & 0xFF);
+	}
     rk610_codec_write(codec,ACCELCODEC_R0B, ASC_DEC_ENABLE|ASC_INT_ENABLE);
     gR0BReg = ASC_DEC_ENABLE|ASC_INT_ENABLE;  //ASC_DEC_DISABLE|ASC_INT_ENABLE;
 
-
-//	#if OUT_CAPLESS
-//	rk610_codec_write(codec,ACCELCODEC_R1F, 0x09|ASC_PDMIXM_ENABLE);
-//	#else
-//	rk610_codec_write(codec,ACCELCODEC_R1F, 0x09|ASC_PDMIXM_ENABLE|ASC_PDPAM_ENABLE);
-//	#endif
+	if(pdata->boot_depop){
+		#if OUT_CAPLESS
+		rk610_codec_write(codec,ACCELCODEC_R1F, 0x09|ASC_PDMIXM_ENABLE);
+		#else
+		rk610_codec_write(codec,ACCELCODEC_R1F, 0x09|ASC_PDMIXM_ENABLE|ASC_PDPAM_ENABLE);
+		#endif
+	}	
 }
 
 #ifdef RK610_PROC	
@@ -744,7 +781,10 @@ static int rk610_codec_probe(struct snd_soc_codec *codec)
 	}
 
 	INIT_DELAYED_WORK(&rk610_codec->rk610_delayed_work, rk610_delayedwork_fun);
-
+	
+//old control method,please filling rk610_codec_platform_data into Board-xx-xx.c
+//qjb 2013-01-14
+#if 0
 #ifdef RK610_SPK_CTRL_PIN
 	rk610_codec->spk_ctrl_io = RK610_SPK_CTRL_PIN;
 	ret = gpio_request(rk610_codec->spk_ctrl_io, "rk610 spk_ctrl");
@@ -757,6 +797,18 @@ static int rk610_codec_probe(struct snd_soc_codec *codec)
 #else
 	rk610_codec->spk_ctrl_io = 0;
 #endif
+#endif
+	if(rk610_codec->spk_ctrl_io)
+	{
+		ret = gpio_request(rk610_codec->spk_ctrl_io, "rk610 spk_ctrl");
+	    if (ret){
+	        printk("rk610_control request gpio fail!\n");
+			return ret;
+	    }
+	    gpio_direction_output(rk610_codec->spk_ctrl_io, GPIO_LOW);
+	    gpio_set_value(rk610_codec->spk_ctrl_io, GPIO_LOW);	
+	}
+	
 	rk610_codec->hdmi_ndet = true;
 #if RESUME_PROBLEM	
 	rk610_codec->rk610_workstatus = SND_SOC_DAPM_STREAM_NOP;
@@ -799,12 +851,28 @@ static int rk610_codec_i2c_probe(struct i2c_client *i2c,
 			    const struct i2c_device_id *id)
 {
 	struct rk610_codec_priv *rk610_codec;
+	struct rk610_codec_platform_data *pdata = i2c->dev.platform_data;
 	int ret;
 	DBG("%s start\n", __FUNCTION__);
 	rk610_codec = kzalloc(sizeof(struct rk610_codec_priv), GFP_KERNEL);
 	if (rk610_codec == NULL)
 		return -ENOMEM;
-
+//qjb 2013-01-14
+	rk610_codec->pdata = pdata;
+	rk610_codec->spk_ctrl_io = pdata->spk_ctl_io;
+//qjb 2013-06-27	
+	rk610_codec->pa_enable_time = pdata->pa_enable_time;
+	if(rk610_codec->pa_enable_time > 1000)
+		rk610_codec->pa_enable_time = 1000;
+	if(pdata->io_init){
+		ret =  pdata->io_init();
+		if (ret < 0) {
+			dev_err(&i2c->dev, "Failed to register codec pdata io_init error: %d\n", ret);
+			kfree(rk610_codec);
+			return ret;
+		}
+	}
+	
 	i2c_set_clientdata(i2c, rk610_codec);
 	rk610_codec->control_type = SND_SOC_I2C;
 
@@ -870,7 +938,11 @@ static ssize_t RK610_PROC_write(struct file *file, const char __user *buffer,
 			   unsigned long len, void *data)
 {
 	char *cookie_pot; 
-	
+	char *p;
+	int reg;
+	int value;
+	struct rk610_codec_priv *rk610_codec = snd_soc_codec_get_drvdata(rk610_codec_codec);
+
 	cookie_pot = (char *)vmalloc( len );
 	if (!cookie_pot) 
 	{
@@ -889,6 +961,62 @@ static ssize_t RK610_PROC_write(struct file *file, const char __user *buffer,
 		break;
 	case 'o':
 		spk_ctrl_fun(GPIO_LOW);
+		break;	
+	case 'r':
+	case 'R':
+		printk("Read reg debug\n");		
+		if(cookie_pot[1] ==':')
+		{
+			strsep(&cookie_pot,":");
+			while((p=strsep(&cookie_pot,",")))
+			{
+				reg = simple_strtol(p,NULL,16);
+				value = rk610_codec_read(rk610_codec_codec,reg);
+				printk("wm8994_read:0x%04x = 0x%04x\n",reg,value);
+			}
+			printk("\n");
+		}
+		else
+		{
+			printk("Error Read reg debug.\n");
+			printk("For example: echo 'r:22,23,24,25'>wm8994_ts\n");
+		}
+		break;
+	case 'w':
+	case 'W':
+		printk("Write reg debug\n");		
+		if(cookie_pot[1] ==':')
+		{
+			strsep(&cookie_pot,":");
+			while((p=strsep(&cookie_pot,"=")))
+			{
+				reg = simple_strtol(p,NULL,16);
+				p=strsep(&cookie_pot,",");
+				value = simple_strtol(p,NULL,16);
+				rk610_codec_write(rk610_codec_codec,reg,value);
+				printk("wm8994_write:0x%04x = 0x%04x\n",reg,value);
+			}
+			printk("\n");
+		}
+		else
+		{
+			printk("Error Write reg debug.\n");
+			printk("For example: w:22=0,23=0,24=0,25=0\n");
+		}
+		break;	
+	case 'D' :
+		printk("Dump reg\n");
+		rk610_codec_reg_read();
+		break;
+	case 't' :
+		printk("old pa_enable_time = %d\n",rk610_codec->pa_enable_time);
+		if(cookie_pot[1] ==':')
+		{
+			strsep(&cookie_pot,":");
+			p=strsep(&cookie_pot," ");
+			rk610_codec->pa_enable_time = simple_strtol(p,NULL,10);
+			printk("new pa_enable_time = %d\n",rk610_codec->pa_enable_time);
+		}
 		break;		
 	}
 

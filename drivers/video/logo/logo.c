@@ -42,6 +42,10 @@ const unsigned char password[32] = {
  * modpost that it is intended that this function uses data
  * marked __initdata.
  */
+__weak int get_battery_status(void)
+{
+	return 0;
+}
 const struct linux_logo * __init_refok fb_find_logo(int depth)
 {
         struct linux_logo *logo = NULL;
@@ -79,6 +83,10 @@ const struct linux_logo * __init_refok fb_find_logo(int depth)
 #ifdef CONFIG_LOGO_LINUX_CLUT224
 		/* Generic Linux logo */
 		logo = &logo_linux_clut224;
+#endif
+#ifdef CONFIG_LOGO_PIPO_CLUT224
+		/* Generic Linux logo */
+		logo = &logo_pipo_clut224;
 #endif
 #ifdef CONFIG_LOGO_G3_CLUT224
 		/* Generic Linux logo */
@@ -120,25 +128,41 @@ const struct linux_logo * __init_refok fb_find_logo(int depth)
 #ifdef CONFIG_LOGO_CRUZ_CLUT224
                 logo = &logo_cruz_clut224;
 #endif
-#ifdef CONFIG_LOGO_LINUX_BMP_SUNSET
+
+#ifdef CONFIG_LOGO_LINUX_800x480_CLUT224
+                logo = &logo_linux_800x480_clut224;
+#endif
+#ifdef CONFIG_LOGO_LOWERPOWER_WARNING
+		if( 1 ==  get_battery_status()){
+			logo = &logo_linux_lowerpower_clut224;
+		}
+#endif 
+
 		if (depth >= 24)
 		{
-			
-			#ifdef CONFIG_LOGO_LINUX_BMP
+			#ifdef  CONFIG_LOGO_LINUX_BMP
+			#ifdef CONFIG_LOGO_LINUX_BMP_SUNSET
 			logo = &logo_sunset_bmp;
+			#endif
+			
+			#ifdef CONFIG_LOGO_LINUX_BMP_ANDROID
+			logo = &logo_android_bmp;
+			#endif
+
+			#ifdef CONFIG_LOGO_LINUX_BMP_RADXA
+			logo = &logo_radxa_bmp;
+			#endif
+			
 			#endif	
 		}
 		else
 		{
-#endif
 	  		logo->width = ((logo->data[0] << 8) + logo->data[1]);
         		logo->height = ((logo->data[2] << 8) + logo->data[3]);
         		logo->clutsize = logo->clut[0];
         		logo->data += 4;
         		logo->clut += 1;
-#ifdef CONFIG_LOGO_LINUX_BMP_SUNSET
 		}
-#endif
 	}
 	m_logo = logo;
 	return m_logo;

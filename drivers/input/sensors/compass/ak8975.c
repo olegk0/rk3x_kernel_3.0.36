@@ -30,29 +30,85 @@
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
-#include <linux/akm8975.h>
+
 #include <linux/sensor-dev.h>
 
 #define SENSOR_DATA_SIZE		8
 
-#if 0
-#define SENSOR_DEBUG_TYPE SENSOR_TYPE_COMPASS
-#define DBG(x...) if(sensor->pdata->type == SENSOR_DEBUG_TYPE) printk(x)
-#else
-#define DBG(x...)
-#endif
 
+/*! \name AK8975 operation mode
+ \anchor AK8975_Mode
+ Defines an operation mode of the AK8975.*/
+/*! @{*/
+#define AK8975_MODE_SNG_MEASURE	0x01
+#define	AK8975_MODE_SELF_TEST	0x08
+#define	AK8975_MODE_FUSE_ACCESS	0x0F
+#define	AK8975_MODE_POWERDOWN	0x00
+/*! @}*/
+
+#define SENSOR_DATA_SIZE		8	/* Rx buffer size, i.e from ST1 to ST2 */
+#define RWBUF_SIZE			16	/* Read/Write buffer size.*/
+
+
+/*! \name AK8975 register address
+\anchor AK8975_REG
+Defines a register address of the AK8975.*/
+/*! @{*/
+#define AK8975_REG_WIA		0x00
+#define AK8975_REG_INFO		0x01
+#define AK8975_REG_ST1		0x02
+#define AK8975_REG_HXL		0x03
+#define AK8975_REG_HXH		0x04
+#define AK8975_REG_HYL		0x05
+#define AK8975_REG_HYH		0x06
+#define AK8975_REG_HZL		0x07
+#define AK8975_REG_HZH		0x08
+#define AK8975_REG_ST2		0x09
+#define AK8975_REG_CNTL		0x0A
+#define AK8975_REG_RSV		0x0B
+#define AK8975_REG_ASTC		0x0C
+#define AK8975_REG_TS1		0x0D
+#define AK8975_REG_TS2		0x0E
+#define AK8975_REG_I2CDIS	0x0F
+/*! @}*/
+
+/*! \name AK8975 fuse-rom address
+\anchor AK8975_FUSE
+Defines a read-only address of the fuse ROM of the AK8975.*/
+/*! @{*/
+#define AK8975_FUSE_ASAX	0x10
+#define AK8975_FUSE_ASAY	0x11
+#define AK8975_FUSE_ASAZ	0x12
+/*! @}*/
+
+#define AK8975_INFO_DATA	(0x01<<3)
+
+
+#define COMPASS_IOCTL_MAGIC                   'c'
+
+/* IOCTLs for AKM library */
+#define ECS_IOCTL_WRITE                 _IOW(COMPASS_IOCTL_MAGIC, 0x01, char*)
+#define ECS_IOCTL_READ                  _IOWR(COMPASS_IOCTL_MAGIC, 0x02, char*)
+#define ECS_IOCTL_RESET      	        _IO(COMPASS_IOCTL_MAGIC, 0x03) /* NOT used in AK8975 */
+#define ECS_IOCTL_SET_MODE              _IOW(COMPASS_IOCTL_MAGIC, 0x04, short)
+#define ECS_IOCTL_GETDATA               _IOR(COMPASS_IOCTL_MAGIC, 0x05, char[SENSOR_DATA_SIZE])
+#define ECS_IOCTL_SET_YPR               _IOW(COMPASS_IOCTL_MAGIC, 0x06, short[12])
+#define ECS_IOCTL_GET_OPEN_STATUS       _IOR(COMPASS_IOCTL_MAGIC, 0x07, int)
+#define ECS_IOCTL_GET_CLOSE_STATUS      _IOR(COMPASS_IOCTL_MAGIC, 0x08, int)
+#define ECS_IOCTL_GET_LAYOUT        	_IOR(COMPASS_IOCTL_MAGIC, 0x09, char)
+#define ECS_IOCTL_GET_ACCEL         	_IOR(COMPASS_IOCTL_MAGIC, 0x0A, short[3])
+#define ECS_IOCTL_GET_OUTBIT        	_IOR(COMPASS_IOCTL_MAGIC, 0x0B, char)
+#define ECS_IOCTL_GET_DELAY             _IOR(COMPASS_IOCTL_MAGIC, 0x30, short)
+#define ECS_IOCTL_GET_PROJECT_NAME      _IOR(COMPASS_IOCTL_MAGIC, 0x0D, char[64])
+#define ECS_IOCTL_GET_MATRIX            _IOR(COMPASS_IOCTL_MAGIC, 0x0E, short [4][3][3])
+#define ECS_IOCTL_GET_PLATFORM_DATA     _IOR(COMPASS_IOCTL_MAGIC, 0x0E, struct akm_platform_data)
 
 
 #define AK8975_DEVICE_ID		0x48
 static struct i2c_client *this_client;
+static struct miscdevice compass_dev_device;
 
-static atomic_t m_flag;
-static atomic_t a_flag;
-static atomic_t mv_flag;
-static atomic_t open_flag;
-static short akmd_delay = 100;
-static DECLARE_WAIT_QUEUE_HEAD(open_wq);
+
 
 
 /****************operate according to sensor chip:start************/
@@ -89,6 +145,7 @@ static int sensor_init(struct i2c_client *client)
 	struct sensor_private_data *sensor =
 	    (struct sensor_private_data *) i2c_get_clientdata(client);	
 	int result = 0;
+	int info = 0;
 
 	this_client = client;	
 
@@ -100,15 +157,21 @@ static int sensor_init(struct i2c_client *client)
 	}
 	
 	sensor->status_cur = SENSOR_OFF;
-#if 0	
-	sensor->ops->ctrl_data = 0;
-	result = sensor_write_reg(client, sensor->ops->ctrl_reg, sensor->ops->ctrl_data);
-	if(result)
+	
+	info = sensor_read_reg(client, AK8975_REG_INFO);
+	if((info & (0x0f<<3)) != AK8975_INFO_DATA)
+	
 	{
-		printk("%s:line=%d,error\n",__func__,__LINE__);
-		return result;
+		printk("%s:info=0x%x,it is not %s\n",__func__, info, sensor->ops->name);
+		return -1;
 	}
-#endif
+
+	result = misc_register(&compass_dev_device);
+	if (result < 0) {
+		printk("%s:fail to register misc device %s\n", __func__, compass_dev_device.name);
+		result = -1;
+	}
+	
 	DBG("%s:status_cur=%d\n",__func__, sensor->status_cur);
 	return result;
 }
@@ -122,9 +185,8 @@ static int sensor_report_value(struct i2c_client *client)
 	unsigned char *stat2;	
 	int ret = 0;	
 	char value = 0;
-#ifdef SENSOR_DEBUG_TYPE	
 	int i;
-#endif			
+
 	if(sensor->ops->read_len < 8)	//sensor->ops->read_len = 8
 	{
 		printk("%s:lenth is error,len=%d\n",__func__,sensor->ops->read_len);
@@ -188,12 +250,10 @@ static int sensor_report_value(struct i2c_client *client)
 	mutex_lock(&sensor->data_mutex);	
 	memcpy(sensor->sensor_data, buffer, sensor->ops->read_len);
 	mutex_unlock(&sensor->data_mutex);
-#ifdef SENSOR_DEBUG_TYPE	
 	DBG("%s:",__func__);
 	for(i=0; i<sensor->ops->read_len; i++)
-		DBG("%d,",buffer[i]);
+		DBG("0x%x,",buffer[i]);
 	DBG("\n");
-#endif	
 
 	if((sensor->pdata->irq_enable)&& (sensor->ops->int_status_reg >= 0))	//read sensor intterupt status register
 	{
@@ -220,7 +280,7 @@ static void compass_set_YPR(short *rbuf)
 	    (struct sensor_private_data *) i2c_get_clientdata(this_client);	
 	
 	/* Report magnetic sensor information */
-	if (atomic_read(&m_flag)) {
+	if (atomic_read(&sensor->flags.m_flag)) {
 		input_report_abs(sensor->input_dev, ABS_RX, rbuf[0]);
 		input_report_abs(sensor->input_dev, ABS_RY, rbuf[1]);
 		input_report_abs(sensor->input_dev, ABS_RZ, rbuf[2]);
@@ -229,7 +289,7 @@ static void compass_set_YPR(short *rbuf)
 	}
 	
 	/* Report acceleration sensor information */
-	if (atomic_read(&a_flag)) {
+	if (atomic_read(&sensor->flags.a_flag)) {
 		input_report_abs(sensor->input_dev, ABS_X, rbuf[6]);
 		input_report_abs(sensor->input_dev, ABS_Y, rbuf[7]);
 		input_report_abs(sensor->input_dev, ABS_Z, rbuf[8]);
@@ -239,7 +299,7 @@ static void compass_set_YPR(short *rbuf)
 	}
 	
 	/* Report magnetic vector information */
-	if (atomic_read(&mv_flag)) {
+	if (atomic_read(&sensor->flags.mv_flag)) {
 		input_report_abs(sensor->input_dev, ABS_HAT0X, rbuf[9]);
 		input_report_abs(sensor->input_dev, ABS_HAT0Y, rbuf[10]);
 		input_report_abs(sensor->input_dev, ABS_BRAKE, rbuf[11]);
@@ -251,137 +311,10 @@ static void compass_set_YPR(short *rbuf)
 }
 
 
-
-static int compass_aot_open(struct inode *inode, struct file *file)
-{
-#ifdef SENSOR_DEBUG_TYPE
-	struct sensor_private_data* sensor =
-			(struct sensor_private_data *)i2c_get_clientdata(this_client);
-#endif
-	int result = 0;
-	int flag = 0;
-	flag = atomic_read(&open_flag);
-	if(!flag)
-	{	
-		atomic_set(&open_flag, 1);
-		wake_up(&open_wq);
-	}
-
-	DBG("%s\n", __func__);
-	return result;
-}
-
-
-static int compass_aot_release(struct inode *inode, struct file *file)
-{	
-#ifdef SENSOR_DEBUG_TYPE
-	struct sensor_private_data* sensor =
-			(struct sensor_private_data *)i2c_get_clientdata(this_client);	
-#endif
-	//struct i2c_client *client = this_client;
-	int result = 0;
-	int flag = 0;
-	flag = atomic_read(&open_flag);
-	if(flag)
-	{
-		atomic_set(&open_flag, 0);
-		wake_up(&open_wq);	
-	}
-	
-	DBG("%s\n", __func__);
-	return result;
-}
-
-
-/* ioctl - I/O control */
-static long compass_aot_ioctl(struct file *file,
-			  unsigned int cmd, unsigned long arg)
-{
-#ifdef SENSOR_DEBUG_TYPE
-	struct sensor_private_data* sensor = 
-			(struct sensor_private_data *)i2c_get_clientdata(this_client);	
-#endif
-	void __user *argp = (void __user *)arg;
-	int result = 0;
-	short flag;
-	
-	switch (cmd) {
-		case ECS_IOCTL_APP_SET_MFLAG:
-		case ECS_IOCTL_APP_SET_AFLAG:
-		case ECS_IOCTL_APP_SET_MVFLAG:
-			if (copy_from_user(&flag, argp, sizeof(flag))) {
-				return -EFAULT;
-			}
-			if (flag < 0 || flag > 1) {
-				return -EINVAL;
-			}
-			break;
-		case ECS_IOCTL_APP_SET_DELAY:
-			if (copy_from_user(&flag, argp, sizeof(flag))) {
-				return -EFAULT;
-			}
-			break;
-		default:
-			break;
-	}
-	
-	switch (cmd) {
-		case ECS_IOCTL_APP_SET_MFLAG:	
-			atomic_set(&m_flag, flag);			
-			DBG("%s:ECS_IOCTL_APP_SET_MFLAG,flag=%d\n", __func__,flag);
-			break;
-		case ECS_IOCTL_APP_GET_MFLAG:		
-			flag = atomic_read(&m_flag);
-			DBG("%s:ECS_IOCTL_APP_GET_MFLAG,flag=%d\n", __func__,flag);
-			break;
-		case ECS_IOCTL_APP_SET_AFLAG:	
-			atomic_set(&a_flag, flag);		
-			DBG("%s:ECS_IOCTL_APP_SET_AFLAG,flag=%d\n", __func__,flag);
-			break;
-		case ECS_IOCTL_APP_GET_AFLAG:
-			flag = atomic_read(&a_flag);		
-			DBG("%s:ECS_IOCTL_APP_GET_AFLAG,flag=%d\n", __func__,flag);
-			break;
-		case ECS_IOCTL_APP_SET_MVFLAG:	
-			atomic_set(&mv_flag, flag);		
-			DBG("%s:ECS_IOCTL_APP_SET_MVFLAG,flag=%d\n", __func__,flag);
-			break;
-		case ECS_IOCTL_APP_GET_MVFLAG:		
-			flag = atomic_read(&mv_flag);		
-			DBG("%s:ECS_IOCTL_APP_GET_MVFLAG,flag=%d\n", __func__,flag);
-			break;
-		case ECS_IOCTL_APP_SET_DELAY:
-			akmd_delay = flag;
-			break;
-		case ECS_IOCTL_APP_GET_DELAY:
-			flag = akmd_delay;
-			break;
-		default:
-			return -ENOTTY;
-	}
-	
-	switch (cmd) {
-		case ECS_IOCTL_APP_GET_MFLAG:
-		case ECS_IOCTL_APP_GET_AFLAG:
-		case ECS_IOCTL_APP_GET_MVFLAG:
-		case ECS_IOCTL_APP_GET_DELAY:
-			if (copy_to_user(argp, &flag, sizeof(flag))) {
-				return -EFAULT;
-			}
-			break;
-		default:
-			break;
-	}
-
-	return result;
-}
-
 static int compass_dev_open(struct inode *inode, struct file *file)
 {
-#ifdef SENSOR_DEBUG_TYPE
 	struct sensor_private_data* sensor = 
 		(struct sensor_private_data *)i2c_get_clientdata(this_client); 
-#endif
 	int result = 0;
 	DBG("%s\n",__func__);
 
@@ -391,10 +324,8 @@ static int compass_dev_open(struct inode *inode, struct file *file)
 
 static int compass_dev_release(struct inode *inode, struct file *file)
 {
-#ifdef SENSOR_DEBUG_TYPE
 	struct sensor_private_data* sensor = 
 		(struct sensor_private_data *)i2c_get_clientdata(this_client); 
-#endif
 	int result = 0;	
 	DBG("%s\n",__func__);
 
@@ -482,14 +413,16 @@ static int compass_akm_set_mode(struct i2c_client *client, char mode)
 
 static int compass_akm_get_openstatus(void)
 {
-	wait_event_interruptible(open_wq, (atomic_read(&open_flag) != 0));
-	return atomic_read(&open_flag);
+	struct sensor_private_data* sensor = (struct sensor_private_data *)i2c_get_clientdata(this_client); 
+	wait_event_interruptible(sensor->flags.open_wq, (atomic_read(&sensor->flags.open_flag) != 0));
+	return atomic_read(&sensor->flags.open_flag);
 }
 
 static int compass_akm_get_closestatus(void)
 {
-	wait_event_interruptible(open_wq, (atomic_read(&open_flag) <= 0));
-	return atomic_read(&open_flag);
+	struct sensor_private_data* sensor = (struct sensor_private_data *)i2c_get_clientdata(this_client); 
+	wait_event_interruptible(sensor->flags.open_wq, (atomic_read(&sensor->flags.open_flag) <= 0));
+	return atomic_read(&sensor->flags.open_flag);
 }
 
 
@@ -497,11 +430,11 @@ static int compass_akm_get_closestatus(void)
 static long compass_dev_ioctl(struct file *file,
 			  unsigned int cmd, unsigned long arg)
 {
-    struct sensor_private_data* sensor = (struct sensor_private_data *)i2c_get_clientdata(this_client);
+	struct sensor_private_data* sensor = (struct sensor_private_data *)i2c_get_clientdata(this_client);
 	struct i2c_client *client = this_client;
 	void __user *argp = (void __user *)arg;
 	int result = 0;
-	struct akm8975_platform_data compass;
+	struct akm_platform_data compass;
 		
 	/* NOTE: In this function the size of "char" should be 1-byte. */
 	char compass_data[SENSOR_DATA_SIZE];/* for GETDATA */
@@ -611,7 +544,7 @@ static long compass_dev_ioctl(struct file *file,
 			DBG("%s:closestatus=%d\n",__func__,status);
 			break;
 		case ECS_IOCTL_GET_DELAY:
-			delay = akmd_delay;
+			delay = sensor->flags.delay;
 			break;
 		case ECS_IOCTL_GET_PLATFORM_DATA:			
 			DBG("%s:ECS_IOCTL_GET_PLATFORM_DATA start\n",__func__);
@@ -658,25 +591,6 @@ static long compass_dev_ioctl(struct file *file,
 	return result;
 }
 
-
-static struct file_operations compass_aot_fops =
-{
-	.owner = THIS_MODULE,
-	.unlocked_ioctl = compass_aot_ioctl,
-	.open = compass_aot_open,
-	.release = compass_aot_release,
-};
-
-
-
-static struct miscdevice compass_aot_device =
-{	
-	.minor = MISC_DYNAMIC_MINOR,
-	.name = "akm8975_aot",
-	.fops = &compass_aot_fops,
-};
-
-
 static struct file_operations compass_dev_fops =
 {
 	.owner = THIS_MODULE,
@@ -693,7 +607,7 @@ static struct miscdevice compass_dev_device =
 	.fops = &compass_dev_fops,
 };
 
-struct sensor_operate akm8975_akm8975_ops = {
+struct sensor_operate compass_akm8975_ops = {
 	.name				= "akm8975",
 	.type				= SENSOR_TYPE_COMPASS,	//it is important
 	.id_i2c				= COMPASS_ID_AK8975,
@@ -703,13 +617,13 @@ struct sensor_operate akm8975_akm8975_ops = {
 	.id_data 			= AK8975_DEVICE_ID,
 	.precision			= 8,			//12 bits
 	.ctrl_reg 			= AK8975_REG_CNTL,	//enable or disable 
-	.int_status_reg 		= SENSOR_UNKNOW_DATA,	//not exist
+	.int_status_reg			= SENSOR_UNKNOW_DATA,	//not exist
 	.range				= {-0xffff,0xffff},
 	.trig				= IRQF_TRIGGER_RISING,	//if LEVEL interrupt then IRQF_ONESHOT
 	.active				= sensor_active,	
 	.init				= sensor_init,
 	.report				= sensor_report_value,	
-	.misc_dev 			= &compass_dev_device,	//private misc support
+	.misc_dev 			= NULL,			//private misc support
 };
 
 /****************operate according to sensor chip:end************/
@@ -717,7 +631,7 @@ struct sensor_operate akm8975_akm8975_ops = {
 //function name should not be changed
 static struct sensor_operate *compass_get_ops(void)
 {
-	return &akm8975_akm8975_ops;
+	return &compass_akm8975_ops; 
 }
 
 
@@ -727,22 +641,7 @@ static int __init compass_akm8975_init(void)
 	int result = 0;
 	int type = ops->type;
 	result = sensor_register_slave(type, NULL, NULL, compass_get_ops);
-
-	result = misc_register(&compass_aot_device);
-	if (result < 0) {
-		printk("%s:fail to register misc device %s\n", __func__, compass_aot_device.name);
-		goto error;
-	}
-
-	/* As default, report all information */
-	atomic_set(&m_flag, 1);
-	atomic_set(&a_flag, 1);
-	atomic_set(&mv_flag, 1);			
-	atomic_set(&open_flag, 0);		
-	init_waitqueue_head(&open_wq);
-			
-	DBG("%s\n",__func__);
-error:
+				
 	return result;
 }
 

@@ -29,6 +29,7 @@
 #include <linux/slab.h>
 
 #include <asm/io.h>
+#include <asm/delay.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -36,13 +37,18 @@
 #include <sound/soc.h>
 #include <sound/initval.h>
 #include <sound/tlv.h>
-
+#include <mach/cru.h>
 #include <mach/iomux.h>
+#include <mach/cpu.h>
 #include <linux/clk.h>
 #include "rk2928_codec.h"
 
+#define HP_OUT 0
+#define HP_IN  1
+
 static struct rk2928_codec_data {
 	struct device	*dev;
+	struct snd_soc_codec *codec;
 	int 			regbase;
 	int				regbase_phy;
 	int				regsize_phy;
@@ -50,6 +56,8 @@ static struct rk2928_codec_data {
 	int				mute;
 	int				hdmi_enable;
 	int				spkctl;
+	int             call_enable;
+	int             headset_status;	
 } rk2928_data;
 
 static const struct snd_soc_dapm_widget rk2928_dapm_widgets[] = {
@@ -57,14 +65,10 @@ static const struct snd_soc_dapm_widget rk2928_dapm_widgets[] = {
 	SND_SOC_DAPM_DAC("DACR", "HIFI Playback", CODEC_REG_POWER, 4, 1),
 	SND_SOC_DAPM_PGA("DACL Amp", CODEC_REG_DAC_GAIN, 2, 0, NULL, 0),
 	SND_SOC_DAPM_PGA("DACR Amp", CODEC_REG_DAC_GAIN, 0, 0, NULL, 0),
-//	SND_SOC_DAPM_OUT_DRV("DACL Drv", CODEC_REG_DAC_MUTE, 1, 1, NULL, 0),
-//	SND_SOC_DAPM_OUT_DRV("DACR Drv", CODEC_REG_DAC_MUTE, 0, 1, NULL, 0),
 	SND_SOC_DAPM_OUTPUT("SPKL"),
 	SND_SOC_DAPM_OUTPUT("SPKR"),
-	#ifndef CONFIG_MACH_RK2928_A720
 	SND_SOC_DAPM_ADC("ADCL", "HIFI Capture", CODEC_REG_POWER, 3, 1),
 	SND_SOC_DAPM_INPUT("MICL"),
-	#endif
 	SND_SOC_DAPM_ADC("ADCR", "HIFI Capture", CODEC_REG_POWER, 2, 1),
 	SND_SOC_DAPM_INPUT("MICR"),
 };
@@ -72,13 +76,27 @@ static const struct snd_soc_dapm_widget rk2928_dapm_widgets[] = {
 static const struct snd_soc_dapm_route rk2928_audio_map[] = {
 	{"SPKL", "DACL Amp", "DACL"},
 	{"SPKR", "DACR Amp", "DACR"},
-//	{"SPKL", NULL, "DACL Drv"},
-//	{"SPKR", NULL, "DACR Drv"},
-	#ifndef CONFIG_MACH_RK2928_A720
 	{"ADCL", NULL, "MICL"},
-	#endif
 	{"ADCR", NULL, "MICR"},
 };
+
+static const struct snd_soc_dapm_widget rk2926_dapm_widgets[] = {
+	SND_SOC_DAPM_DAC("DACL", "HIFI Playback", CODEC_REG_POWER, 5, 1),
+	SND_SOC_DAPM_DAC("DACR", "HIFI Playback", CODEC_REG_POWER, 4, 1),
+	SND_SOC_DAPM_PGA("DACL Amp", CODEC_REG_DAC_GAIN, 2, 0, NULL, 0),
+	SND_SOC_DAPM_PGA("DACR Amp", CODEC_REG_DAC_GAIN, 0, 0, NULL, 0),
+	SND_SOC_DAPM_OUTPUT("SPKL"),
+	SND_SOC_DAPM_OUTPUT("SPKR"),
+	SND_SOC_DAPM_ADC("ADCR", "HIFI Capture", CODEC_REG_POWER, 2, 1),
+	SND_SOC_DAPM_INPUT("MICR"),
+};
+
+static const struct snd_soc_dapm_route rk2926_audio_map[] = {
+	{"SPKL", "DACL Amp", "DACL"},
+	{"SPKR", "DACR Amp", "DACR"},
+	{"ADCR", NULL, "MICR"},
+};
+
 
 
 static unsigned int rk2928_read(struct snd_soc_codec *codec, unsigned int reg)
@@ -88,10 +106,14 @@ static unsigned int rk2928_read(struct snd_soc_codec *codec, unsigned int reg)
 
 static int rk2928_write(struct snd_soc_codec *codec, unsigned int reg, unsigned int value)
 {
+#ifdef CONFIG_MODEM_SOUND
+	if(rk2928_data.call_enable)
+		return 0;
+#endif		
 	DBG("%s reg 0x%02x value 0x%02x", __FUNCTION__, reg, value);
 	writel(value, rk2928_data.regbase + reg*4);
 	if( (reg == CODEC_REG_POWER) && ( (value & m_PD_DAC) == 0)) {
-		msleep(80);
+		msleep(100);
 	}
 	return 0;
 }
@@ -113,16 +135,70 @@ void codec_set_spk(bool on)
 	if(on == 0) {
 		DBG("%s speaker is disabled\n", __FUNCTION__);
 		rk2928_data.hdmi_enable = 1;
-		if(rk2928_data.mute == 0)
+		if(rk2928_data.mute == 0) {
 			rk2928_write(NULL, CODEC_REG_DAC_MUTE, v_MUTE_DAC(1));
+			if(rk2928_data.spkctl != INVALID_GPIO) {
+				gpio_direction_output(rk2928_data.spkctl, GPIO_LOW);
+			}
+		}
 	}
 	else {
 		DBG("%s speaker is enabled\n", __FUNCTION__);
 		rk2928_data.hdmi_enable = 0;
-		if(rk2928_data.mute == 0)
+		if(rk2928_data.mute == 0) {
 			rk2928_write(NULL, CODEC_REG_DAC_MUTE, v_MUTE_DAC(0));
+			if(rk2928_data.spkctl != INVALID_GPIO && rk2928_data.headset_status == HP_OUT) {
+				gpio_direction_output(rk2928_data.spkctl, GPIO_HIGH);
+			}
+		}
 	}
 }
+#ifdef CONFIG_MODEM_SOUND
+void call_set_spk(bool on)
+{
+	struct snd_soc_codec *codec = rk2928_data.codec;
+	if(codec == NULL)
+		return;	
+	if(on == 0) {
+		printk("%s speaker is disabled\n", __FUNCTION__);
+	//	rk2928_write(NULL, CODEC_REG_DAC_MUTE, v_MUTE_DAC(1));
+		rk2928_write(NULL, CODEC_REG_DAC_MUTE, v_MUTE_DAC(0));
+		rk2928_write(codec, CODEC_REG_POWER, 0x0c);
+		rk2928_write(codec, CODEC_REG_ADC_SOURCE, 0x03);
+		rk2928_data.call_enable = 1;
+	}
+	else {
+		printk("%s speaker is enabled\n", __FUNCTION__);
+		rk2928_data.call_enable = 0;
+	//	rk2928_write(NULL, CODEC_REG_DAC_MUTE, v_MUTE_DAC(0));
+		rk2928_write(codec, CODEC_REG_ADC_SOURCE, 0x00);
+	}
+}
+#endif
+#ifdef CONFIG_RK_HEADSET_DET
+//for headset
+void rk2928_codec_set_spk(bool on)
+{
+	struct snd_soc_codec *codec = rk2928_data.codec;
+	if(codec == NULL)
+		return;
+	printk("%s: headset %s %s PA bias_level=%d\n",__FUNCTION__,on?"in":"out",on?"disable":"enable",codec->dapm.bias_level);
+	if(on) {
+		rk2928_data.headset_status = HP_IN;	
+		if(rk2928_data.spkctl != INVALID_GPIO)
+			gpio_direction_output(rk2928_data.spkctl, GPIO_LOW);
+	}
+	else {
+		rk2928_data.headset_status = HP_OUT;
+		if(codec->dapm.bias_level == SND_SOC_BIAS_STANDBY 
+		|| codec->dapm.bias_level == SND_SOC_BIAS_OFF){
+			return;
+		}		
+		if(rk2928_data.spkctl != INVALID_GPIO)
+			gpio_direction_output(rk2928_data.spkctl, GPIO_HIGH);
+	}
+}
+#endif
 
 static int rk2928_audio_hw_params(struct snd_pcm_substream *substream,
 				    struct snd_pcm_hw_params *params,
@@ -144,23 +220,64 @@ static int rk2928_audio_trigger(struct snd_pcm_substream *substream, int cmd,
 	struct snd_soc_codec *codec = rtd->codec;
 	struct rk2928_codec_data *priv = snd_soc_codec_get_drvdata(codec);
 	int err = 0;
-
+	int data, pd_adc;
 	DBG("%s cmd 0x%x", __FUNCTION__, cmd);
-	
+
 	switch (cmd) {
 		case SNDRV_PCM_TRIGGER_START:
 		case SNDRV_PCM_TRIGGER_RESUME:
 		case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 			if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 //				rk2928_write(codec, CODEC_REG_DAC_GAIN, v_GAIN_DAC(DAC_GAIN_3DB_P));
-				if(!rk2928_data.hdmi_enable)
-					rk2928_write(codec, CODEC_REG_DAC_MUTE, v_MUTE_DAC(0));
-				rk2928_write(codec, CODEC_REG_ADC_SOURCE, 0x03);
-				rk2928_write(codec, CODEC_REG_ADC_SOURCE, 0x00);
-				rk2928_data.mute = 0;
-				if(rk2928_data.spkctl != INVALID_GPIO) {
-					gpio_direction_output(rk2928_data.spkctl, GPIO_HIGH);
+				data = rk2928_read(codec, CODEC_REG_POWER);
+				if(soc_is_rk2928g()){
+					if( (data & m_PD_ADC) == 0) {
+						data &= ~m_PD_ADC;
+						data |= v_PD_ADC(1);
+						pd_adc = 1;
+					}
+					else
+						pd_adc = 0;
 				}
+				else{
+					if( (data & m_PD_ADC_R) == 0) {
+						data &= ~m_PD_ADC_R;
+						data |= v_PD_ADC_R(1);
+						pd_adc = 1;
+					}
+					else
+						pd_adc = 0;
+				}
+				if(pd_adc == 1) {
+					DBG("%s reg 0x%02x value 0x%02x", __FUNCTION__, CODEC_REG_POWER, data);
+					writel(data, rk2928_data.regbase + CODEC_REG_POWER*4);
+					udelay(100);						
+				}
+				rk2928_write(codec, CODEC_REG_ADC_SOURCE, 0x03);
+				udelay(100);
+				rk2928_write(codec, CODEC_REG_ADC_SOURCE, 0x00);
+				
+				if(pd_adc == 1) {
+					udelay(100);
+					data = rk2928_read(codec, CODEC_REG_POWER);
+					if( soc_is_rk2928g() ) {
+						data &= ~m_PD_ADC;
+						data |= v_PD_ADC(0);
+					}
+					else {
+						data &= ~m_PD_ADC_R;
+						data |= v_PD_ADC_R(0);
+					}
+					DBG("%s reg 0x%02x value 0x%02x", __FUNCTION__, CODEC_REG_POWER, data);
+					writel(data, rk2928_data.regbase + CODEC_REG_POWER*4);
+				}
+				if(!rk2928_data.hdmi_enable) {
+					rk2928_write(codec, CODEC_REG_DAC_MUTE, v_MUTE_DAC(0));
+					if(rk2928_data.spkctl != INVALID_GPIO && rk2928_data.headset_status == HP_OUT) {
+						gpio_direction_output(rk2928_data.spkctl, GPIO_HIGH);
+					}
+				}
+				rk2928_data.mute = 0;
 			}
 			else {
 				rk2928_write(codec, CODEC_REG_ADC_PGA_GAIN, 0xFF);
@@ -171,6 +288,10 @@ static int rk2928_audio_trigger(struct snd_pcm_substream *substream, int cmd,
 		case SNDRV_PCM_TRIGGER_STOP:
 		case SNDRV_PCM_TRIGGER_SUSPEND:
 		case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+#ifdef CONFIG_MODEM_SOUND	
+	if(rk2928_data.call_enable)
+		return err;
+#endif		
 			if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 				if(rk2928_data.spkctl != INVALID_GPIO) {
 					gpio_direction_output(rk2928_data.spkctl, GPIO_LOW);
@@ -197,8 +318,10 @@ static int rk2928_audio_startup(struct snd_pcm_substream *substream,
 static int rk2928_set_bias_level(struct snd_soc_codec *codec,
 			      enum snd_soc_bias_level level)
 {
-	DBG("%s level %d", __FUNCTION__, level);
+	DBG("%s level %d\n", __FUNCTION__, level);
 	
+        msleep(100);
+
 	if(codec == NULL)
 		return -1;
 		
@@ -211,6 +334,10 @@ static int rk2928_set_bias_level(struct snd_soc_codec *codec,
 			break;
 		case SND_SOC_BIAS_STANDBY:
 		case SND_SOC_BIAS_OFF:
+#ifdef CONFIG_MODEM_SOUND	
+	if(rk2928_data.call_enable)
+		break;
+#endif				
 			rk2928_write(codec, CODEC_REG_POWER, v_PWR_OFF);
 			break;
 		default:
@@ -218,6 +345,14 @@ static int rk2928_set_bias_level(struct snd_soc_codec *codec,
 	}
 	codec->dapm.bias_level = level;
 	return 0;
+}
+
+static void rk2929_codec_reset(void)
+{
+	// Reset Codec
+	cru_set_soft_reset(SOFT_RST_ACODEC, true);
+	udelay(1000);
+	cru_set_soft_reset(SOFT_RST_ACODEC, false);
 }
 
 static int rk2928_probe(struct snd_soc_codec *codec)
@@ -272,7 +407,7 @@ static int rk2928_probe(struct snd_soc_codec *codec)
 	else {
 		rk2928_data.spkctl = res->start;
 	}
-	
+
 	if(rk2928_data.spkctl != INVALID_GPIO) {
 		ret = gpio_request(rk2928_data.spkctl, NULL);
 		if (ret != 0) {
@@ -281,18 +416,29 @@ static int rk2928_probe(struct snd_soc_codec *codec)
 		else
 			gpio_direction_output(rk2928_data.spkctl, GPIO_LOW);
 	}
-	
+
+	//Reset Codec
+	rk2929_codec_reset();
+
 	// Select SDI input from internal audio codec
 	writel(0x04000400, RK2928_GRF_BASE + GRF_SOC_CON0);
 	
 	// Mute and Power off codec
 	rk2928_write(codec, CODEC_REG_DAC_MUTE, v_MUTE_DAC(1));
 	rk2928_set_bias_level(codec, SND_SOC_BIAS_OFF);
-	
-	snd_soc_dapm_new_controls(dapm, rk2928_dapm_widgets,
-			ARRAY_SIZE(rk2928_dapm_widgets));
-	snd_soc_dapm_add_routes(dapm, rk2928_audio_map, ARRAY_SIZE(rk2928_audio_map));
+	if(soc_is_rk2928g()){	
+	    snd_soc_dapm_new_controls(dapm, rk2928_dapm_widgets,
+		ARRAY_SIZE(rk2928_dapm_widgets));
+	    snd_soc_dapm_add_routes(dapm, rk2928_audio_map, ARRAY_SIZE(rk2928_audio_map));
+	}else{
+	    snd_soc_dapm_new_controls(dapm, rk2926_dapm_widgets,
+		ARRAY_SIZE(rk2926_dapm_widgets));
+	    snd_soc_dapm_add_routes(dapm, rk2926_audio_map, ARRAY_SIZE(rk2926_audio_map));
+	}
 
+	rk2928_data.call_enable = 0;
+	rk2928_data.headset_status = HP_OUT;
+	rk2928_data.codec=codec;
 	return 0;
 	
 err1:

@@ -21,12 +21,6 @@ config INPUT_LPSENSOR_CM3602
 config INPUT_LPSENSOR_AL3006
 	tristate "al3006 l/p sensor input support"
 
-config INPUT_AP321XX
-	tristate "ap321xx light and proximity sensor support"
-	default n
-	help	 
-	  To have support for AP321XX serial light and proximity sensor.
-
 config INPUT_88PM860X_ONKEY
 	tristate "88PM860x ONKEY support"
 	depends on MFD_88PM860X
@@ -299,6 +293,16 @@ config INPUT_TWL6030_PWRBUTTON
 
 	  To compile this driver as a module, choose M here. The module will
 	  be called twl6030_pwrbutton.
+
+config INPUT_RICOH619_PWRKEY
+	tristate "RICOH RC5T619 PMU PWRKEY driver"
+	depends on MFD_RICOH619
+	default n
+	help
+	  If you say yes here you get support for the RICOH RC5T619 PWRKEY module.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called rc5t619-pwrkey.
 
 config INPUT_TWL4030_VIBRA
 	tristate "Support for TWL4030 Vibrator"

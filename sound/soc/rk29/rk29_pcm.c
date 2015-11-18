@@ -1,6 +1,3 @@
-/*$_FOR_ROCKCHIP_RBOX_$*/
-/*$_rbox_$_modify_$_huangzhibao 20120528*/
-
 /*
  * rk29_pcm.c  --  ALSA SoC ROCKCHIP PCM Audio Layer Platform driver
  *
@@ -39,7 +36,7 @@
 #define DBG(x...) do { } while (0)
 #endif
 
-#define INFIN_LOOP
+//#define INFIN_LOOP
 #ifdef INFIN_LOOP
 #define DMA_INFIN_LOOP() rk29_dma_has_infiniteloop()
 #else
@@ -117,15 +114,14 @@ static void rockchip_pcm_enqueue(struct snd_pcm_substream *substream)
 		limit = prtd->dma_limit;
 
 	if (DMA_INFIN_LOOP()) {
-		if(prtd->dma_period % prtd->params->dma_size*16){
-			WARN_ON(1);
+		if(prtd->dma_period % (prtd->params->dma_size*16)){
+			printk("dma_period(%d) is not an integer multiple of dma_size(%d)",prtd->dma_period,prtd->params->dma_size*16);
 			rk29_dma_config(prtd->params->channel,
 								prtd->params->dma_size, 1);
 		}							
 		else
 			rk29_dma_config(prtd->params->channel,
 							prtd->params->dma_size, 16);	
-
 		ret = rk29_dma_enqueue_ring(prtd->params->channel,
 				substream, pos, prtd->dma_period, limit ,true);
 		if (ret == 0) 
@@ -152,7 +148,6 @@ static void rockchip_pcm_enqueue(struct snd_pcm_substream *substream)
 				prtd->params->flag = 1;
 				DBG("size = 1, channel = %d, flag = %d\n",prtd->params->channel,prtd->params->flag);
 			}
-
 
 			ret = rk29_dma_enqueue(prtd->params->channel,substream, pos, len);
 	//		if(prtd->params->channel == 2)
@@ -255,9 +250,7 @@ static int rockchip_pcm_hw_params(struct snd_pcm_substream *substream,
 	if (prtd->params == NULL) {
 		/* prepare DMA */
 		prtd->params = dma;
-/*$_rbox_$_modify_$_huangzhibao_begin$_20120505_rename CONFIG_SND_DMA_EVENT_DYNAMIC$*/
-#ifdef CONFIG_SND_DMA_EVENT_DYNAMIC
-/*$_rbox_$_modify_$_huangzhibao_end$_20120505_$*/
+#ifdef CONFIG_SND_I2S_DMA_EVENT_DYNAMIC
 		DBG("params %p, client %p, channel %d\n", prtd->params,prtd->params->client, prtd->params->channel);
 		ret = rk29_dma_request(prtd->params->channel, prtd->params->client, NULL);
 		DBG("Enter::%s, %d, ret=%d, Channel=%d\n", __FUNCTION__, __LINE__, ret, prtd->params->channel);
@@ -283,12 +276,14 @@ static int rockchip_pcm_hw_params(struct snd_pcm_substream *substream,
 	prtd->dma_period = params_period_bytes(params);
 	prtd->dma_start = runtime->dma_addr;
 	prtd->dma_pos = prtd->dma_start;
-	prtd->dma_end = prtd->dma_start + totbytes;
+	prtd->dma_end = prtd->dma_start + prtd->dma_limit*prtd->dma_period;
 	prtd->transfer_first = 1;
 	prtd->curr = NULL;
 	prtd->next = NULL;
 	prtd->end = NULL;
 	spin_unlock_irq(&prtd->lock);
+	DBG(KERN_DEBUG "i2s dma info:periodsize(%ld),limit(%d),buffersize(%d),over(%d)\n",
+			prtd->dma_period,prtd->dma_limit,totbytes,totbytes-(prtd->dma_period*prtd->dma_limit));
 	return ret;
 }
 
@@ -301,9 +296,7 @@ static int rockchip_pcm_hw_free(struct snd_pcm_substream *substream)
 	snd_pcm_set_runtime_buffer(substream, NULL);
 
 	if (prtd->params) {
-/*$_rbox_$_modify_$_huangzhibao_begin$_20120505_rename CONFIG_SND_DMA_EVENT_DYNAMIC$*/	
-#ifdef CONFIG_SND_DMA_EVENT_DYNAMIC	
-/*$_rbox_$_modify_$_huangzhibao_end$_20120505*/
+#ifdef CONFIG_SND_I2S_DMA_EVENT_DYNAMIC		
 		rk29_dma_free(prtd->params->channel, prtd->params->client);
 		prtd->params = NULL;
 #endif		
@@ -358,6 +351,7 @@ static int rockchip_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
 	struct rockchip_runtime_data *prtd = substream->runtime->private_data;
 	int ret = 0;
+	int result;
 	/**************add by qiuen for volume*****/
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37))
@@ -388,8 +382,11 @@ static int rockchip_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 	        DBG(" START \n");
+			prtd->state &= ~ST_RUNNING;
+			rk29_dma_ctrl(prtd->params->channel, RK29_DMAOP_STOP);
 	    prtd->state |= ST_RUNNING;
-	    rk29_dma_ctrl(prtd->params->channel, RK29_DMAOP_START);
+	    result = rk29_dma_ctrl(prtd->params->channel, RK29_DMAOP_START);
+//	    printk("RK29_DMAOP_START return %d\n", result);
 		break;
 	case SNDRV_PCM_TRIGGER_RESUME:
 	    DBG(" RESUME \n");

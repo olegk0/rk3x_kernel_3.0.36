@@ -2,6 +2,8 @@
 # Makefile for the drm device driver.  This driver provides support for the
 # Direct Rendering Infrastructure (DRI) in XFree86 4.1.0 and higher.
 
+EXTRA_CFLAGS += -D__linux__
+
 ccflags-y := -Iinclude/drm
 
 drm-y       :=	drm_auth.o drm_buffer.o drm_bufs.o drm_cache.o \
@@ -34,6 +36,6 @@ obj-$(CONFIG_DRM_SIS)   += sis/
 obj-$(CONFIG_DRM_SAVAGE)+= savage/
 obj-$(CONFIG_DRM_VMWGFX)+= vmwgfx/
 obj-$(CONFIG_DRM_VIA)	+=via/
-obj-$(CONFIG_DRM_MALI)+= mali_drm/
 obj-$(CONFIG_DRM_NOUVEAU) +=nouveau/
+obj-$(CONFIG_DRM_MALI) +=mali/
 obj-y			+= i2c/

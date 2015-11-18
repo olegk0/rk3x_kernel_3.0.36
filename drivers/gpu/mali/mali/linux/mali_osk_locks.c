@@ -12,8 +12,7 @@
  * @file mali_osk_locks.c
  * Implemenation of the OS abstraction layer for the kernel device driver
  */
-//IAM
-//#define DEBUG
+
 #include <linux/spinlock.h>
 #include <linux/rwsem.h>
 #include <linux/mutex.h>

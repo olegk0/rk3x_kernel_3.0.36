@@ -494,7 +494,7 @@ static int get_est_timing(unsigned char *block, struct fb_videomode *mode)
 }
 
 static int get_std_timing(unsigned char *block, struct fb_videomode *mode,
-     int ver, int rev)
+		int ver, int rev)
 {
 	int xres, yres = 0, refresh, ratio, i;
 
@@ -505,11 +505,11 @@ static int get_std_timing(unsigned char *block, struct fb_videomode *mode,
 	ratio = (block[1] & 0xc0) >> 6;
 	switch (ratio) {
 	case 0:
-	     /* in EDID 1.3 the meaning of 0 changed to 16:10 (prior 1:1) */
-	     if (ver < 1 || (ver == 1 && rev < 3))
-        	yres = xres;
-	     else
-        	yres = (xres * 10)/16;
+		/* in EDID 1.3 the meaning of 0 changed to 16:10 (prior 1:1) */
+		if (ver < 1 || (ver == 1 && rev < 3))
+			yres = xres;
+		else
+			yres = (xres * 10)/16;
 		break;
 	case 1:
 		yres = (xres * 3)/4;
@@ -538,7 +538,7 @@ static int get_std_timing(unsigned char *block, struct fb_videomode *mode,
 }
 
 static int get_dst_timing(unsigned char *block,
-		          struct fb_videomode *mode, int ver, int rev)
+			  struct fb_videomode *mode, int ver, int rev)
 {
 	int j, num = 0;
 

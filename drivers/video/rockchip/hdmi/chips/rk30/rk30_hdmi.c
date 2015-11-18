@@ -128,9 +128,8 @@ static int __devinit rk30_hdmi_probe (struct platform_device *pdev)
 		ret = -ENXIO;
 		goto err0;
 	}
-// ADB: disable HDMI scaling by default
-	hdmi->xscale = 100;
-	hdmi->yscale = 100;
+	hdmi->xscale = 95;
+	hdmi->yscale = 95;
 	
 	hdmi->hclk = clk_get(NULL,"hclk_hdmi");
 	if(IS_ERR(hdmi->hclk))
@@ -296,5 +295,5 @@ static void __exit rk30_hdmi_exit(void)
 
 
 //fs_initcall(rk30_hdmi_init);
-module_init(rk30_hdmi_init);
+device_initcall_sync(rk30_hdmi_init);
 module_exit(rk30_hdmi_exit);
