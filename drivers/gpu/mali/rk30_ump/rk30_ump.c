@@ -22,7 +22,7 @@
 #include <linux/list.h>
 #include "rk30_ump.h"
 
-#if 1
+#if 0
 #define DDEBUG(fmt, args...)	{printk("%s - " fmt "\n",__func__, ##args);}
 #else
 #define DDEBUG(...)
