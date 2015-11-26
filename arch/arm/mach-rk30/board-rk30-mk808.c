@@ -381,7 +381,6 @@ struct platform_device rk30_device_pwm3 = {
 };
 
 //***********************Memory heap for video and mali acl************************
-#if 0
 static struct resource rk30_resource_mmedia[] = {
         [0] = {
                 .start  = 0,
@@ -396,7 +395,6 @@ struct platform_device rk30_device_mmedia = {
         .resource       = rk30_resource_mmedia,
         .num_resources  = ARRAY_SIZE(rk30_resource_mmedia),
 };
-#endif
 //**********************************************************************************
 void rk29_backlight_set(bool on){
 }
@@ -991,7 +989,7 @@ static struct platform_device *devices[] __initdata = {
 	&rk30_device_pwm0,
 	&power_led_pwm,
 #endif
-//	&rk30_device_mmedia,
+	&rk30_device_mmedia,
 //	&rk30_device_vpu_mem,
 	
 #endif
@@ -1153,14 +1151,13 @@ static void __init machine_rk30_board_init(void)
 
 static void __init rk30_reserve(void)
 {
-#if 0
-// CONFIG_IAM_CHANGES
+#if CONFIG_IAM_CHANGES
 	rk30_resource_mmedia[0].start = board_mem_reserve_add("mmedia_buf", MMEDIA_BUF_SIZE);
 	rk30_resource_mmedia[0].end = rk30_resource_mmedia[0].start + MMEDIA_BUF_SIZE- 1;
-
+#if 0
 	rk30_resource_vpu[0].start = board_mem_reserve_add("vpu_buf", SZ_64M);
 	rk30_resource_vpu[0].end = rk30_resource_vpu[0].start + SZ_64M- 1;
-
+#endif
 #endif
 
 #ifdef CONFIG_ION
