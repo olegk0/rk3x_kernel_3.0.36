@@ -60,6 +60,13 @@
     #define ION_RESERVE_SIZE	(120 * SZ_1M)
 #endif
 
+#define BLUE_LED_PIN_PWM 1
+#define BLUE_LED_PIN_POWER_MNG 1
+
+#ifdef BLUE_LED_PIN_POWER_MNG
+#undef BLUE_LED_PIN_PWM
+#endif
+
 #include <plat/efuse.h>
 
 #if defined(CONFIG_MFD_RK610)
@@ -89,35 +96,62 @@
     #include <linux/gps.h>
 #endif
 
-#include "../mach-rk30/board-rk3168-ds1006h-camera.c"
 #include <plat/key.h>
-
-#ifdef CONFIG_RK29_VMAC
-    #include "../mach-rk30/board-rk31-vmac.c"
-#endif
 
 static struct rk29_keys_button key_button[] = {
 	{
 		.desc	= "vol-",
 		.code	= KEY_VOLUMEDOWN,
-		.gpio	= RK30_PIN4_PC5,
+		.adc_value	= 150,
+		.gpio = INVALID_GPIO,
 		.active_low = PRESS_LEV_LOW,
 	},
 	{
 		.desc	= "play",
 		.code	= KEY_POWER,
-		.gpio	= RK30_PIN0_PA4, 
+		.adc_value	= 1,
+		.gpio = INVALID_GPIO,
 		.active_low = PRESS_LEV_LOW,
+		//.code_long_press = EV_ENCALL,
 		.wakeup	= 1,
+	},
+	{
+		.desc	= "vol+",
+		.code	= KEY_VOLUMEUP,
+		.adc_value	= 300,
+		.gpio = INVALID_GPIO,
+		.active_low = PRESS_LEV_LOW,
+	},
+	{
+		.desc	= "menu",
+		.code	= EV_MENU,
+		.adc_value	= 450,
+		.gpio = INVALID_GPIO,
+		.active_low = PRESS_LEV_LOW,
+	},
+	{
+		.desc	= "home",
+		.code	= KEY_HOME,
+		.adc_value	= 600,
+		.gpio = INVALID_GPIO,
+		.active_low = PRESS_LEV_LOW,
 	},
 	{
 		.desc	= "esc",
 		.code	= KEY_BACK,
-		.adc_value	= 1,
+		.adc_value	= 750,
+		.gpio = INVALID_GPIO,
+		.active_low = PRESS_LEV_LOW,
+	},
+	{
+		.desc	= "camera",
+		.code	= KEY_CAMERA,
+		.adc_value	= 900,
 		.gpio = INVALID_GPIO,
 		.active_low = PRESS_LEV_LOW,
 	},
 };
+
 struct rk29_keys_platform_data rk29_keys_pdata = {
 	.buttons	= key_button,
 	.nbuttons	= ARRAY_SIZE(key_button),
@@ -137,6 +171,130 @@ static struct spi_board_info board_spi_devices[] = {
 #define PWM_MUX_MODE      GPIO0A_PWM0
 #include <linux/leds_pwm.h>
 
+#ifdef BLUE_LED_PIN_POWER_MNG
+void my_power_off(void)
+{
+	gpio_free(PWM_GPIO);
+	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);	
+	gpio_request(PWM_GPIO, NULL);
+	gpio_direction_output(PWM_GPIO, GPIO_LOW);
+//	gpio_direction_input(PWM_GPIO);
+}
+
+void my_power_on(void)
+{
+	gpio_free(PWM_GPIO);
+	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);
+	gpio_request(PWM_GPIO, NULL);
+	gpio_direction_output(PWM_GPIO, GPIO_HIGH);
+};
+
+static DEFINE_MUTEX(power_key_mutex);
+
+static int power_led_state;
+
+static void _led_blue_set(int value)
+{
+    mutex_lock(&power_key_mutex);
+    if (value)
+	gpio_direction_output(PWM_GPIO, GPIO_HIGH);
+    else
+	gpio_direction_input(PWM_GPIO);
+    power_led_state = value;
+    mutex_unlock(&power_key_mutex);
+}
+
+static void led_blue_set(struct led_classdev *led_cdev,
+	           enum led_brightness value)
+{
+    _led_blue_set(value);
+}
+
+static struct led_classdev led_power_blue = {
+    .name			= "mk808:blue:power",
+    .default_trigger	= "heartbeat",
+    .brightness_set		= led_blue_set,
+    .flags			= LED_CORE_SUSPENDRESUME,
+};
+
+#define POWER_KEY_SCAN_TIME_MS	100
+static struct input_dev *power_keydev;
+static struct timer_list powerkey_timer;
+static int power_key_state;
+
+static void powerkey_btimer_cb(unsigned long data)
+{
+    int res;
+    mutex_lock(&power_key_mutex);
+    gpio_direction_input(PWM_GPIO);
+    mdelay(1);
+    res = !gpio_get_value(PWM_GPIO);
+    _led_blue_set(power_led_state);
+    mutex_unlock(&power_key_mutex);
+    if(res){//pressed
+	if(!power_key_state){//and not was pressed
+	    input_report_key(power_keydev, KEY_POWER, 1);
+	    input_sync(power_keydev);
+	}
+    }else{//not pressed
+	if(power_key_state){//and was pressed
+	    input_report_key(power_keydev, KEY_POWER, 0);
+	    input_sync(power_keydev);
+	}
+    }
+
+    power_key_state = res;
+    mod_timer( &powerkey_timer, jiffies + msecs_to_jiffies(POWER_KEY_SCAN_TIME_MS));
+}
+
+static int __init power_led_init(void)
+{
+    gpio_free(PWM_GPIO);
+    gpio_request(PWM_GPIO, NULL);
+//        gpio_set_value(PWM_GPIO, GPIO_LOW);
+//    rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);
+    led_classdev_register(NULL, &led_power_blue);
+
+    power_key_state = 0;
+    power_keydev = input_allocate_device();
+
+    if(!power_keydev){
+	printk(KERN_ERR "Could not allocate PowerLed input device\n");
+	goto err0;
+    }else{
+	power_keydev->name = "mk808LedPinInput";
+	power_keydev->phys = "mk808/input1";
+	power_keydev->id.bustype = BUS_HOST;
+//	power_keydev->dev.parent = dev;
+	set_bit(EV_KEY, power_keydev->evbit);
+	set_bit(EV_REL, power_keydev->evbit);
+	set_bit(KEY_POWER, power_keydev->keybit);
+
+	if(input_register_device(power_keydev) < 0){
+	    printk(KERN_ERR "Could not register PowerLed input device\n");
+	    goto err1;
+	}else{
+	    setup_timer( &powerkey_timer, powerkey_btimer_cb, 0 );
+	    if(mod_timer( &powerkey_timer, jiffies + msecs_to_jiffies(POWER_KEY_SCAN_TIME_MS))){
+		printk(KERN_ERR "Could not setup timer for PowerLed\n");
+		goto err2;
+	    }
+	}
+	printk("PowerLed input initialized\n");
+    }
+err2:
+    del_timer(&powerkey_timer);
+    input_unregister_device(power_keydev);
+err1:
+    input_free_device(power_keydev);
+err0:
+    return 0;
+}
+
+fs_initcall(power_led_init);
+
+#else
+#ifdef BLUE_LED_PIN_PWM
 static struct led_pwm power_led_pwm_leds[] = {
         {
 			.name           = "mk808:blue:power",
@@ -160,22 +318,6 @@ static struct platform_device power_led_pwm = {
         },
 };
 
-void my_power_off(void)
-{
-	gpio_free(PWM_GPIO);
-	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);	
-	gpio_request(PWM_GPIO, NULL);
-	gpio_direction_output(PWM_GPIO, 0);
-//	gpio_direction_input(PWM_GPIO);
-}
-
-void my_power_on(void)
-{
-	gpio_free(PWM_GPIO);
-	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);
-	gpio_request(PWM_GPIO, NULL);
-	gpio_direction_output(PWM_GPIO, 1);
-};
 
 static struct resource rk30_resource_pwm0[] = {
         [0] = {
@@ -185,6 +327,14 @@ static struct resource rk30_resource_pwm0[] = {
         },
 };
 
+struct platform_device rk30_device_pwm0 = {
+        .name           = "rk30-pwm",
+        .id             = 0,
+        .resource       = rk30_resource_pwm0,
+        .num_resources  = ARRAY_SIZE(rk30_resource_pwm0),
+};
+#endif
+#endif
 static struct resource rk30_resource_pwm1[] = {
         [0] = {
                 .start  = RK30_PWM01_PHYS + 0x10,// From plat-rk/pwm.c
@@ -209,13 +359,6 @@ static struct resource rk30_resource_pwm3[] = {
         },
 };
 
-struct platform_device rk30_device_pwm0 = {
-        .name           = "rk30-pwm",
-        .id             = 0,
-        .resource       = rk30_resource_pwm0,
-        .num_resources  = ARRAY_SIZE(rk30_resource_pwm0),
-};
-
 struct platform_device rk30_device_pwm1 = {
         .name           = "rk30-pwm",
         .id             = 1,
@@ -238,7 +381,7 @@ struct platform_device rk30_device_pwm3 = {
 };
 
 //***********************Memory heap for video and mali acl************************
-
+#if 0
 static struct resource rk30_resource_mmedia[] = {
         [0] = {
                 .start  = 0,
@@ -253,7 +396,8 @@ struct platform_device rk30_device_mmedia = {
         .resource       = rk30_resource_mmedia,
         .num_resources  = ARRAY_SIZE(rk30_resource_mmedia),
 };
-
+#endif
+//**********************************************************************************
 void rk29_backlight_set(bool on){
 }
 EXPORT_SYMBOL(rk29_backlight_set);
@@ -842,10 +986,13 @@ static struct platform_device *devices[] __initdata = {
 	&rk30_device_remotectl,
 #endif
 
-#ifdef CONFIG_IAM_CHANGES	
+#ifdef CONFIG_IAM_CHANGES
+#ifdef BLUE_LED_PIN_PWM
 	&rk30_device_pwm0,
 	&power_led_pwm,
-	&rk30_device_mmedia,
+#endif
+//	&rk30_device_mmedia,
+//	&rk30_device_vpu_mem,
 	
 #endif
 };
@@ -970,7 +1117,7 @@ static void rk30_pm_power_off(void)
 		tps65910_device_shutdown();//tps65910 shutdown
 	}
 	#endif
-#ifdef CONFIG_IAM_CHANGES
+#if defined(CONFIG_IAM_CHANGES) && defined(BLUE_LED_PIN_POWER_MNG)
 	my_power_off();
 #endif
 	while (1);
@@ -984,7 +1131,7 @@ static void __init machine_rk30_board_init(void)
 	
 	pm_power_off = rk30_pm_power_off;
 
-#ifdef CONFIG_IAM_CHANGES
+#if defined(CONFIG_IAM_CHANGES) && defined(BLUE_LED_PIN_POWER_MNG)
 	my_power_on();	
 #endif
 	rk30_i2c_register_board_info();
@@ -1006,9 +1153,14 @@ static void __init machine_rk30_board_init(void)
 
 static void __init rk30_reserve(void)
 {
-#ifdef CONFIG_IAM_CHANGES
+#if 0
+// CONFIG_IAM_CHANGES
 	rk30_resource_mmedia[0].start = board_mem_reserve_add("mmedia_buf", MMEDIA_BUF_SIZE);
 	rk30_resource_mmedia[0].end = rk30_resource_mmedia[0].start + MMEDIA_BUF_SIZE- 1;
+
+	rk30_resource_vpu[0].start = board_mem_reserve_add("vpu_buf", SZ_64M);
+	rk30_resource_vpu[0].end = rk30_resource_vpu[0].start + SZ_64M- 1;
+
 #endif
 
 #ifdef CONFIG_ION
@@ -1022,7 +1174,7 @@ static void __init rk30_reserve(void)
 	resource_fb[1].end = resource_fb[1].start + RK30_FB0_MEM_SIZE - 1;
 */
 
-#if defined(CONFIG_FB_ROTATE) || !defined(CONFIG_THREE_FB_BUFFER)
+#if defined(CONFIG_FB_ROTATE) && !defined(CONFIG_THREE_FB_BUFFER)
 	resource_fb[2].start = board_mem_reserve_add("fb2 buf",get_fb_size());
 	resource_fb[2].end = resource_fb[2].start + get_fb_size() - 1;
 #endif

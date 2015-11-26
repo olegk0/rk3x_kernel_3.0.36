@@ -761,7 +761,8 @@ static int rk_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 					par2->c_offset = par->c_offset;
 					//memcpy(info2->screen_base+par2->y_offset,info->screen_base+par->y_offset,
 					//	var->xres*var->yres*var->bits_per_pixel>>3);
-					#if defined(CONFIG_FB_ROTATE) || !defined(CONFIG_THREE_FB_BUFFER)
+//IAM ???					#if defined(CONFIG_FB_ROTATE) || !defined(CONFIG_THREE_FB_BUFFER)
+					#if defined(CONFIG_FB_ROTATE) && !defined(CONFIG_THREE_FB_BUFFER)
 						#ifdef CONFIG_ARCH_RK3026
 						//RGA support copying RGB to RGB,but not support YUV to YUV if rotate
 						fb_copy_by_rga(info2,info,par->y_offset);
@@ -1909,7 +1910,7 @@ static int rk_request_fb_buffer(struct fb_info *fbi,int fb_id)
 	}
 	else
 	{	
-#if defined(CONFIG_FB_ROTATE) || !defined(CONFIG_THREE_FB_BUFFER)
+#ifdef CONFIG_FB_ROTATE
 		res = platform_get_resource_byname(g_fb_pdev, IORESOURCE_MEM, "fb2 buf");
 		if (res == NULL)
 		{
@@ -1922,9 +1923,11 @@ static int rk_request_fb_buffer(struct fb_info *fbi,int fb_id)
 		fbi->screen_base = ioremap(res->start, fbi->fix.smem_len);
 		memset(fbi->screen_base, 0, fbi->fix.smem_len);
 #else    //three buffer no need to copy
+#ifdef CONFIG_THREE_FB_BUFFER
 		fbi->fix.smem_start = fb_inf->fb[0]->fix.smem_start;
 		fbi->fix.smem_len   = fb_inf->fb[0]->fix.smem_len;
 		fbi->screen_base    = fb_inf->fb[0]->screen_base;
+#endif
 #endif
 		printk("fb%d:phy:%lx>>vir:%p>>len:0x%x\n",fb_id,
 			fbi->fix.smem_start,fbi->screen_base,fbi->fix.smem_len);	
