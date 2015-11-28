@@ -189,25 +189,13 @@ void my_power_on(void)
 	gpio_direction_output(PWM_GPIO, GPIO_HIGH);
 };
 
-static DEFINE_MUTEX(power_key_mutex);
-
-static int power_led_state;
-
-static void _led_blue_set(int value)
+static void led_blue_set(struct led_classdev *led_cdev,
+	           enum led_brightness value)
 {
-    mutex_lock(&power_key_mutex);
     if (value)
 	gpio_direction_output(PWM_GPIO, GPIO_HIGH);
     else
 	gpio_direction_input(PWM_GPIO);
-    power_led_state = value;
-    mutex_unlock(&power_key_mutex);
-}
-
-static void led_blue_set(struct led_classdev *led_cdev,
-	           enum led_brightness value)
-{
-    _led_blue_set(value);
 }
 
 static struct led_classdev led_power_blue = {
@@ -217,36 +205,6 @@ static struct led_classdev led_power_blue = {
     .flags			= LED_CORE_SUSPENDRESUME,
 };
 
-#define POWER_KEY_SCAN_TIME_MS	100
-static struct input_dev *power_keydev;
-static struct timer_list powerkey_timer;
-static int power_key_state;
-
-static void powerkey_btimer_cb(unsigned long data)
-{
-    int res;
-    mutex_lock(&power_key_mutex);
-    gpio_direction_input(PWM_GPIO);
-    mdelay(1);
-    res = !gpio_get_value(PWM_GPIO);
-    _led_blue_set(power_led_state);
-    mutex_unlock(&power_key_mutex);
-    if(res){//pressed
-	if(!power_key_state){//and not was pressed
-	    input_report_key(power_keydev, KEY_POWER, 1);
-	    input_sync(power_keydev);
-	}
-    }else{//not pressed
-	if(power_key_state){//and was pressed
-	    input_report_key(power_keydev, KEY_POWER, 0);
-	    input_sync(power_keydev);
-	}
-    }
-
-    power_key_state = res;
-    mod_timer( &powerkey_timer, jiffies + msecs_to_jiffies(POWER_KEY_SCAN_TIME_MS));
-}
-
 static int __init power_led_init(void)
 {
     gpio_free(PWM_GPIO);
@@ -254,40 +212,7 @@ static int __init power_led_init(void)
 //        gpio_set_value(PWM_GPIO, GPIO_LOW);
 //    rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);
     led_classdev_register(NULL, &led_power_blue);
-
-    power_key_state = 0;
-    power_keydev = input_allocate_device();
-
-    if(!power_keydev){
-	printk(KERN_ERR "Could not allocate PowerLed input device\n");
-	goto err0;
-    }else{
-	power_keydev->name = "mk808LedPinInput";
-	power_keydev->phys = "mk808/input1";
-	power_keydev->id.bustype = BUS_HOST;
-//	power_keydev->dev.parent = dev;
-	set_bit(EV_KEY, power_keydev->evbit);
-	set_bit(EV_REL, power_keydev->evbit);
-	set_bit(KEY_POWER, power_keydev->keybit);
-
-	if(input_register_device(power_keydev) < 0){
-	    printk(KERN_ERR "Could not register PowerLed input device\n");
-	    goto err1;
-	}else{
-	    setup_timer( &powerkey_timer, powerkey_btimer_cb, 0 );
-	    if(mod_timer( &powerkey_timer, jiffies + msecs_to_jiffies(POWER_KEY_SCAN_TIME_MS))){
-		printk(KERN_ERR "Could not setup timer for PowerLed\n");
-		goto err2;
-	    }
-	}
-	printk("PowerLed input initialized\n");
-    }
-err2:
-    del_timer(&powerkey_timer);
-    input_unregister_device(power_keydev);
-err1:
-    input_free_device(power_keydev);
-err0:
+   
     return 0;
 }
 
