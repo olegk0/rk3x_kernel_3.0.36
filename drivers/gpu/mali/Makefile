@@ -14,4 +14,4 @@ export CONFIG TARGET_PLATFORM MALI_PLATFORM
 
 obj-$(CONFIG_MALI) += ump/ mali/ 
 
-obj-y += rk30_ump/
+obj-y += rk_ump/
