@@ -24,14 +24,23 @@
 
 #define USI_UMP_DRV_NAME "usi_ump"
 
+/*
+typedef enum
+{
+	USIW_MEM=0,
+	USIW_UMPID=1,
+	USIW_FD=2,
+} usi_flags;
+*/
+
 struct usi_ump_mbs {
-	unsigned long	addr;
-	unsigned long	size;
-	void	*umh;
+	unsigned int	addr;
+	unsigned int	size;
 	ump_secure_id	secure_id;
+//	usi_flags		flags;
 };
 
 struct usi_ump_mbs_info {
-	unsigned long	size_full;
-	unsigned long	size_used;
+	unsigned int	size_full;
+	unsigned int	size_used;
 };

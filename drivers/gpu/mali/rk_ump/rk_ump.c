@@ -1,5 +1,5 @@
 /*
- * simple memory allocator integrated with UMP
+ * simple memory allocator based on CMA and integrated with UMP
  * Copyright (C) 2015 olegvedi@gmail.com
  * 
  * This program is free software; you can redistribute it and/or
@@ -20,9 +20,11 @@
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
 #include <linux/list.h>
-#include "rk30_ump.h"
+#include <asm/atomic.h>
+#include <linux/dma-mapping.h>
+#include "rk_ump.h"
 
-#if 0
+#if 1
 #define DDEBUG(fmt, args...)	{printk("%s - " fmt "\n",__func__, ##args);}
 #else
 #define DDEBUG(...)
@@ -31,309 +33,209 @@
 static DEFINE_MUTEX(usi_lock);
 static LIST_HEAD(usi_list);
 
-typedef enum
-{
-	MB_FREE,
-	MB_ALLOC,
-} usi_mbstat;
-
 struct usi_mbs {
-	struct list_head	node;
-	usi_mbstat	stat;
-	struct usi_ump_mbs	uum;
+	struct  list_head node;
+	struct usi_ump_mbs uum;
+	void    *umh;
+	void    *virt;
+	int     ref_id;
 };
 
 struct usi_private{
-	struct platform_device	*pdev;
-	u32			begin;
-	u32			end;
+	struct device *usi_dev;
 	u32			full_size;
-	u32			used;
+	atomic_t	used;
+	atomic_t	ref_cnt;
 };
 
 static struct usi_private usi_priv;
 
-static int usi_ump_init_list(void)
+static int usi_ump_free(int ref_id, ump_secure_id secure_id)
 {
-	struct usi_mbs *umbs;
-
-	umbs = kzalloc(sizeof(*umbs), GFP_KERNEL);
-	if(! umbs){
-		DDEBUG("Don`t allocate mem for first block");
-		return -ENOMEM;
-	}
-	
-	umbs->stat = MB_FREE;
-	umbs->uum.addr = UMP_SIZE_ALIGN(usi_priv.begin);
-	umbs->uum.size = usi_priv.full_size - (umbs->uum.addr - usi_priv.begin);
-	umbs->uum.umh = NULL;
-	list_add(&umbs->node, &usi_list);
-	
-	return 0;
-}
-
-static void usi_ump_free_all(void)
-{
-	int i;
+    int i, ret=0;
     struct usi_mbs *umbs, *tumbs;
+    u32 size=0;
 
-	mutex_lock(&usi_lock);
+	if(list_empty(&usi_list))
+		return -EAGAIN;
+
+    mutex_lock(&usi_lock);
     list_for_each_entry_safe(umbs, tumbs, &usi_list, node) {
-//		if(!list_empty(&usi_list)){
-			if(umbs){
-				if(umbs->uum.umh){
-					i = 100;
-					while(ump_dd_reference_release(umbs->uum.umh) && i--); //WARNING  it requires change ump kernel driver (ump_dd_reference_release func)
-				}
-				list_del(&umbs->node);
-				kfree(umbs);
-				umbs = NULL;
-			}
-//		}
+		if(umbs){
+            if((secure_id && umbs->uum.secure_id == secure_id ) ||//del by secure id
+                ( ref_id && umbs->ref_id == ref_id ) ||//del by ref id
+                (!secure_id && !ref_id)){//del all
+                size += umbs->uum.size;
+                if(umbs->umh){
+                    i = 100;//reassurance
+                    while(ump_dd_reference_release(umbs->umh) && i--); //WARNING  it requires change ump kernel driver (ump_dd_reference_release func)
+                }
+                list_del(&umbs->node);
+                dma_free_coherent(usi_priv.usi_dev, umbs->uum.size, umbs->virt, umbs->uum.addr);
+                kfree(umbs);
+                umbs = NULL;
+                if(secure_id)
+                    break;
+            }
+        }
     }
-	mutex_unlock(&usi_lock);
-	usi_priv.used = 0;
+    mutex_unlock(&usi_lock);
+    
+    if(size){
+        atomic_sub(size, &usi_priv.used);
+        DDEBUG("Release mem block");
+    }else{
+        DDEBUG("Mem block dont found");
+        ret = -EINVAL;
+    }    
+    DDEBUG("ref_id:%d secure_id:%d used:%d", ref_id, secure_id, atomic_read(&usi_priv.used));    
+    
+    return ret;
 }
 
-static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size)
+static struct usi_ump_mbs *usi_ump_alloc_mb(struct usi_ump_mbs *puum, int ref_id)
 {
-	struct usi_mbs *umbs, *new_umbs=NULL;
+	struct usi_mbs *new_umbs=NULL;
 	ump_dd_physical_block upb;
-	ump_dd_handle *umh;
-	ump_secure_id secure_id;
-	int find=0;
 
-	DDEBUG("Request on %d bytes", size);
-	size = UMP_SIZE_ALIGN(size);
-	mutex_lock(&usi_lock);
-	list_for_each_entry(umbs, &usi_list, node) {
-		if(umbs->stat == MB_FREE && umbs->uum.size >= size){
-			find = 1;
-			break;
-		}
-	}
-    mutex_unlock(&usi_lock);
-
-    if(!find){
-		DDEBUG("Free buf Not found");
+	DDEBUG("Request on %d bytes", puum->size);
+	puum->size = UMP_SIZE_ALIGN(puum->size);
+	
+	new_umbs = kzalloc(sizeof(*new_umbs), GFP_KERNEL);
+	if(!new_umbs){
+		dev_err(usi_priv.usi_dev, "Don`t allocate mem for list entry");
 		return NULL;
 	}
-	
-	if(umbs->uum.size > size){
-		new_umbs = kzalloc(sizeof(*new_umbs), GFP_KERNEL);
-		if(!new_umbs){
-			DDEBUG("Don`t allocate mem");
-			return NULL;
-		}
+
+    new_umbs->uum.size = puum->size;
+    new_umbs->virt = dma_alloc_coherent(usi_priv.usi_dev, new_umbs->uum.size, &(new_umbs->uum.addr), GFP_KERNEL);
+    if (!new_umbs->virt) {
+        dev_err(usi_priv.usi_dev, "No free CMA memory\n");
+        kfree(new_umbs);
+		return NULL;
 	}
+    
+	upb.addr = new_umbs->uum.addr;
+	upb.size = new_umbs->uum.size;
 
-	upb.addr = umbs->uum.addr;
-	upb.size = size;
-
-	umh = ump_dd_handle_create_from_phys_blocks(&upb, 1);
-	if(umh == UMP_DD_HANDLE_INVALID){
-	    DDEBUG("Error get ump handle");
+	new_umbs->umh = ump_dd_handle_create_from_phys_blocks(&upb, 1);
+	if(new_umbs->umh == UMP_DD_HANDLE_INVALID){
+	    dev_err(usi_priv.usi_dev, "Error get ump handle");
 	    goto err_free;
 	}
-	secure_id = ump_dd_secure_id_get(umh);//UMP_INVALID_SECURE_ID
+    
+	new_umbs->uum.secure_id = ump_dd_secure_id_get(new_umbs->umh);//UMP_INVALID_SECURE_ID
+    new_umbs->ref_id = ref_id;
 
 	mutex_lock(&usi_lock);
-	if(new_umbs){// need resize block
-		new_umbs->uum.addr = upb.addr;
-		new_umbs->uum.size = size;
-		umbs->uum.addr += size;
-		umbs->uum.size -= size;
-//		mutex_lock(&usi_lock);
-		list_add_tail(&new_umbs->node, &umbs->node);
-//		mutex_unlock(&usi_lock);
-	}else{//alloc exist block
-		new_umbs = umbs;
-	}
-	new_umbs->stat = MB_ALLOC;
-	new_umbs->uum.umh = umh;
-	new_umbs->uum.secure_id = secure_id;
-	
-	usi_priv.used += size;
+	list_add_tail(&new_umbs->node, &usi_list);
 	mutex_unlock(&usi_lock);
+    
+    atomic_add(new_umbs->uum.size, &usi_priv.used);
 	
-    DDEBUG("Secure id:%d find:%d used:%d paddr:%X",secure_id, find, usi_priv.used, new_umbs->uum.addr);
+    DDEBUG("Secure id:%d used:%d paddr:%X",new_umbs->uum.secure_id, atomic_read(&usi_priv.used), new_umbs->uum.addr);
     return &new_umbs->uum;
 
 err_free:
-	if(new_umbs)
-		kfree(new_umbs);
+    dma_free_coherent(usi_priv.usi_dev, new_umbs->uum.size, new_umbs->virt, new_umbs->uum.addr);
+	kfree(new_umbs);
 	return NULL;
-}
-
-static int usi_ump_free_mb(ump_secure_id secure_id)
-{
-    struct usi_mbs *umbs, *tumbs, *umbs_prev=NULL;
-    int find=0,ret=0, i;
-
-	if(list_empty(&usi_list))
-		return -EINVAL;
-
-    mutex_lock(&usi_lock);
-    list_for_each_entry(umbs, &usi_list, node) {
-		if(umbs->uum.secure_id == secure_id){
-			find = 1;
-			break;
-		}
-    }
-    mutex_unlock(&usi_lock);
-
-    if(find){
-		DDEBUG("Release mem block");
-		i=100;
-		if(umbs->uum.umh)
-			while(ump_dd_reference_release(umbs->uum.umh) && i--); //WARNING  it requires change ump kernel driver (ump_dd_reference_release func)
-		umbs->uum.umh = NULL;
-		umbs->stat = MB_FREE;
-//defrag
-		mutex_lock(&usi_lock);
-		usi_priv.used -= umbs->uum.size;
-		list_for_each_entry_safe(umbs, tumbs, &usi_list, node) {
-			if(umbs_prev && umbs_prev->stat == MB_FREE && umbs->stat == MB_FREE){
-				umbs->uum.size += umbs_prev->uum.size;
-				umbs->uum.addr -= umbs_prev->uum.size;
-				list_del(&umbs_prev->node);
-				kfree(umbs_prev);
-				umbs_prev = NULL;
-			}
-			umbs_prev = umbs;
-		}
-		mutex_unlock(&usi_lock);
-		DDEBUG("Used:%d", usi_priv.used);
-    }else{
-		DDEBUG("Mem block dont found");
-		ret = -ENODEV;
-    }
-    return ret;
 }
 
 static long usi_ump_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
     unsigned long __user *puser = (unsigned long __user *) arg;
     u32 param[2];
-	struct usi_ump_mbs	*uum, luum;
+	struct usi_ump_mbs	uum, *puum;
 	struct usi_ump_mbs_info	uumi;
+    int cnt = (int)file->private_data;
 
     switch (cmd) {
     case USI_ALLOC_MEM_BLK:
-		if (copy_from_user(&luum, puser, sizeof(luum)))
+		if (copy_from_user(&uum, puser, sizeof(uum)))
 		    return -EFAULT;
-		uum = usi_ump_alloc_mb(luum.size);
-//	put_user((unsigned int), puser);
-		if(!uum)
+		puum = usi_ump_alloc_mb(&uum, cnt);
+		if(!puum)
 			return -EFAULT;
-		if(copy_to_user(puser, uum, sizeof(*uum)))
+		if(copy_to_user(puser, puum, sizeof(*puum)))
 			return -EFAULT;
 		return 0;
     case USI_FREE_MEM_BLK:
 		if (copy_from_user(param, puser, 4))
 		    return -EFAULT;
-		return usi_ump_free_mb(param[0]);
+		return usi_ump_free( 0, param[0]);
     case USI_GET_INFO:
 		uumi.size_full = usi_priv.full_size;
-		uumi.size_used = usi_priv.used;
+		uumi.size_used = atomic_read(&usi_priv.used);
 		if(copy_to_user(puser, &uumi, sizeof(uumi)))
 			return -EFAULT;
 		return 0;
 	case USI_FREE_ALL_BLKS:
-		usi_ump_free_all();
-		return usi_ump_init_list();
+		return usi_ump_free( cnt, 0);
     }
     return -EFAULT;
+}
+
+int usi_ump_release(struct inode *inode, struct file *file)
+{
+    int cnt = (int)file->private_data;
+    
+    usi_ump_free(cnt, 0);
+//    atomic_dec(&usi_priv.ref_cnt); TODO 
+    return 0;
+}
+
+int usi_ump_open(struct inode *inode, struct file *file)
+{
+    int cnt;
+
+    cnt = atomic_inc_return(&usi_priv.ref_cnt);
+    file->private_data = (void *)cnt;
+    return 0;
 }
 
 static const struct file_operations usi_fops = {
     .owner  = THIS_MODULE,
     .unlocked_ioctl = usi_ump_ioctl,
+    .open = usi_ump_open,
+    .release = usi_ump_release,
 };
 
-static struct miscdevice usi_dev = {
-    MISC_DYNAMIC_MINOR,
-    USI_UMP_DRV_NAME,
-//    .minor
-    &usi_fops
-};
-
-static int __devinit usi_ump_probe (struct platform_device *pdev)
-{
-	struct resource *pr, *mr;
-	int ret = 0;
-
-	usi_priv.pdev = pdev;
-
-	pr = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (pr == NULL) {
-		dev_err(&pdev->dev, "no memory resource defined\n");
-		ret = -ENODEV;
-		goto err_free;
-	}
-
-	usi_priv.begin = pr->start;
-	usi_priv.end = pr->end;
-	usi_priv.full_size = resource_size(pr);
-	usi_priv.used = 0;
-
-	mr = request_mem_region(pr->start, usi_priv.full_size, pdev->name);
-	if(mr == NULL) {
-		dev_err(&pdev->dev, "failed to request memory region\n");
-		ret = -EBUSY;
-		goto err_free;
-	}
-    
-	if(usi_ump_init_list()){
-		goto err_free;
-	}
-	
-	ret = misc_register(&usi_dev);
-	if(ret){
-		dev_err(&pdev->dev, "Unable to register usi_ump\n" );
-		goto err_free_mem2;
-	}
-	DDEBUG("Mem allocate for buffer %d Mb", usi_priv.full_size / (1024 * 1024));
-//    platform_set_drvdata(pdev, ud);
-	return 0;
-
-err_free_mem2:
-	usi_ump_free_all();
-err_free_mem:
-	release_mem_region(pr->start, resource_size(pr));
-err_free:
-//	kfree();
-	return ret;
-}
-
-static int __devexit usi_ump_remove(struct platform_device *pdev)
-{
-//    struct usi_device *ud;
-
-//    ud = platform_get_drvdata(pdev);
-	usi_ump_free_all();
-    release_mem_region(usi_priv.begin, usi_priv.full_size);
-    misc_deregister(&usi_dev);
-    return 0;
-}
-
-static struct platform_driver usi_ump_driver = {
-	.probe		= usi_ump_probe,
-	.remove		= __devexit_p(usi_ump_remove),
-	.driver		= {
-		.name	= "rk30-ump",
-		.owner	= THIS_MODULE,
-	},
+static struct miscdevice usi_misc_dev = {
+    .minor = MISC_DYNAMIC_MINOR,
+    .name = USI_UMP_DRV_NAME,
+    .fops = &usi_fops,
+    .parent = NULL,
 };
 
 static int __init usi_ump_init(void)
 {
-    return platform_driver_register(&usi_ump_driver);
+	int ret = 0;
+
+	usi_priv.full_size = 0;//not implemented yet
+	atomic_set(&usi_priv.used, 0);
+	atomic_set(&usi_priv.ref_cnt, 0);
+
+	ret = misc_register(&usi_misc_dev);
+	if(ret){
+		dev_err(usi_priv.usi_dev, "Unable to register usi_ump misk dev\n" );
+		return ret;
+	}
+	usi_priv.usi_dev = usi_misc_dev.this_device;
+	usi_priv.usi_dev->coherent_dma_mask = ~0;
+    mutex_init(&usi_lock);
+	_dev_info(usi_priv.usi_dev, "USI allocator initialized.\n");
+//	DDEBUG("Mem allocate for buffer %d Mb", usi_priv.full_size / (1024 * 1024));
+//    platform_set_drvdata(pdev, ud);
+
+	return 0;
 }
 
 static void __exit usi_ump_exit(void)
 {
-    platform_driver_unregister(&usi_ump_driver);
+    misc_deregister(&usi_misc_dev);
+    usi_ump_free( 0, 0);
+    return;
 }
 
 module_init(usi_ump_init);

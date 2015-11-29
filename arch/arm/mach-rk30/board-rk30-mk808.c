@@ -383,21 +383,7 @@ struct platform_device rk30_device_pwm3 = {
         .resource       = rk30_resource_pwm3,
         .num_resources  = ARRAY_SIZE(rk30_resource_pwm3),
 };
-//***********************Memory heap for video and mali acl************************
- static struct resource rk_resource_mmedia[] = {
-         [0] = {
-                 .start  = 0,
-                 .end    = 0,
-                 .flags  = IORESOURCE_MEM,
-         },
- };
- 
- struct platform_device rk30_device_mmedia = {
-         .name           = "rk-ump",
-         .id             = -1,
-         .resource       = rk30_resource_mmedia,
-         .num_resources  = ARRAY_SIZE(rk_resource_mmedia),
- };
+
 //**********************************************************************************
 void rk29_backlight_set(bool on){
 }
@@ -967,7 +953,6 @@ static struct platform_device *devices[] __initdata = {
 	&rk30_device_pwm0,
 	&power_led_pwm,
 #endif
-	&rk_device_mmedia,
 #endif
 };
 
@@ -1127,10 +1112,6 @@ static void __init machine_rk30_board_init(void)
 
 static void __init rk30_reserve(void)
 {
-#if CONFIG_IAM_CHANGES
-    rk_resource_mmedia[0].start = board_mem_reserve_add("mmedia_buf", MMEDIA_BUF_SIZE);
-    rk_resource_mmedia[0].end = rk_resource_mmedia[0].start + MMEDIA_BUF_SIZE- 1;
-#endif
 #ifdef CONFIG_ION
 	rk30_ion_pdata.heaps[0].base = board_mem_reserve_add("ion", ION_RESERVE_SIZE);
 #endif

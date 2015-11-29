@@ -113,6 +113,7 @@ mali_bool mali_clk_set_rate(unsigned int clk, unsigned int mhz) {
 
 mali_bool init_mali_clock(void) {
 	mali_bool ret = MALI_TRUE;
+	unsigned long rate;
 
 	gpu_power_state = 0;
 	MALI_DEBUG_PRINT(4, ("init_mali_clock() called\n"));
@@ -135,7 +136,13 @@ mali_bool init_mali_clock(void) {
 		goto err_clock_get;
 	}
 
-	MALI_PRINT(("init_mali_clock mali_clock %p \n", mali_clock));
+	MALI_DEBUG_PRINT(3,("init_mali_clock mali_clock %p \n", mali_clock));
+
+	rate = clk_get_rate(mali_clock);
+
+	mali_gpu_clk = (int) (rate / 1000000);
+
+	MALI_PRINT(("Mali clock set to: %d MHz\n",mali_gpu_clk));
 
 #ifdef MALI_CFG_REGULATOR
 #if USING_MALI_PMM
@@ -355,16 +362,19 @@ int mali_platform_device_register(void) {
 	gpu_power_domain_control(1);
 	mali_platform_init();
 
+	MALI_DEBUG_PRINT(5, ("mali_platform_device_register():add_resources\n"));
 	err = platform_device_add_resources(&mali_gpu_device,
 			mali_gpu_resources_m400_mp4,
 			sizeof(mali_gpu_resources_m400_mp4)
 					/ sizeof(mali_gpu_resources_m400_mp4[0]));
 
 	if (0 == err) {
+		MALI_DEBUG_PRINT(5, ("mali_platform_device_register():add_data\n"));
 		err = platform_device_add_data(&mali_gpu_device, &mali_gpu_data,
 				sizeof(mali_gpu_data));
 		if (0 == err) {
 			/* Register the platform device */
+			MALI_DEBUG_PRINT(5, ("mali_platform_device_register():dev_register\n"));
 			err = platform_device_register(&mali_gpu_device);
 			if (0 == err) {
 #ifdef CONFIG_PM_RUNTIME

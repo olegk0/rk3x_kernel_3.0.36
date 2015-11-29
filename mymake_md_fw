@@ -1,4 +1,6 @@
+make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- modules_prepare
 make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- modules
 make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- modules_install INSTALL_MOD_PATH=./output
 make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- firmware_install INSTALL_MOD_PATH=./output
+make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- headers_install INSTALL_HDR_PATH=./output
 
