@@ -364,7 +364,7 @@ static struct platform_driver usi_ump_driver = {
 	.probe		= usi_ump_probe,
 	.remove		= __devexit_p(usi_ump_remove),
 	.driver		= {
-		.name	= "rk30-ump",
+		.name	= "rk-ump",
 		.owner	= THIS_MODULE,
 	},
 };
