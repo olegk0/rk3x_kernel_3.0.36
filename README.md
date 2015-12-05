@@ -11,7 +11,7 @@ Binary kernel file <a href="none"</a>
 <hr>
 Sources:
 <br>
-<a href="https://github.com/olegk0/xf86-video-fbdev">Video driver  version 0.7.1</a>
+<a href="https://github.com/olegk0/xf86-video-fbdev">Video driver  version 0.8.0</a>
 <br>...<br>
 Binary:
 <br>

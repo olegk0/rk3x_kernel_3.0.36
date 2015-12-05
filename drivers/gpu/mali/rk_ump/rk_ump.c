@@ -20,7 +20,6 @@
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
 #include <linux/list.h>
-#include <asm/atomic.h>
 #include <linux/dma-mapping.h>
 #include "rk_ump.h"
 
@@ -29,6 +28,8 @@
 #else
 #define DDEBUG(...)
 #endif
+
+#define USI_MAX_CONNECTIONS 20
 
 static DEFINE_MUTEX(usi_lock);
 static LIST_HEAD(usi_list);
@@ -44,8 +45,8 @@ struct usi_mbs {
 struct usi_private{
 	struct device *usi_dev;
 	u32			full_size;
-	atomic_t	used;
-	atomic_t	ref_cnt;
+	u32         used;
+	u8          con_ids[USI_MAX_CONNECTIONS];
 };
 
 static struct usi_private usi_priv;
@@ -79,16 +80,18 @@ static int usi_ump_free(int ref_id, ump_secure_id secure_id)
             }
         }
     }
+    usi_priv.used -= size;
     mutex_unlock(&usi_lock);
     
-    if(size){
-        atomic_sub(size, &usi_priv.used);
-        DDEBUG("Release mem block");
-    }else{
-        DDEBUG("Mem block dont found");
+    if(!size){
+		if(!ref_id)
+        	DDEBUG("Mem block don`t found");
         ret = -EINVAL;
-    }    
-    DDEBUG("ref_id:%d secure_id:%d used:%d", ref_id, secure_id, atomic_read(&usi_priv.used));    
+    }else{
+        DDEBUG("Release mem block");
+    }
+     
+    DDEBUG("ref_id:%d secure_id:%d used:%d", ref_id, secure_id, usi_priv.used);
     
     return ret;
 }
@@ -129,11 +132,10 @@ static struct usi_ump_mbs *usi_ump_alloc_mb(struct usi_ump_mbs *puum, int ref_id
 
 	mutex_lock(&usi_lock);
 	list_add_tail(&new_umbs->node, &usi_list);
+    usi_priv.used += new_umbs->uum.size;
 	mutex_unlock(&usi_lock);
-    
-    atomic_add(new_umbs->uum.size, &usi_priv.used);
 	
-    DDEBUG("Secure id:%d used:%d paddr:%X",new_umbs->uum.secure_id, atomic_read(&usi_priv.used), new_umbs->uum.addr);
+    DDEBUG("Secure id:%d used:%d paddr:%X",new_umbs->uum.secure_id, usi_priv.used, new_umbs->uum.addr);
     return &new_umbs->uum;
 
 err_free:
@@ -166,7 +168,7 @@ static long usi_ump_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 		return usi_ump_free( 0, param[0]);
     case USI_GET_INFO:
 		uumi.size_full = usi_priv.full_size;
-		uumi.size_used = atomic_read(&usi_priv.used);
+		uumi.size_used = usi_priv.used;
 		if(copy_to_user(puser, &uumi, sizeof(uumi)))
 			return -EFAULT;
 		return 0;
@@ -179,19 +181,31 @@ static long usi_ump_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 int usi_ump_release(struct inode *inode, struct file *file)
 {
     int cnt = (int)file->private_data;
-    
+
     usi_ump_free(cnt, 0);
-//    atomic_dec(&usi_priv.ref_cnt); TODO 
+    mutex_lock(&usi_lock);    
+    usi_priv.con_ids[cnt] = 0;
+    mutex_unlock(&usi_lock);
+    
     return 0;
 }
 
 int usi_ump_open(struct inode *inode, struct file *file)
 {
-    int cnt;
-
-    cnt = atomic_inc_return(&usi_priv.ref_cnt);
-    file->private_data = (void *)cnt;
-    return 0;
+    int cnt, ret=0;
+    
+    mutex_lock(&usi_lock);
+    for(cnt=0;cnt<USI_MAX_CONNECTIONS;cnt++)
+        if(!usi_priv.con_ids[cnt]) break;
+    if(cnt == USI_MAX_CONNECTIONS)
+        ret = -EAGAIN;
+    else{
+        usi_priv.con_ids[cnt] = 1;        
+        file->private_data = (void *)cnt;
+    }
+    mutex_unlock(&usi_lock);
+    
+    return ret;
 }
 
 static const struct file_operations usi_fops = {
@@ -210,12 +224,14 @@ static struct miscdevice usi_misc_dev = {
 
 static int __init usi_ump_init(void)
 {
-	int ret = 0;
+	int ret = 0,i;
 
 	usi_priv.full_size = 0;//not implemented yet
-	atomic_set(&usi_priv.used, 0);
-	atomic_set(&usi_priv.ref_cnt, 0);
-
+	usi_priv.used = 0;
+    
+    for(i=0;i<USI_MAX_CONNECTIONS;i++)
+        usi_priv.con_ids[i] = 0;
+	
 	ret = misc_register(&usi_misc_dev);
 	if(ret){
 		dev_err(usi_priv.usi_dev, "Unable to register usi_ump misk dev\n" );
