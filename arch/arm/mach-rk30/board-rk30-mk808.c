@@ -48,7 +48,8 @@
 
 
 #ifdef CONFIG_IAM_CHANGES
-    #define MMEDIA_BUF_SIZE	5*FB_MAXPGSIZE + SZ_1M
+//    #define MMEDIA_BUF_SIZE	5*FB_MAXPGSIZE + SZ_1M
+    #define MMEDIA_BUF_SIZE	64 * SZ_1M
     #define FB0_SIZE	FB_MAXPGSIZE
 #else
     #define FB0_SIZE	get_fb_size()
@@ -392,10 +393,10 @@ struct platform_device rk30_device_pwm3 = {
          },
  };
  
- struct platform_device rk30_device_mmedia = {
+ struct platform_device rk_device_mmedia = {
          .name           = "rk-ump",
          .id             = -1,
-         .resource       = rk30_resource_mmedia,
+         .resource       = rk_resource_mmedia,
          .num_resources  = ARRAY_SIZE(rk_resource_mmedia),
  };
 //**********************************************************************************

@@ -20,13 +20,15 @@
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
 #include <linux/list.h>
-#include "rk30_ump.h"
+#include "rk_ump.h"
 
-#if 0
+#if 1
 #define DDEBUG(fmt, args...)	{printk("%s - " fmt "\n",__func__, ##args);}
 #else
 #define DDEBUG(...)
 #endif
+
+#define USI_MAX_CONNECTIONS 20
 
 static DEFINE_MUTEX(usi_lock);
 static LIST_HEAD(usi_list);
@@ -41,6 +43,9 @@ struct usi_mbs {
 	struct list_head	node;
 	usi_mbstat	stat;
 	struct usi_ump_mbs	uum;
+	void    *umh;
+	void    *virt;
+	int     ref_id;
 };
 
 struct usi_private{
@@ -49,6 +54,7 @@ struct usi_private{
 	u32			end;
 	u32			full_size;
 	u32			used;
+	u8          con_ids[USI_MAX_CONNECTIONS];
 };
 
 static struct usi_private usi_priv;
@@ -66,7 +72,7 @@ static int usi_ump_init_list(void)
 	umbs->stat = MB_FREE;
 	umbs->uum.addr = UMP_SIZE_ALIGN(usi_priv.begin);
 	umbs->uum.size = usi_priv.full_size - (umbs->uum.addr - usi_priv.begin);
-	umbs->uum.umh = NULL;
+	umbs->umh = NULL;
 	list_add(&umbs->node, &usi_list);
 	
 	return 0;
@@ -81,9 +87,9 @@ static void usi_ump_free_all(void)
     list_for_each_entry_safe(umbs, tumbs, &usi_list, node) {
 //		if(!list_empty(&usi_list)){
 			if(umbs){
-				if(umbs->uum.umh){
+				if(umbs->umh){
 					i = 100;
-					while(ump_dd_reference_release(umbs->uum.umh) && i--); //WARNING  it requires change ump kernel driver (ump_dd_reference_release func)
+					while(ump_dd_reference_release(umbs->umh) && i--); //WARNING  it requires change ump kernel driver (ump_dd_reference_release func)
 				}
 				list_del(&umbs->node);
 				kfree(umbs);
@@ -91,8 +97,8 @@ static void usi_ump_free_all(void)
 			}
 //		}
     }
+    usi_priv.used = 0;
 	mutex_unlock(&usi_lock);
-	usi_priv.used = 0;
 }
 
 static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size)
@@ -150,7 +156,7 @@ static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size)
 		new_umbs = umbs;
 	}
 	new_umbs->stat = MB_ALLOC;
-	new_umbs->uum.umh = umh;
+	new_umbs->umh = umh;
 	new_umbs->uum.secure_id = secure_id;
 	
 	usi_priv.used += size;
@@ -165,7 +171,7 @@ err_free:
 	return NULL;
 }
 
-static int usi_ump_free_mb(ump_secure_id secure_id)
+static int usi_ump_free_mb(int ref_id, ump_secure_id secure_id)
 {
     struct usi_mbs *umbs, *tumbs, *umbs_prev=NULL;
     int find=0,ret=0, i;
@@ -175,7 +181,8 @@ static int usi_ump_free_mb(ump_secure_id secure_id)
 
     mutex_lock(&usi_lock);
     list_for_each_entry(umbs, &usi_list, node) {
-		if(umbs->uum.secure_id == secure_id){
+		if((secure_id && umbs->uum.secure_id == secure_id ) ||//del by secure id
+                ( ref_id && umbs->ref_id == ref_id ) ){ //del by ref id
 			find = 1;
 			break;
 		}
@@ -185,9 +192,9 @@ static int usi_ump_free_mb(ump_secure_id secure_id)
     if(find){
 		DDEBUG("Release mem block");
 		i=100;
-		if(umbs->uum.umh)
-			while(ump_dd_reference_release(umbs->uum.umh) && i--); //WARNING  it requires change ump kernel driver (ump_dd_reference_release func)
-		umbs->uum.umh = NULL;
+		if(umbs->umh)
+			while(ump_dd_reference_release(umbs->umh) && i--); //WARNING  it requires change ump kernel driver (ump_dd_reference_release func)
+		umbs->umh = NULL;
 		umbs->stat = MB_FREE;
 //defrag
 		mutex_lock(&usi_lock);
@@ -217,6 +224,7 @@ static long usi_ump_ioctl(struct file *file, unsigned int cmd, unsigned long arg
     u32 param[2];
 	struct usi_ump_mbs	*uum, luum;
 	struct usi_ump_mbs_info	uumi;
+    int cnt = (int)file->private_data;
 
     switch (cmd) {
     case USI_ALLOC_MEM_BLK:
@@ -232,7 +240,7 @@ static long usi_ump_ioctl(struct file *file, unsigned int cmd, unsigned long arg
     case USI_FREE_MEM_BLK:
 		if (copy_from_user(param, puser, 4))
 		    return -EFAULT;
-		return usi_ump_free_mb(param[0]);
+		return usi_ump_free_mb( 0, param[0]);
     case USI_GET_INFO:
 		uumi.size_full = usi_priv.full_size;
 		uumi.size_used = usi_priv.used;
@@ -240,15 +248,47 @@ static long usi_ump_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 			return -EFAULT;
 		return 0;
 	case USI_FREE_ALL_BLKS:
-		usi_ump_free_all();
+		return usi_ump_free_mb( cnt, 0);
 		return usi_ump_init_list();
     }
     return -EFAULT;
 }
 
+int usi_ump_release(struct inode *inode, struct file *file)
+{
+    int cnt = (int)file->private_data;
+
+    usi_ump_free_mb(cnt, 0);
+    mutex_lock(&usi_lock);    
+    usi_priv.con_ids[cnt] = 0;
+    mutex_unlock(&usi_lock);
+    
+    return 0;
+}
+
+int usi_ump_open(struct inode *inode, struct file *file)
+{
+    int cnt, ret=0;
+    
+    mutex_lock(&usi_lock);
+    for(cnt=0;cnt<USI_MAX_CONNECTIONS;cnt++)
+        if(!usi_priv.con_ids[cnt]) break;
+    if(cnt == USI_MAX_CONNECTIONS)
+        ret = -EAGAIN;
+    else{
+        usi_priv.con_ids[cnt] = 1;        
+        file->private_data = (void *)cnt;
+    }
+    mutex_unlock(&usi_lock);
+    
+    return ret;
+}
+
 static const struct file_operations usi_fops = {
     .owner  = THIS_MODULE,
     .unlocked_ioctl = usi_ump_ioctl,
+    .open = usi_ump_open,
+    .release = usi_ump_release,
 };
 
 static struct miscdevice usi_dev = {
@@ -261,7 +301,7 @@ static struct miscdevice usi_dev = {
 static int __devinit usi_ump_probe (struct platform_device *pdev)
 {
 	struct resource *pr, *mr;
-	int ret = 0;
+	int ret = 0, i;
 
 	usi_priv.pdev = pdev;
 
@@ -287,6 +327,9 @@ static int __devinit usi_ump_probe (struct platform_device *pdev)
 	if(usi_ump_init_list()){
 		goto err_free;
 	}
+
+	for(i=0;i<USI_MAX_CONNECTIONS;i++)
+        	usi_priv.con_ids[i] = 0;
 	
 	ret = misc_register(&usi_dev);
 	if(ret){
