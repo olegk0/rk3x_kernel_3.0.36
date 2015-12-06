@@ -48,6 +48,7 @@
 #include <linux/version.h>
 #include <linux/delay.h>
 #include <linux/signal.h>
+#include <linux/sched.h>
 
 /* our own stuff */
 #include "hx170dec.h"
@@ -117,11 +118,17 @@ typedef struct
     volatile u8 *dec_hwregs;
     volatile u8 *enc_hwregs;
     int irq;
+#ifdef ENABLE_FASYNC
     struct fasync_struct *async_queue_dec;
     struct fasync_struct *async_queue_pp;
+#else
+    wait_queue_head_t	wait;
+    int dec_irq;
+    int pp_irq;
+#endif
 } hx170dec_t;
 
-static hx170dec_t hx170dec_data;    /* dynamic allocation? */
+static hx170dec_t hx170dec_data;
 
 #ifdef HW_PERFORMANCE
 static struct timeval end_time;
@@ -315,7 +322,7 @@ static int vpu_service_power_on(void)
 static long hx170dec_ioctl(struct file *filp,
 		unsigned int cmd, unsigned long arg)
 {
-    int err = 0;
+    int err = 0, tmp;
     VPU_FREQ ufreq;
     
 #ifdef HW_PERFORMANCE
@@ -355,15 +362,45 @@ static long hx170dec_ioctl(struct file *filp,
         enable_irq(hx170dec_data.irq);
         break;
     case HX170DEC_IOCGHWOFFSET:
-        __put_user(hx170dec_data.dec_io_offset, (unsigned long *) arg);
+        err = put_user(hx170dec_data.dec_io_offset, (unsigned long *) arg);
         break;
     case HX170DEC_IOCGHWIOSIZE:
-        __put_user(hx170dec_data.dec_io_size, (unsigned int *) arg);
+        err = put_user(hx170dec_data.dec_io_size, (unsigned long *) arg);
         break;
+#ifdef ENABLE_FASYNC
     case HX170DEC_PP_INSTANCE:
         filp->private_data = &hx170dec_priv.hx_pp_instance;
         break;
-
+#else
+    case HX170DEC_IOC_WAIT_DEC:
+        PDEBUG("HX170DEC_IOC_WAIT_DEC\n");
+        err = get_user(tmp, (unsigned long *) arg);
+        if(!err){
+            if(tmp == 0){
+                hx170dec_data.dec_irq = 0;
+                PDEBUG("HX170DEC_IOC_WAIT_DEC -prepare\n");
+            }
+            else{
+                err = wait_event_interruptible_timeout(hx170dec_data.wait, hx170dec_data.dec_irq, msecs_to_jiffies(tmp));
+                PDEBUG("HX170DEC_IOC_WAIT_DEC++\n");
+            }
+        }
+        break;
+    case HX170DEC_IOC_WAIT_PP:
+        PDEBUG("HX170DEC_IOC_WAIT_PP\n");
+        err = get_user(tmp, (unsigned long *) arg);
+        if(!err){
+            if(tmp == 0){
+                hx170dec_data.pp_irq = 0;
+                PDEBUG("HX170DEC_IOC_WAIT_PP -prepare\n");
+            }
+            else{
+                err = wait_event_interruptible_timeout(hx170dec_data.wait, hx170dec_data.pp_irq, msecs_to_jiffies(tmp));
+                PDEBUG("HX170DEC_IOC_WAIT_PP++\n");
+            }
+        }
+        break;
+#endif
 #ifdef HW_PERFORMANCE
     case HX170DEC_HW_PERFORMANCE:
         end_time_arg = (struct timeval *) arg;
@@ -373,14 +410,14 @@ static long hx170dec_ioctl(struct file *filp,
 #endif
     case HX170DEC_GET_VPU_FREQ:
         ufreq = atomic_read(&service.freq_status);
-        __put_user(ufreq, (unsigned long *) arg);
+        err = put_user(ufreq, (unsigned long *) arg);
         break;
     case HX170DEC_SET_VPU_FREQ:        
-        __get_user(ufreq, (unsigned long *) arg);
+        err = get_user(ufreq, (unsigned long *) arg);
         vpu_service_set_freq(ufreq);
         break;
     }
-    return 0;
+    return err;
 }
 
 /*------------------------------------------------------------------------------
@@ -407,7 +444,7 @@ static int hx170dec_open(struct inode *inode, struct file *filp)
 
     Return type     : int
 ------------------------------------------------------------------------------*/
-
+#ifdef ENABLE_FASYNC
 static int hx170dec_fasync(int fd, struct file *filp, int mode)
 {
 
@@ -434,7 +471,7 @@ static int hx170dec_fasync(int fd, struct file *filp, int mode)
 
     return fasync_helper(fd, filp, mode, async_queue);
 }
-
+#endif
 /*------------------------------------------------------------------------------
     Function name   : hx170dec_release
     Description     : Release driver
@@ -446,13 +483,13 @@ static int hx170dec_release(struct inode *inode, struct file *filp)
 {
 
     /* hx170dec_t *dev = &hx170dec_data; */
-
+#ifdef ENABLE_FASYNC
     if(filp->f_flags & FASYNC)
     {
         /* remove this filp from the asynchronusly notified filp's */
         hx170dec_fasync(-1, filp, 0);
     }
-
+#endif
     if(atomic_dec_and_test(&service.total_running))
         vpu_queue_power_off_work();
 
@@ -460,23 +497,25 @@ static int hx170dec_release(struct inode *inode, struct file *filp)
     return 0;
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++
-
+/*
 void hx170dec_vma_open(struct vm_area_struct *vma)
 {
 //	printk(KERN_NOTICE "hx170dec VMA open, virt %lx, phys %lx\n",
 //			vma->vm_start, vma->vm_pgoff << PAGE_SHIFT);
+    PDEBUG("hx170dec_vma_open\n");
 }
 
 void hx170dec_vma_close(struct vm_area_struct *vma)
 {
 //	printk(KERN_NOTICE "hx170dec VMA close.\n");
+    PDEBUG("hx170dec_vma_close\n");
 }
 
 static struct vm_operations_struct hx170dec_mmap_ops = {
 	.open =  hx170dec_vma_open,
 	.close = hx170dec_vma_close,
 };
-
+*/
 static int hx170dec_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	u32 size = vma->vm_end - vma->vm_start;
@@ -485,12 +524,15 @@ static int hx170dec_mmap(struct file *filp, struct vm_area_struct *vma)
 		printk("size:%d > PAGE_SIZE:%lu\n",size, PAGE_SIZE);
 		return -EINVAL;
 	}
+    
+    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);    
 	if (remap_pfn_range(vma, vma->vm_start, VPU_IO_BASE >> PAGE_SHIFT,
 		size, vma->vm_page_prot))
 		return -EAGAIN;
 
 //	vma->vm_ops = &hx170dec_mmap_ops;
 //	hx170dec_vma_open(vma);
+    PDEBUG("hx170dec_mmap\n");
 	return 0;
 }
 
@@ -499,7 +541,9 @@ static const struct file_operations hx170dec_fops = {
     .open		= hx170dec_open,
     .release	= hx170dec_release,
     .unlocked_ioctl	= hx170dec_ioctl,
+#ifdef ENABLE_FASYNC
     .fasync		= hx170dec_fasync,
+#endif
 	.mmap = hx170dec_mmap,
 };
 
@@ -554,11 +598,13 @@ int __init hx170dec_init(void)
 
     printk(KERN_INFO "hx170dec: dec/pp kernel module. %s \n", "$Revision: 1.12 $");
     printk(KERN_INFO "hx170dec: supports 8170 and 8190 hardware \n");
-    printk(KERN_INFO "hx170dec: base_port=0x%08lx irq=%i\n", VPU_IO_BASE, hx170dec_data.irq);
-
+    printk(KERN_INFO "hx170dec: base_port=0x%08x irq=%i\n", VPU_IO_BASE, hx170dec_data.irq);
+#ifdef ENABLE_FASYNC
     hx170dec_data.async_queue_dec = NULL;
     hx170dec_data.async_queue_pp = NULL;
-
+#else
+    init_waitqueue_head(&hx170dec_data.wait);
+#endif
 //*********************	
 	mutex_init(&service.lock);
 //	service.reg_codec	= NULL;
@@ -689,7 +735,10 @@ void __exit hx170dec_cleanup(void)
     {
         free_irq(hx170dec_data.irq, (void *) &hx170dec_data);
     }
-
+    hx170dec_data.pp_irq = 1;
+    hx170dec_data.dec_irq = 1;
+    wake_up_interruptible_sync(&hx170dec_data.wait);
+    
     ReleaseIO();
 	vpu_service_power_off();
 	device_destroy(hx170dec_priv.class, hx170dec_priv.dev);
@@ -812,6 +861,7 @@ irqreturn_t hx170dec_isr(int irq, void *dev_id)
             /* clear dec IRQ */
             writel(irq_status_dec & (~HX_DEC_INTERRUPT_BIT),
                    dev->dec_hwregs + X170_INTERRUPT_REGISTER_DEC);
+#ifdef ENABLE_FASYNC
             /* fasync kill for decoder instances */
             if(dev->async_queue_dec != NULL)
             {
@@ -822,6 +872,9 @@ irqreturn_t hx170dec_isr(int irq, void *dev_id)
                 printk(KERN_WARNING
                        "hx170dec: DEC IRQ received w/o anybody waiting for it!\n");
             }
+#else
+            hx170dec_data.dec_irq = 1;
+#endif
             PDEBUG("decoder IRQ received!\n");
         }
 
@@ -833,7 +886,7 @@ irqreturn_t hx170dec_isr(int irq, void *dev_id)
             /* clear pp IRQ */
             writel(irq_status_pp & (~HX_PP_INTERRUPT_BIT),
                    dev->dec_hwregs + X170_INTERRUPT_REGISTER_PP);
-
+#ifdef ENABLE_FASYNC
             /* kill fasync for PP instances */
             if(dev->async_queue_pp != NULL)
             {
@@ -844,10 +897,16 @@ irqreturn_t hx170dec_isr(int irq, void *dev_id)
                 printk(KERN_WARNING
                        "hx170dec: PP IRQ received w/o anybody waiting for it!\n");
             }
+#else
+            hx170dec_data.pp_irq = 1;
+#endif
             PDEBUG("pp IRQ received!\n");
         }
 
         handled = 1;
+#ifndef ENABLE_FASYNC
+        wake_up_interruptible_sync(&hx170dec_data.wait);
+#endif
     }
     else
     {

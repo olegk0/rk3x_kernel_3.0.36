@@ -21,14 +21,18 @@
 
 #ifndef _HX170DEC_H_
 #define _HX170DEC_H_
+
+#ifdef __KERNEL__
 #include <linux/cdev.h>     /* character device definitions */
+#endif
 #include <linux/ioctl.h>    /* needed for the _IOW etc stuff used later */
 
 /*
  * Macros to help debugging
  */
 #undef PDEBUG   /* undef it, just in case */
-#ifdef CONFIG_VIDEO_SPEAR_VIDEODEC_DEBUG
+#if 1
+//CONFIG_VIDEO_SPEAR_VIDEODEC_DEBUG
 #  ifdef __KERNEL__
 /* This one if debugging is on, and kernel space */
 #define PDEBUG(fmt, args...) printk(KERN_INFO "hx170dec: " fmt, ## args)
@@ -64,8 +68,6 @@ typedef enum VPU_FREQ {
  * H means "sHift": T and Q atomically
  */
 
-/* the client is pp instance */
-#define HX170DEC_PP_INSTANCE       _IO(HX170DEC_IOC_MAGIC, 1)
 /* decode/pp time for HW performance */
 #define HX170DEC_HW_PERFORMANCE    _IO(HX170DEC_IOC_MAGIC, 2)
 #define HX170DEC_IOCGHWOFFSET      _IOR(HX170DEC_IOC_MAGIC,  3, unsigned long *)
@@ -74,14 +76,23 @@ typedef enum VPU_FREQ {
 #define HX170DEC_IOC_CLI           _IO(HX170DEC_IOC_MAGIC,  5)
 #define HX170DEC_IOC_STI           _IO(HX170DEC_IOC_MAGIC,  6)
 
-#define HX170DEC_GET_VPU_FREQ      _IOR(HX170DEC_IOC_MAGIC,  8, VPU_FREQ *)
-#define HX170DEC_SET_VPU_FREQ      _IOW(HX170DEC_IOC_MAGIC,  9, VPU_FREQ *)
+#ifdef ENABLE_FASYNC
+/* the client is pp instance */
+#define HX170DEC_PP_INSTANCE       _IO(HX170DEC_IOC_MAGIC, 1)
+#else
+#define HX170DEC_IOC_WAIT_DEC      _IOW(HX170DEC_IOC_MAGIC,  7, unsigned int *)
+#define HX170DEC_IOC_WAIT_PP       _IOW(HX170DEC_IOC_MAGIC,  8, unsigned int *)
+#endif
+#define HX170DEC_GET_VPU_FREQ      _IOR(HX170DEC_IOC_MAGIC,  9, VPU_FREQ *)
+#define HX170DEC_SET_VPU_FREQ      _IOW(HX170DEC_IOC_MAGIC,  10, VPU_FREQ *)
 
 #define HX170DEC_IOC_MAXNR 10
 
+#ifdef __KERNEL__
 struct hx170dec_dev {
     struct cdev cdev;
     struct class *hx170dec_class;
 };
+#endif
 
 #endif /* !_HX170DEC_H_ */
