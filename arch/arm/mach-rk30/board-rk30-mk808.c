@@ -173,22 +173,6 @@ static struct spi_board_info board_spi_devices[] = {
 #include <linux/leds_pwm.h>
 
 #ifdef BLUE_LED_PIN_POWER_MNG
-void my_power_off(void)
-{
-	gpio_free(PWM_GPIO);
-	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);	
-	gpio_request(PWM_GPIO, NULL);
-	gpio_direction_output(PWM_GPIO, GPIO_LOW);
-//	gpio_direction_input(PWM_GPIO);
-}
-
-void my_power_on(void)
-{
-	gpio_free(PWM_GPIO);
-	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);
-	gpio_request(PWM_GPIO, NULL);
-	gpio_direction_output(PWM_GPIO, GPIO_HIGH);
-};
 
 static DEFINE_MUTEX(power_key_mutex);
 
@@ -217,7 +201,25 @@ static struct led_classdev led_power_blue = {
     .brightness_set		= led_blue_set,
     .flags			= LED_CORE_SUSPENDRESUME,
 };
+//**********************
+void my_power_off(void)
+{
+    led_classdev_unregister(&led_power_blue);
+	gpio_free(PWM_GPIO);
+	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);	
+	gpio_request(PWM_GPIO, NULL);
+	gpio_direction_output(PWM_GPIO, GPIO_LOW);
+//	gpio_direction_input(PWM_GPIO);
+}
 
+void my_power_on(void)
+{
+	gpio_free(PWM_GPIO);
+	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);
+	gpio_request(PWM_GPIO, NULL);
+	gpio_direction_output(PWM_GPIO, GPIO_HIGH);
+};
+//**************************
 #define POWER_KEY_SCAN_TIME_MS	100
 static struct input_dev *power_keydev;
 static struct timer_list powerkey_timer;

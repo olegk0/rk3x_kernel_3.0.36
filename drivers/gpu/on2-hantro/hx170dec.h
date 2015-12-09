@@ -31,7 +31,7 @@
  * Macros to help debugging
  */
 #undef PDEBUG   /* undef it, just in case */
-#if 1
+#if 0
 //CONFIG_VIDEO_SPEAR_VIDEODEC_DEBUG
 #  ifdef __KERNEL__
 /* This one if debugging is on, and kernel space */
@@ -45,6 +45,7 @@
 #endif
 
 typedef enum VPU_FREQ {
+    VPU_FREQ_NC=0,
     VPU_FREQ_200M,
     VPU_FREQ_266M,
     VPU_FREQ_300M,

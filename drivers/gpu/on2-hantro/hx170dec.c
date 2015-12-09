@@ -155,7 +155,7 @@ static irqreturn_t hx170dec_isr(int irq, void *dev_id);
 #define VPU_POWER_OFF_DELAY		4*HZ /* 4s */
 
 typedef struct vpu_service_info {
-	struct delayed_work	power_off_work;
+//	struct delayed_work	power_off_work;
 	struct mutex		lock;
 //	struct list_head	waiting;		/* link to link_reg in struct vpu_reg */
 //	struct list_head	running;		/* link to link_reg in struct vpu_reg */
@@ -178,33 +178,40 @@ static vpu_service_info service;
 
 static void vpu_service_set_freq(VPU_FREQ freq)
 {
+    int fr;
 	VPU_FREQ curr = atomic_read(&service.freq_status);
 	if (curr == freq) {
 		return ;
 	}
-	atomic_set(&service.freq_status, freq);
+	atomic_set(&service.freq_status, freq);    
 	switch (freq) {
 	case VPU_FREQ_200M : {
 		clk_set_rate(hx170dec_priv.aclk_vepu, 200*MHZ);
+        fr = 200;
 		//printk("default: 200M\n");
 	} break;
 	case VPU_FREQ_266M : {
 		clk_set_rate(hx170dec_priv.aclk_vepu, 266*MHZ);
+        fr = 266;
 		//printk("default: 266M\n");
 	} break;
 	case VPU_FREQ_300M : {
 		clk_set_rate(hx170dec_priv.aclk_vepu, 300*MHZ);
+        fr = 300;
 		//printk("default: 300M\n");
 	} break;
 	case VPU_FREQ_400M : {
 		clk_set_rate(hx170dec_priv.aclk_vepu, 400*MHZ);
+        fr = 400;
 		//printk("default: 400M\n");
 	} break;
 	default : {
 		clk_set_rate(hx170dec_priv.aclk_vepu, 300*MHZ);
+        fr = 300;
 		//printk("default: 300M\n");
 	} break;
 	}
+    printk("vpu_service_set_freq:%d MHz\n",fr);
 }
 
 static int vpu_get_clk(void)
@@ -266,14 +273,16 @@ static void vpu_service_power_off(void)
 	clk_disable(hx170dec_priv.aclk_vepu);
 	printk("done\n");
 }
-
+/*
 static inline void vpu_queue_power_off_work(void)
 {
+    PDEBUG("vpu_queue_power_off_work");
 	queue_delayed_work(system_nrt_wq, &service.power_off_work, VPU_POWER_OFF_DELAY);
 }
 
 static void vpu_power_off_work(struct work_struct *work)
 {
+    PDEBUG("vpu_power_off_work");
 	if (mutex_trylock(&service.lock)) {
 		vpu_service_power_off();
 		mutex_unlock(&service.lock);
@@ -282,17 +291,17 @@ static void vpu_power_off_work(struct work_struct *work)
 		vpu_queue_power_off_work();
 	}
 }
-
+*/
 static int vpu_service_power_on(void)
 {
-	static ktime_t last;
+/*	static ktime_t last;
 	ktime_t now = ktime_get();
 	if (ktime_to_ns(ktime_sub(now, last)) > NSEC_PER_SEC) {
-		cancel_delayed_work_sync(&service.power_off_work);
+//		cancel_delayed_work_sync(&service.power_off_work);
 //		vpu_queue_power_off_work();
 		last = now;
 	}
-	
+	*/
 	if (service.enabled)
 		return 0;
 
@@ -434,7 +443,7 @@ static int hx170dec_open(struct inode *inode, struct file *filp)
 	atomic_inc(&service.total_running);
 	vpu_service_power_on();
     
-    PDEBUG("dev opened\n");
+    PDEBUG("dev opened, services:%d\n",atomic_read(&service.total_running));
     return 0;
 }
 
@@ -491,9 +500,10 @@ static int hx170dec_release(struct inode *inode, struct file *filp)
     }
 #endif
     if(atomic_dec_and_test(&service.total_running))
-        vpu_queue_power_off_work();
+        vpu_service_power_off();
+//        vpu_queue_power_off_work();
 
-    PDEBUG("dev closed\n");
+    PDEBUG("dev closed, services:%d\n",atomic_read(&service.total_running));
     return 0;
 }
 //++++++++++++++++++++++++++++++++++++++++++++++++
@@ -614,7 +624,7 @@ int __init hx170dec_init(void)
 
 	vpu_get_clk();
 
-	INIT_DELAYED_WORK(&service.power_off_work, vpu_power_off_work);
+//	INIT_DELAYED_WORK(&service.power_off_work, vpu_power_off_work);
 //***********************
 	vpu_service_set_freq(VPU_FREQ_266M);
 
@@ -693,8 +703,9 @@ int __init hx170dec_init(void)
     }
 
     printk(KERN_INFO "hx170dec: module inserted. Major = %d\n", hx170dec_priv.dev_major);
-
-    vpu_queue_power_off_work();
+    
+    vpu_service_power_off();
+//    vpu_queue_power_off_work();
     return 0;
 
 err:

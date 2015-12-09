@@ -59,49 +59,6 @@ struct usi_private{
 
 static struct usi_private usi_priv;
 
-static int usi_ump_init_list(void)
-{
-	struct usi_mbs *umbs;
-
-	umbs = kzalloc(sizeof(*umbs), GFP_KERNEL);
-	if(! umbs){
-		DDEBUG("Don`t allocate mem for first block");
-		return -ENOMEM;
-	}
-	
-	umbs->stat = MB_FREE;
-	umbs->uum.addr = UMP_SIZE_ALIGN(usi_priv.begin);
-	umbs->uum.size = usi_priv.full_size - (umbs->uum.addr - usi_priv.begin);
-	umbs->umh = NULL;
-	list_add(&umbs->node, &usi_list);
-	
-	return 0;
-}
-
-static void usi_ump_free_all(void)
-{
-	int i;
-    struct usi_mbs *umbs, *tumbs;
-
-    DDEBUG("Release all mem blocks");
-	mutex_lock(&usi_lock);
-    list_for_each_entry_safe(umbs, tumbs, &usi_list, node) {
-//		if(!list_empty(&usi_list)){
-			if(umbs){
-				if(umbs->umh){
-					i = 100;
-					while(ump_dd_reference_release(umbs->umh) && i--); //WARNING  it requires change ump kernel driver (ump_dd_reference_release func)
-				}
-				list_del(&umbs->node);
-				kfree(umbs);
-				umbs = NULL;
-			}
-//		}
-    }
-    usi_priv.used = 0;
-	mutex_unlock(&usi_lock);
-}
-
 static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size, int ref_id)
 {
 	struct usi_mbs *umbs, *new_umbs=NULL;
@@ -263,9 +220,10 @@ int usi_ump_release(struct inode *inode, struct file *file)
 {
     int cnt = (int)file->private_data;
 
+    BUG_ON(cnt < 1);
     usi_ump_free_mb(cnt, 0);
     mutex_lock(&usi_lock);    
-    usi_priv.con_ids[cnt] = 0;
+    usi_priv.con_ids[cnt-1] = 0;
     mutex_unlock(&usi_lock);
     
     return 0;
@@ -281,7 +239,8 @@ int usi_ump_open(struct inode *inode, struct file *file)
     if(cnt == USI_MAX_CONNECTIONS)
         ret = -EAGAIN;
     else{
-        usi_priv.con_ids[cnt] = 1;        
+        usi_priv.con_ids[cnt] = 1;
+        cnt++;
         file->private_data = (void *)cnt;
     }
     mutex_unlock(&usi_lock);
@@ -302,6 +261,49 @@ static struct miscdevice usi_dev = {
 //    .minor
     &usi_fops
 };
+
+static int usi_ump_init_list(void)
+{
+	struct usi_mbs *umbs;
+
+	umbs = kzalloc(sizeof(*umbs), GFP_KERNEL);
+	if(! umbs){
+		DDEBUG("Don`t allocate mem for first block");
+		return -ENOMEM;
+	}
+	
+	umbs->stat = MB_FREE;
+	umbs->uum.addr = UMP_SIZE_ALIGN(usi_priv.begin);
+	umbs->uum.size = usi_priv.full_size - (umbs->uum.addr - usi_priv.begin);
+	umbs->umh = NULL;
+	list_add(&umbs->node, &usi_list);
+	
+	return 0;
+}
+
+static void usi_ump_free_all(void)
+{
+	int i;
+    struct usi_mbs *umbs, *tumbs;
+
+    DDEBUG("Release all mem blocks");
+	mutex_lock(&usi_lock);
+    list_for_each_entry_safe(umbs, tumbs, &usi_list, node) {
+//		if(!list_empty(&usi_list)){
+			if(umbs){
+				if(umbs->umh){
+					i = 100;
+					while(ump_dd_reference_release(umbs->umh) && i--); //WARNING  it requires change ump kernel driver (ump_dd_reference_release func)
+				}
+				list_del(&umbs->node);
+				kfree(umbs);
+				umbs = NULL;
+			}
+//		}
+    }
+    usi_priv.used = 0;
+	mutex_unlock(&usi_lock);
+}
 
 static int __devinit usi_ump_probe (struct platform_device *pdev)
 {
@@ -341,6 +343,7 @@ static int __devinit usi_ump_probe (struct platform_device *pdev)
 		dev_err(&pdev->dev, "Unable to register usi_ump\n" );
 		goto err_free_mem2;
 	}
+    mutex_init(&usi_lock);
 	DDEBUG("Mem allocate for buffer %d Mb", usi_priv.full_size / (1024 * 1024));
 //    platform_set_drvdata(pdev, ud);
 	return 0;
