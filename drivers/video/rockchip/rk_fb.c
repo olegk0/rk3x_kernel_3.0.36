@@ -859,10 +859,11 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 				return -EFAULT;
 		    if (pset[2]>1920 || pset[3]>1080)
 				return -EINVAL;
-		    if (pset[2]>1)
+		    if (pset[2]>1 && pset[3]>1){
 				par->xact = pset[2];
-		    if (pset[3]>1)
+                par->xvir = pset[2];
 				par->yact = pset[3];
+            }
 //		    if (pset[4]>1)
 				par->scale_x = pset[4];
 //		    if (pset[5]>1)

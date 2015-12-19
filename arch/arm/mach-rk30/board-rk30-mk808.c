@@ -201,29 +201,10 @@ static struct led_classdev led_power_blue = {
     .brightness_set		= led_blue_set,
     .flags			= LED_CORE_SUSPENDRESUME,
 };
-//**********************
-void my_power_off(void)
-{
-    led_classdev_unregister(&led_power_blue);
-	gpio_free(PWM_GPIO);
-	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);	
-	gpio_request(PWM_GPIO, NULL);
-	gpio_direction_output(PWM_GPIO, GPIO_LOW);
-//	gpio_direction_input(PWM_GPIO);
-}
-
-void my_power_on(void)
-{
-	gpio_free(PWM_GPIO);
-	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);
-	gpio_request(PWM_GPIO, NULL);
-	gpio_direction_output(PWM_GPIO, GPIO_HIGH);
-};
-//**************************
 #define POWER_KEY_SCAN_TIME_MS	100
 static struct input_dev *power_keydev;
 static struct timer_list powerkey_timer;
-static int power_key_state;
+static int power_key_state=0;
 
 static void powerkey_btimer_cb(unsigned long data)
 {
@@ -248,9 +229,31 @@ static void powerkey_btimer_cb(unsigned long data)
 		}
     }
 
+    if(power_key_state >= 0)
+	mod_timer( &powerkey_timer, jiffies + msecs_to_jiffies(POWER_KEY_SCAN_TIME_MS));
     power_key_state = res;
-    mod_timer( &powerkey_timer, jiffies + msecs_to_jiffies(POWER_KEY_SCAN_TIME_MS));
 }
+//**********************
+void my_power_off(void)
+{
+	power_key_state = -1;
+	del_timer( &powerkey_timer);
+	led_classdev_unregister(&led_power_blue);
+	gpio_free(PWM_GPIO);
+	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);	
+	gpio_request(PWM_GPIO, NULL);
+	gpio_direction_output(PWM_GPIO, GPIO_LOW);
+//	gpio_direction_input(PWM_GPIO);
+}
+
+void my_power_on(void)
+{
+	gpio_free(PWM_GPIO);
+	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);
+	gpio_request(PWM_GPIO, NULL);
+	gpio_direction_output(PWM_GPIO, GPIO_HIGH);
+};
+//**************************
 
 static int __init power_led_init(void)
 {

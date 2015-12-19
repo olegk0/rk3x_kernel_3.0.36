@@ -22,8 +22,10 @@
 #include <linux/list.h>
 #include "rk_ump.h"
 
-#if 1
-#define DDEBUG(fmt, args...)	{printk("%s - " fmt "\n",__func__, ##args);}
+#define DBG_LVL 2
+
+#if DBG_LVL
+#define DDEBUG(lvl, fmt, args...) {if(lvl <= DBG_LVL) printk("%s - " fmt "\n",__func__, ##args);}
 #else
 #define DDEBUG(...)
 #endif
@@ -67,7 +69,7 @@ static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size, int ref_id)
 	ump_secure_id secure_id;
 	int find=0;
 
-	DDEBUG("Request on %d bytes", size);
+	DDEBUG(3, "Request on %d bytes", size);
 	size = UMP_SIZE_ALIGN(size);
 	mutex_lock(&usi_lock);
 	list_for_each_entry(umbs, &usi_list, node) {
@@ -79,14 +81,14 @@ static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size, int ref_id)
     mutex_unlock(&usi_lock);
 
     if(!find){
-		DDEBUG("Free buf Not found");
+		DDEBUG(1, "Free buf Not found");
 		return NULL;
 	}
 	
 	if(umbs->uum.size > size){
 		new_umbs = kzalloc(sizeof(*new_umbs), GFP_KERNEL);
 		if(!new_umbs){
-			DDEBUG("Don`t allocate mem");
+			DDEBUG(1,"Don`t allocate mem");
 			return NULL;
 		}
 	}
@@ -96,7 +98,7 @@ static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size, int ref_id)
 
 	umh = ump_dd_handle_create_from_phys_blocks(&upb, 1);
 	if(umh == UMP_DD_HANDLE_INVALID){
-	    DDEBUG("Error get ump handle");
+	    DDEBUG(1,"Error get ump handle");
 	    goto err_free;
 	}
 	secure_id = ump_dd_secure_id_get(umh);//UMP_INVALID_SECURE_ID
@@ -121,7 +123,7 @@ static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size, int ref_id)
 	usi_priv.used += size;
 	mutex_unlock(&usi_lock);
 	
-    DDEBUG("Secure id:%d ref_id:%d used:%d paddr:%X",secure_id, ref_id, usi_priv.used, new_umbs->uum.addr);
+    DDEBUG(3, "Secure id:%d ref_id:%d used:%d paddr:%X",secure_id, ref_id, usi_priv.used, new_umbs->uum.addr);
     return &new_umbs->uum;
 
 err_free:
@@ -138,7 +140,7 @@ static int usi_ump_free_mb(int ref_id, ump_secure_id secure_id)
     if(list_empty(&usi_list))
 		return -EINVAL;
 
-    DDEBUG("Release mem block ref_id:%d secure_id:%d", ref_id, secure_id);
+    DDEBUG(3,"Release mem block ref_id:%d secure_id:%d", ref_id, secure_id);
     
     mutex_lock(&usi_lock);
     list_for_each_entry(umbs, &usi_list, node) {
@@ -159,7 +161,7 @@ static int usi_ump_free_mb(int ref_id, ump_secure_id secure_id)
     mutex_unlock(&usi_lock);
 
     if(find){
-        DDEBUG("Mem block released");
+        DDEBUG(3, "Mem block released");
 //defrag
 		mutex_lock(&usi_lock);
 		list_for_each_entry_safe(umbs, tumbs, &usi_list, node) {
@@ -174,10 +176,10 @@ static int usi_ump_free_mb(int ref_id, ump_secure_id secure_id)
 		}
 		mutex_unlock(&usi_lock);
     }else{
-		DDEBUG("Mem block don`t found");
+		DDEBUG(1, "Mem block don`t found");
 		ret = -ENODEV;
     }
-    DDEBUG("--------used:%d", usi_priv.used);
+    DDEBUG(2, "--------used:%d", usi_priv.used);
     return ret;
 }
 
@@ -268,7 +270,7 @@ static int usi_ump_init_list(void)
 
 	umbs = kzalloc(sizeof(*umbs), GFP_KERNEL);
 	if(! umbs){
-		DDEBUG("Don`t allocate mem for first block");
+		DDEBUG(1, "Don`t allocate mem for first block");
 		return -ENOMEM;
 	}
 	
@@ -286,7 +288,7 @@ static void usi_ump_free_all(void)
 	int i;
     struct usi_mbs *umbs, *tumbs;
 
-    DDEBUG("Release all mem blocks");
+    DDEBUG(3, "Release all mem blocks");
 	mutex_lock(&usi_lock);
     list_for_each_entry_safe(umbs, tumbs, &usi_list, node) {
 //		if(!list_empty(&usi_list)){
@@ -344,7 +346,7 @@ static int __devinit usi_ump_probe (struct platform_device *pdev)
 		goto err_free_mem2;
 	}
     mutex_init(&usi_lock);
-	DDEBUG("Mem allocate for buffer %d Mb", usi_priv.full_size / (1024 * 1024));
+	printk("RK_UMP: Mem allocate for buffer %d Mb from:%X", usi_priv.full_size / (1024 * 1024), usi_priv.begin);
 //    platform_set_drvdata(pdev, ud);
 	return 0;
 
