@@ -855,19 +855,17 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 		case FBIOSET_DISP_PSET:   //IAM display: offset x,y; src size w,h; scale size x,y
 //		    if(fix->id[2] == '0') //fb'0' - not change
 //				return -EPERM;
-		    if (copy_from_user(pset, argp, sizeof(int)*6))
+		    if (copy_from_user(pset, argp, sizeof(u32)*6))
 				return -EFAULT;
 		    if (pset[2]>1920 || pset[3]>1080)
 				return -EINVAL;
-		    if (pset[2]>1 && pset[3]>1){
+		    if (pset[2]>1 && pset[3] > 1){
 				par->xact = pset[2];
-                par->xvir = pset[2];
 				par->yact = pset[3];
             }
-//		    if (pset[4]>1)
-				par->scale_x = pset[4];
-//		    if (pset[5]>1)
-				par->scale_y = pset[5];
+
+			par->scale_x = pset[4];
+			par->scale_y = pset[5];
 //		    ret = 0;
 //		    if((pset[0]+par->xact) <= par->xsize){
 			    par->xpos = pset[0];
@@ -1238,6 +1236,7 @@ static int rk_fb_set_par(struct fb_info *info)
 
 	par = dev_drv->layer_par[layer_id];
 	
+
 	if(var->grayscale>>8)  //if the application has specific the horizontal and vertical display size
 	{
 		xsize = (var->grayscale>>8) & 0xfff;  //visiable size in panel ,for vide0
@@ -1245,7 +1244,7 @@ static int rk_fb_set_par(struct fb_info *info)
 	}
 	else  //ohterwise  full  screen display
 	{
-	//IAM
+//IAM
 #if defined(CONFIG_RK_HDMI) && defined(CONFIG_IAM_CHANGES)
 		xsize = var->xres;
 		ysize = var->yres;
@@ -1735,8 +1734,10 @@ int rk_fb_switch_screen(rk_screen *screen ,int enable ,int lcdc_id)
 		}
 	#endif
 	hdmi_var->grayscale &= 0xff;
+//IAM
+#ifndef CONFIG_IAM_CHANGES
 	hdmi_var->grayscale |= (dev_drv->cur_screen->x_res<<8) + (dev_drv->cur_screen->y_res<<20);
-
+#endif
 	if(dev_drv->screen1)  //device like rk2928,whic have one lcdc but two outputs
 	{
 	//	info->var.nonstd &= 0xff;
@@ -1874,7 +1875,10 @@ int rk_fb_disp_scale(u8 scale_x, u8 scale_y,u8 lcdc_id)
 		var->nonstd &= 0xff;
 		var->nonstd |= (xpos<<8) + (ypos<<20);
 		var->grayscale &= 0xff;
+//IAM
+#ifndef CONFIG_IAM_CHANGES
 		var->grayscale |= (xsize<<8) + (ysize<<20);	
+#endif
 	}
 	hdmi_xsize = xsize;
 	hdmi_ysize = ysize;
@@ -2133,7 +2137,9 @@ int rk_fb_register(struct rk_lcdc_device_driver *dev_drv,
 		sprintf(fbi->fix.id,"fb%d",fb_inf->num_fb);
 		fbi->var.xres = fb_inf->lcdc_dev_drv[lcdc_id]->cur_screen->x_res;
 		fbi->var.yres = fb_inf->lcdc_dev_drv[lcdc_id]->cur_screen->y_res;
+#ifndef CONFIG_IAM_CHANGES
 		fbi->var.grayscale |= (fbi->var.xres<<8) + (fbi->var.yres<<20);
+#endif
 #ifdef  CONFIG_LOGO_LINUX_BMP
 		fbi->var.bits_per_pixel = 32; 
 #else
