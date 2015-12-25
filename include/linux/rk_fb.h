@@ -66,9 +66,6 @@
 #define RK_FBIOGET_DSP_ADDR     	0x4630
 #define RK_FBIOGET_LIST_STAT   		0X4631
 
-#define FBIOSET_COLORKEY		0x5010 //IAM
-#define FBIOSET_DISP_PSET		0x5011 //IAM
-
 #define FB_MAXPGSIZE 1920*1080*4
 
 /**rk fb events**/
@@ -251,9 +248,6 @@ struct layer_par {
 	u8 fmt_cfg;
 	u8 swap_rb;
 	u32 reserved;
-	u16 scale_x;
-	u16 scale_y;
-	u32 color_key;
 };
 
 struct rk_fb_win_config_data {

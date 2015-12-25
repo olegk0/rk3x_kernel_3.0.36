@@ -530,7 +530,7 @@ static  int win2_display(struct rk30_lcdc_device *lcdc_dev,struct layer_par *par
 static  int win0_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 	struct layer_par *par )
 {
-	u32 xact, yact, xvir, yvir, xpos, ypos, sxact, syact;
+	u32 xact, yact, xvir, yvir, xpos, ypos;
 	u32 ScaleYrgbX = 0x1000;
 	u32 ScaleYrgbY = 0x1000;
 	u32 ScaleCbrX = 0x1000;
@@ -547,18 +547,9 @@ static  int win0_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 
 	DBG(1,"%s for lcdc%d>>format:%s>>>xact:%d>>yact:%d>>xsize:%d>>ysize:%d>>xvir:%d>>yvir:%d>>xpos:%d>>ypos:%d>>\n",
 		__func__,lcdc_dev->id,get_format_string(par->format,fmt),xact,yact,par->xsize,par->ysize,xvir,yvir,xpos,ypos);
-//IAM
-    if(par->scale_x > 0)
-		sxact = par->scale_x;
-	else
-		sxact = xact;
-	if(par->scale_y > 0)
-		syact = par->scale_y;
-	else
-		syact = yact;
 
-	ScaleYrgbX = CalScale(sxact, par->xsize); //both RGB and yuv need this two factor
-	ScaleYrgbY = CalScale(syact, par->ysize);
+	ScaleYrgbX = CalScale(xact, par->xsize); //both RGB and yuv need this two factor
+	ScaleYrgbY = CalScale(yact, par->ysize);
 	fmt_cfg = par->format;
 	switch (par->format)
 	{
@@ -569,16 +560,16 @@ static  int win0_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 	case RGB565:
 		break;
 	case YUV422:// yuv422
-		ScaleCbrX = CalScale((sxact/2), par->xsize);
-		ScaleCbrY = CalScale(syact, par->ysize);
+		ScaleCbrX = CalScale((xact/2), par->xsize);
+		ScaleCbrY = CalScale(yact, par->ysize);
 		break;
 	case YUV420: // yuv420
-		ScaleCbrX = CalScale(sxact/2, par->xsize);
-	   	ScaleCbrY = CalScale(syact/2, par->ysize);
+		ScaleCbrX = CalScale(xact/2, par->xsize);
+	   	ScaleCbrY = CalScale(yact/2, par->ysize);
 	   	break;
 	case YUV444:// yuv444
-		ScaleCbrX = CalScale(sxact, par->xsize);
-		ScaleCbrY = CalScale(syact, par->ysize);
+		ScaleCbrX = CalScale(xact, par->xsize);
+		ScaleCbrY = CalScale(yact, par->ysize);
 		break;
 	default:
 		fmt_cfg = 0;
@@ -595,7 +586,7 @@ static  int win0_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 		lcdc_writel(lcdc_dev, WIN0_ACT_INFO,v_ACT_WIDTH(xact) | v_ACT_HEIGHT(yact));
 		lcdc_writel(lcdc_dev, WIN0_DSP_ST, v_DSP_STX(xpos) | v_DSP_STY(ypos));
 		lcdc_writel(lcdc_dev, WIN0_DSP_INFO, v_DSP_WIDTH(par->xsize)| v_DSP_HEIGHT(par->ysize));
-		lcdc_msk_reg(lcdc_dev, WIN0_COLOR_KEY_CTRL, m_COLORKEY_EN | m_KEYCOLOR,	v_COLORKEY_EN(1) | v_KEYCOLOR(par->color_key));
+//		lcdc_msk_reg(lcdc_dev, WIN0_COLOR_KEY_CTRL, m_COLORKEY_EN | m_KEYCOLOR,	v_COLORKEY_EN(1) | v_KEYCOLOR(par->color_key));
 		switch(par->format) 
 		{
 		case XBGR888:
@@ -635,7 +626,7 @@ static  int win0_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 static int win1_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 	struct layer_par *par )
 {
-	u32 xact, yact, xvir, yvir, xpos, ypos, sxact, syact;
+	u32 xact, yact, xvir, yvir, xpos, ypos;
 	u32 ScaleYrgbX = 0x1000;
 	u32 ScaleYrgbY = 0x1000;
 	u32 ScaleCbrX = 0x1000;
@@ -652,18 +643,8 @@ static int win1_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 	DBG(1,"%s for lcdc%d>>format:%s>>>xact:%d>>yact:%d>>xsize:%d>>ysize:%d>>xvir:%d>>yvir:%d>>xpos:%d>>ypos:%d>>\n",
 		__func__,lcdc_dev->id,get_format_string(par->format,fmt),xact,yact,par->xsize,par->ysize,xvir,yvir,xpos,ypos);
 
-//IAM
-    if(par->scale_x > 0)
-		sxact = par->scale_x;
-	else
-		sxact = xact;
-	if(par->scale_y > 0)
-		syact = par->scale_y;
-	else
-		syact = yact;
-
-	ScaleYrgbX = CalScale(sxact, par->xsize); //both RGB and yuv need this two factor
-	ScaleYrgbY = CalScale(syact, par->ysize);
+	ScaleYrgbX = CalScale(xact, par->xsize); //both RGB and yuv need this two factor
+	ScaleYrgbY = CalScale(yact, par->ysize);
 	fmt_cfg = par->format;
 	switch (par->format)
 	{
@@ -674,16 +655,16 @@ static int win1_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 	case RGB565:
 		break;
 	case YUV422:// yuv422
-		ScaleCbrX = CalScale((sxact/2), par->xsize);
-		ScaleCbrY = CalScale(syact, par->ysize);
+		ScaleCbrX = CalScale((xact/2), par->xsize);
+		ScaleCbrY = CalScale(yact, par->ysize);
 		break;
 	case YUV420: // yuv420
-		ScaleCbrX = CalScale(sxact/2, par->xsize);
-	   	ScaleCbrY = CalScale(syact/2, par->ysize);
+		ScaleCbrX = CalScale(xact/2, par->xsize);
+	   	ScaleCbrY = CalScale(yact/2, par->ysize);
 	   	break;
 	case YUV444:// yuv444
-		ScaleCbrX = CalScale(sxact, par->xsize);
-		ScaleCbrY = CalScale(syact, par->ysize);
+		ScaleCbrX = CalScale(xact, par->xsize);
+		ScaleCbrY = CalScale(yact, par->ysize);
 		break;
 	default:
 		fmt_cfg = 0;
@@ -700,7 +681,7 @@ static int win1_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 		lcdc_writel(lcdc_dev, WIN1_ACT_INFO,v_ACT_WIDTH(xact) | v_ACT_HEIGHT(yact));
 		lcdc_writel(lcdc_dev, WIN1_DSP_ST,v_DSP_STX(xpos) | v_DSP_STY(ypos));
 		lcdc_writel(lcdc_dev, WIN1_DSP_INFO,v_DSP_WIDTH(par->xsize) | v_DSP_HEIGHT(par->ysize));
-		lcdc_msk_reg(lcdc_dev, WIN1_COLOR_KEY_CTRL, m_COLORKEY_EN | m_KEYCOLOR,v_COLORKEY_EN(1) | v_KEYCOLOR(par->color_key));
+//		lcdc_msk_reg(lcdc_dev, WIN1_COLOR_KEY_CTRL, m_COLORKEY_EN | m_KEYCOLOR,v_COLORKEY_EN(1) | v_KEYCOLOR(par->color_key));
 		switch(par->format)
 	    {
 	    case XBGR888:
@@ -757,7 +738,7 @@ static int win2_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 
 		lcdc_writel(lcdc_dev, WIN2_DSP_ST,v_DSP_STX(xpos) | v_DSP_STY(ypos));
 		lcdc_writel(lcdc_dev, WIN2_DSP_INFO,v_DSP_WIDTH(par->xsize) | v_DSP_HEIGHT(par->ysize));
-		lcdc_msk_reg(lcdc_dev, WIN2_COLOR_KEY_CTRL, m_COLORKEY_EN | m_KEYCOLOR,v_COLORKEY_EN(1) | v_KEYCOLOR(par->color_key));
+//		lcdc_msk_reg(lcdc_dev, WIN2_COLOR_KEY_CTRL, m_COLORKEY_EN | m_KEYCOLOR,v_COLORKEY_EN(1) | v_KEYCOLOR(par->color_key));
 		switch(par->format)
 	    {
 	    case XBGR888:
@@ -1108,25 +1089,7 @@ static int rk30_lcdc_get_layer_state(struct rk_lcdc_device_driver *dev_drv,int l
 	return par->state;
 	
 }
-/*
-static int rk30_lcdc_wait_end_paint(struct rk_lcdc_device_driver *dev_drv)
-{
-	struct rk30_lcdc_device *lcdc_dev = container_of(dev_drv,struct rk30_lcdc_device,driver);
-	int cnt=200;
-	
-	if(likely(lcdc_dev->clk_on))
-	{
-		while(lcdc_readl(lcdc_dev,INT_STATUS) & m_FRM_START_INT_CLEAR){
-			udelay(100);
-			cnt--;
-			if(!cnt)
-				return -ETIMEDOUT;
-		}
-		return 0;
-	}
-	return -ENODEV;
-}
-*/
+
 /***********************************
 overlay manager
 swap:1 win0 on the top of win1
@@ -1690,7 +1653,6 @@ static struct rk_lcdc_device_driver lcdc_driver = {
 	.read_dsp_lut           = rk30_read_dsp_lut,
 	.get_dsp_addr           = rk30_lcdc_get_dsp_addr,
 	.set_layer_state		= rk30_lcdc_set_state,
-//	.wait_end_paint		= rk30_lcdc_wait_end_paint,
 };
 #ifdef CONFIG_PM
 static int rk30_lcdc_suspend(struct platform_device *pdev, pm_message_t state)

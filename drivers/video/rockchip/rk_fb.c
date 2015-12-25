@@ -700,7 +700,7 @@ static int rk_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	int extend_fb_id = 0;
 	struct rk_lcdc_device_driver * dev_drv1  = NULL;
 #endif
-    	int layer_id = 0;
+    int layer_id = 0;
 	u32 xoffset = var->xoffset;		// offset from virtual to visible 
 	u32 yoffset = var->yoffset;				
 	u32 xvir = var->xres_virtual;
@@ -847,51 +847,15 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 				par->smem_start = fix->smem_start;
 				par->cbr_start = fix->mmio_start;
 				return dev_drv->pan_display(dev_drv,layer_id);
-#endif
 			}
 			break;
-#ifdef CONFIG_IAM_CHANGES
-//IAM***************************
-		case FBIOSET_DISP_PSET:   //IAM display: offset x,y; src size w,h; scale size x,y
-//		    if(fix->id[2] == '0') //fb'0' - not change
-//				return -EPERM;
-		    if (copy_from_user(pset, argp, sizeof(u32)*6))
-				return -EFAULT;
-		    if (pset[2]>1920 || pset[3]>1080)
-				return -EINVAL;
-		    if (pset[2]>1 && pset[3] > 1){
-				par->xact = pset[2];
-				par->yact = pset[3];
-            }
-
-			par->scale_x = pset[4];
-			par->scale_y = pset[5];
-//		    ret = 0;
-//		    if((pset[0]+par->xact) <= par->xsize){
-			    par->xpos = pset[0];
-//		    }
-//		    else
-//			ret = -EINVAL;
-//		    if((pset[1]+par->yact) <= par->ysize){
-			    par->ypos = pset[1];
-//		    }
-//		    else
-//			ret = -EINVAL;
-		    return dev_drv->set_par(dev_drv,layer_id);
-		    break;
-		case FBIOSET_COLORKEY:
-		    if (get_user(par->color_key, (__u32 __user *)arg)) {
-				return -EFAULT;
-				break;
-		    }
-		    return dev_drv->set_par(dev_drv,layer_id);
-		    break;
 		case FBIO_WAITFORVSYNC:
 		    return dev_drv->pan_display(dev_drv,layer_id);
 //			return dev_drv->wait_end_paint(dev_drv);
-		    break;
-//******************************
+#else
+			}
 #endif
+			break;
 		case RK_FBIOSET_ENABLE:
 			if (copy_from_user(&enable, argp, sizeof(enable)))
 				return -EFAULT;
@@ -1345,11 +1309,7 @@ static int rk_fb_set_par(struct fb_info *info)
 	par->ypos = ypos;
 	par->xsize = xsize;
 	par->ysize = ysize;
-#if defined(CONFIG_IAM_CHANGES)
-	par->scale_x = var->xres;
-	par->scale_y = var->yres;
-	par->color_key = 0;
-#endif
+
 	par->smem_start =fix->smem_start;
 	par->cbr_start = fix->mmio_start;
 	par->xact = var->xres;              //winx active window height,is a part of vir
