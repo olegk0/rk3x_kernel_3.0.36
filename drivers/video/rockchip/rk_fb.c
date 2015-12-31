@@ -379,6 +379,9 @@ static int rk_fb_open(struct fb_info *info,int user)
     else
     {
     	dev_drv->open(dev_drv,layer_id,1);
+#ifdef CONFIG_IAM_CHANGES
+        atomic_set(&dev_drv->layer_par[layer_id]->used, 0);
+#endif
     }
     
     return 0;
@@ -829,6 +832,9 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 	int list_stat;
 //IAM
 	int pset[7];
+    unsigned long flags;
+	int timeout;
+    
 	struct layer_par *par;
 	par = dev_drv->layer_par[layer_id];
 	
@@ -850,8 +856,18 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 			}
 			break;
 		case FBIO_WAITFORVSYNC:
-		    return dev_drv->pan_display(dev_drv,layer_id);
+//		    return dev_drv->pan_display(dev_drv,layer_id);
 //			return dev_drv->wait_end_paint(dev_drv);
+
+		spin_lock_irqsave(&dev_drv->cpl_lock,flags);
+		init_completion(&dev_drv->frame_done);
+		spin_unlock_irqrestore(&dev_drv->cpl_lock,flags);
+		timeout = wait_for_completion_timeout(&dev_drv->frame_done,msecs_to_jiffies(dev_drv->cur_screen->ft+5));
+		if(!timeout&&(!dev_drv->frame_done.done))
+		{
+			printk(KERN_ERR "wait for new frame start time out!\n");
+			return -ETIMEDOUT;
+		}
 #else
 			}
 #endif
@@ -860,9 +876,16 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 			if (copy_from_user(&enable, argp, sizeof(enable)))
 				return -EFAULT;
 			dev_drv->set_layer_state(dev_drv,layer_id,enable);
+#ifdef CONFIG_IAM_CHANGES
+            atomic_set(&par->used, enable);
+#endif
 			break;
 		case RK_FBIOGET_ENABLE:
+#ifdef CONFIG_IAM_CHANGES
+            enable = atomic_read(&par->used);
+#else
 			enable = dev_drv->get_layer_state(dev_drv,layer_id);
+#endif
 			if(copy_to_user(argp,&enable,sizeof(enable)))
 				return -EFAULT;
 			break;

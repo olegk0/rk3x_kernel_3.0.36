@@ -248,6 +248,7 @@ struct layer_par {
 	u8 fmt_cfg;
 	u8 swap_rb;
 	u32 reserved;
+	atomic_t used;
 };
 
 struct rk_fb_win_config_data {

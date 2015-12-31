@@ -831,7 +831,7 @@ static int rk30_lcdc_open(struct rk_lcdc_device_driver *dev_drv,int layer_id,boo
 
 	if((!open) && (!lcdc_dev->atv_layer_cnt))  //when all layer closed,disable clk
 	{
-//IAM		rk30_lcdc_clk_disable(lcdc_dev);
+//IAM crashes		rk30_lcdc_clk_disable(lcdc_dev);
 	}
 
 	printk(KERN_INFO "lcdc%d win%d %s,atv layer:%d\n",
@@ -912,6 +912,8 @@ int rk30_lcdc_pan_display(struct rk_lcdc_device_driver * dev_drv,int layer_id)
 	}
 #ifdef CONFIG_THREE_FB_BUFFER
 	if(dev_drv->num_buf < 3) //3buffer ,no need to  wait for sysn
+#else
+    if(dev_drv->vsync_info.active)
 #endif
 	{
 		spin_lock_irqsave(&dev_drv->cpl_lock,flags);
@@ -1061,7 +1063,7 @@ int rk30_lcdc_ioctl(struct rk_lcdc_device_driver * dev_drv,unsigned int cmd, uns
 	return ret;
 }
 
-static int rk30_lcdc_get_layer_state(struct rk_lcdc_device_driver *dev_drv,int layer_id)
+static int rk30_lcdc_get_layer_state(struct rk_lcdc_device_driver *dev_drv, int layer_id)
 {
 	struct rk30_lcdc_device *lcdc_dev = container_of(dev_drv,struct rk30_lcdc_device,driver);
 	struct layer_par *par = dev_drv->layer_par[layer_id];
@@ -1069,25 +1071,22 @@ static int rk30_lcdc_get_layer_state(struct rk_lcdc_device_driver *dev_drv,int l
 	spin_lock(&lcdc_dev->reg_lock);
 	if(likely(lcdc_dev->clk_on))
 	{
-		if(layer_id == 0)
-		{
+		switch(layer_id){
+		case 0:
 			par->state = lcdc_read_bit(lcdc_dev,SYS_CTRL1,m_W0_EN);
-		}
-		else if( layer_id == 1)
-		{
+            break;
+		case 1:
 			par->state = lcdc_read_bit(lcdc_dev,SYS_CTRL1,m_W1_EN);
-		}
-//IAM
-		else if( layer_id == 2)
-		{
+            break;
+		case 2:
 			par->state = lcdc_read_bit(lcdc_dev,SYS_CTRL1,m_W2_EN);
+            break;
 		}
 
 	}
 	spin_unlock(&lcdc_dev->reg_lock);
-	
+
 	return par->state;
-	
 }
 
 /***********************************

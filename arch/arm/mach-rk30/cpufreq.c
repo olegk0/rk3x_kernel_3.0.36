@@ -117,11 +117,11 @@ module_param(temp_limt_freq, uint, 0444);
 #ifdef CONFIG_IAM_CHANGES
 static const struct cpufreq_frequency_table temp_limits[] = {
 	//{.frequency = 1608 * 1000, .index = 50},
-	{.frequency = 1512 * 1000, .index = 50},
-	{.frequency = 1416 * 1000, .index = 55},
+	{.frequency = 1512 * 1000, .index = 45},
+	{.frequency = 1416 * 1000, .index = 50},
 	{.frequency = 1200 * 1000, .index = 60},
 	{.frequency = 1008 * 1000, .index = 65},
-	{.frequency =  816 * 1000, .index = 75},
+	{.frequency =  816 * 1000, .index = 70},
 };
 #else
 static const struct cpufreq_frequency_table temp_limits[] = {
