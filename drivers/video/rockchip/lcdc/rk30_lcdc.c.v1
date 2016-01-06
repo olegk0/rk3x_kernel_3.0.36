@@ -938,10 +938,11 @@ static unsigned char cursor_buf[CURSOR_BUF_SIZE];
 static int rk30_cursor_set_image(struct rk_lcdc_device_driver *dev_drv, char *imgdata)
 {
 	struct rk30_lcdc_device *lcdc_dev = container_of(dev_drv,struct rk30_lcdc_device,driver);
-//	unsigned long flags;
+	unsigned long flags;
 	
 //	spin_lock_irqsave(&lcdc_dev->reg_lock,flags);
     spin_lock(&lcdc_dev->reg_lock);
+	lcdc_msk_reg(lcdc_dev, SYS_CTRL0, m_HWC_RELOAD_EN, v_HWC_RELOAD_EN(0));//IAM
     lcdc_writel(lcdc_dev, HWC_MST, __pa(cursor_buf));
     lcdc_msk_reg(lcdc_dev, SYS_CTRL0, m_HWC_RELOAD_EN, v_HWC_RELOAD_EN(1));
     lcdc_cfg_done(lcdc_dev);
@@ -1597,8 +1598,20 @@ static irqreturn_t rk30_lcdc_isr(int irq, void *dev_id)
     
     if(int_reg & v_FRM_START_INT_STA)
     {
-#ifndef CONFIG_IAM_CHANGES
     	ktime_t timestamp = ktime_get();
+#ifdef CONFIG_IAM_CHANGES
+        struct rk_lcdc_device_driver *dev_drv = &lcdc_dev->driver;
+        if(dev_drv->layer_par[0]->delayed_sync){
+            lcdc_writel(lcdc_dev, WIN0_YRGB_MST0, dev_drv->layer_par[0]->smem_start);
+            lcdc_writel(lcdc_dev, WIN0_CBR_MST0, dev_drv->layer_par[0]->cbr_start);
+            dev_drv->layer_par[0]->delayed_sync = 0;
+        }
+        if(dev_drv->layer_par[1]->delayed_sync){
+            lcdc_writel(lcdc_dev, WIN1_YRGB_MST, dev_drv->layer_par[1]->smem_start);
+            lcdc_writel(lcdc_dev, WIN1_CBR_MST, dev_drv->layer_par[1]->cbr_start);
+            dev_drv->layer_par[1]->delayed_sync = 0;
+        }
+        lcdc_cfg_done(lcdc_dev);
 #endif
         lcdc_msk_reg(lcdc_dev, INT_STATUS, m_FRM_START_INT_CLEAR, v_FRM_START_INT_CLEAR(1));
  
@@ -1609,8 +1622,8 @@ static irqreturn_t rk30_lcdc_isr(int irq, void *dev_id)
             spin_unlock(&(lcdc_dev->driver.cpl_lock));
         }
 
-#ifndef CONFIG_IAM_CHANGES
         lcdc_dev->driver.vsync_info.timestamp = timestamp;
+#ifndef CONFIG_IAM_CHANGES
         wake_up_interruptible_all(&lcdc_dev->driver.vsync_info.wait);
 #endif
    }else if(int_reg & v_LINE_FLAG_INT_STA)

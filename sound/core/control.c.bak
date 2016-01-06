@@ -735,37 +735,24 @@ static int snd_ctl_elem_list(struct snd_card *card,
 		}
 		list.used = 0;
 		id = dst;
-printk("1 id:%p\n",id);
-if(id->index)
 		while (space > 0 && plist != &card->controls) {
-printk("2 space:%d\n",space);
 			kctl = snd_kcontrol(plist);
-printk("3 %p\n",kctl);
-printk("offset:%d count:%d\n",offset ,kctl->count);
 			for (jidx = offset; space > 0 && jidx < kctl->count; jidx++) {
-printk("4 jidx:%d\n",jidx);
-printk("kctl->id:%p\n",kctl->id);
-printk("id->index:%d\n",id->index);
-printk("id->numid:%d\n",id->numid);
 				snd_ctl_build_ioff(id, kctl, jidx);
 				id++;
 				space--;
 				list.used++;
 			}
-printk("5\n");
 			plist = plist->next;
 			offset = 0;
 		}
-printk("6\n");
 		up_read(&card->controls_rwsem);
 		if (list.used > 0 &&
 		    copy_to_user(list.pids, dst,
 				 list.used * sizeof(struct snd_ctl_elem_id))) {
-printk("7 free\n");
 			vfree(dst);
 			return -EFAULT;
 		}
-printk("71 free\n");
 		vfree(dst);
 	} else {
 		down_read(&card->controls_rwsem);
@@ -1299,11 +1286,7 @@ static long snd_ctl_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 	case SNDRV_CTL_IOCTL_CARD_INFO:
 		return snd_ctl_card_info(card, ctl, cmd, argp);
 	case SNDRV_CTL_IOCTL_ELEM_LIST:
-/*#ifdef CONFIG_IAM_CHANGES
-		return -ENOENT;//temporary trick for mk808
-#else*/
 		return snd_ctl_elem_list(card, argp);
-//#endif
 	case SNDRV_CTL_IOCTL_ELEM_INFO:
 		return snd_ctl_elem_info_user(ctl, argp);
 	case SNDRV_CTL_IOCTL_ELEM_READ:

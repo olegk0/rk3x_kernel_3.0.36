@@ -66,7 +66,12 @@
 #define RK_FBIOGET_DSP_ADDR     	0x4630
 #define RK_FBIOGET_LIST_STAT   		0X4631
 
+#ifdef CONFIG_IAM_CHANGES
+#define RK_FBIOSET_USED		0x5101	
+#define RK_FBIOGET_USED		0x5102
+
 #define FB_MAXPGSIZE 1920*1080*4
+#endif
 
 /**rk fb events**/
 #define RK_LF_STATUS_FC                  0xef
@@ -248,7 +253,10 @@ struct layer_par {
 	u8 fmt_cfg;
 	u8 swap_rb;
 	u32 reserved;
+#ifdef CONFIG_IAM_CHANGES
+	bool vsync;
 	atomic_t used;
+#endif
 };
 
 struct rk_fb_win_config_data {
@@ -333,7 +341,6 @@ struct rk_lcdc_device_driver{
 	int (*dpi_status)(struct rk_lcdc_device_driver *dev_drv);
 	int (*get_dsp_addr)(struct rk_lcdc_device_driver * dev_drv,unsigned int *dsp_addr);
 	int (*set_layer_state)(struct rk_lcdc_device_driver *dev_drv,int layer_id,bool on);
-//	int (*wait_end_paint)(struct rk_lcdc_device_driver *dev_drv);
 };
 
 struct rk_fb_inf {

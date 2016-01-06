@@ -381,6 +381,7 @@ static int rk_fb_open(struct fb_info *info,int user)
     	dev_drv->open(dev_drv,layer_id,1);
 #ifdef CONFIG_IAM_CHANGES
         atomic_set(&dev_drv->layer_par[layer_id]->used, 0);
+        dev_drv->layer_par[layer_id]->vsync = 1;
 #endif
     }
     
@@ -621,7 +622,7 @@ static void hdmi_post_work(struct work_struct *work)
 	complete(&(dev_drv1->ipp_done));
 }
 */
-
+#ifndef CONFIG_IAM_CHANGES
 void rk_fd_fence_wait(struct rk_lcdc_device_driver *dev_drv, struct sync_fence *fence)
 {
 	int err = sync_fence_wait(fence, 1000);
@@ -690,7 +691,7 @@ static void rk_fb_update_regs_handler(struct kthread_work *work)
 		kfree(data);
 	}
 }
-
+#endif
 static int rk_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 {
 	struct rk_lcdc_device_driver * dev_drv = (struct rk_lcdc_device_driver * )info->par;
@@ -831,7 +832,7 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 	unsigned int dsp_addr[3];
 	int list_stat;
 //IAM
-	int pset[7];
+//	int pset[7];
     unsigned long flags;
 	int timeout;
     
@@ -853,39 +854,41 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 				par->smem_start = fix->smem_start;
 				par->cbr_start = fix->mmio_start;
 				return dev_drv->pan_display(dev_drv,layer_id);
+#endif
 			}
 			break;
+#ifdef CONFIG_IAM_CHANGES
 		case FBIO_WAITFORVSYNC:
 //		    return dev_drv->pan_display(dev_drv,layer_id);
 //			return dev_drv->wait_end_paint(dev_drv);
-
-		spin_lock_irqsave(&dev_drv->cpl_lock,flags);
-		init_completion(&dev_drv->frame_done);
-		spin_unlock_irqrestore(&dev_drv->cpl_lock,flags);
-		timeout = wait_for_completion_timeout(&dev_drv->frame_done,msecs_to_jiffies(dev_drv->cur_screen->ft+5));
-		if(!timeout&&(!dev_drv->frame_done.done))
-		{
-			printk(KERN_ERR "wait for new frame start time out!\n");
-			return -ETIMEDOUT;
-		}
-#else
-			}
-#endif
+            spin_lock_irqsave(&dev_drv->cpl_lock,flags);
+            init_completion(&dev_drv->frame_done);
+            spin_unlock_irqrestore(&dev_drv->cpl_lock,flags);
+            timeout = wait_for_completion_timeout(&dev_drv->frame_done,msecs_to_jiffies(dev_drv->cur_screen->ft+5));
+            if(!timeout&&(!dev_drv->frame_done.done))
+            {
+                printk(KERN_ERR "wait for new frame start time out!\n");
+    			return -ETIMEDOUT;
+            }
+            break;
+		case RK_FBIOSET_USED:
+			if (copy_from_user(&enable, argp, sizeof(enable)))
+				return -EFAULT;
+            atomic_set(&par->used, enable);
 			break;
+		case RK_FBIOGET_USED:
+            enable = atomic_read(&par->used);
+			if(copy_to_user(argp,&enable,sizeof(enable)))
+				return -EFAULT;
+			break;
+#endif
 		case RK_FBIOSET_ENABLE:
 			if (copy_from_user(&enable, argp, sizeof(enable)))
 				return -EFAULT;
 			dev_drv->set_layer_state(dev_drv,layer_id,enable);
-#ifdef CONFIG_IAM_CHANGES
-            atomic_set(&par->used, enable);
-#endif
 			break;
 		case RK_FBIOGET_ENABLE:
-#ifdef CONFIG_IAM_CHANGES
-            enable = atomic_read(&par->used);
-#else
 			enable = dev_drv->get_layer_state(dev_drv,layer_id);
-#endif
 			if(copy_to_user(argp,&enable,sizeof(enable)))
 				return -EFAULT;
 			break;
@@ -908,6 +911,9 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 		case RK_FBIOSET_VSYNC_ENABLE:
 			if (copy_from_user(&enable, argp, sizeof(enable)))
 				return -EFAULT;
+#ifdef CONFIG_IAM_CHANGES
+            par->vsync = enable;
+#endif
 			dev_drv->vsync_info.active = enable;
 			break;
 		case RK_FBIOGET_DSP_ADDR:
@@ -920,7 +926,8 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 			if (copy_to_user(argp, &list_stat, sizeof(list_stat)))
 				return -EFAULT;
 
-			break;			
+			break;
+#ifndef CONFIG_IAM_CHANGES
 		case RK_FBIOSET_CONFIG_DONE:
 			regs = kzalloc(sizeof(struct rk_reg_data), GFP_KERNEL);
 			ret = copy_from_user(&(dev_drv->win_data),(struct rk_fb_win_config_data __user *)argp,sizeof(dev_drv->win_data));
@@ -972,11 +979,10 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 					dev_drv->lcdc_reg_update(dev_drv);	
 			}
 			if (copy_to_user((struct rk_fb_win_config_data __user *)arg,
-				 &dev_drv->win_data,
-				 sizeof(dev_drv->win_data))) {
-			ret = -EFAULT;
-			break;
-		}	
+				 &dev_drv->win_data, sizeof(dev_drv->win_data))) {
+                ret = -EFAULT;
+                break;
+            }
 	#if defined(CONFIG_RK_HDMI)
 		#if defined(CONFIG_DUAL_LCDC_DUAL_DISP_IN_KERNEL)
 			if((hdmi_get_hotplug() == HDMI_HPD_ACTIVED) && (hdmi_switch_complete))
@@ -992,6 +998,7 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 			}
 		#endif 
 	#endif
+#endif
         	default:
 			dev_drv->ioctl(dev_drv,cmd,arg,layer_id);
             		break;
@@ -1051,7 +1058,7 @@ static int rk_fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 
     return 0;
 }
-
+#ifndef CONFIG_IAM_CHANGES
 static ssize_t rk_fb_read(struct fb_info *info, char __user *buf,
 			   size_t count, loff_t *ppos)
 {
@@ -1194,7 +1201,7 @@ static ssize_t rk_fb_write(struct fb_info *info, const char __user *buf,
 	return (cnt) ? cnt : err;
 	
 }
-
+#endif
 static int rk_fb_set_par(struct fb_info *info)
 {
     	struct fb_var_screeninfo *var = &info->var;
@@ -1486,7 +1493,7 @@ static struct fb_fix_screeninfo def_fix = {
 		
 };
 
-
+#ifndef CONFIG_IAM_CHANGES
 static int rk_fb_wait_for_vsync_thread(void *data)
 {
 	struct rk_lcdc_device_driver  *dev_drv = data;
@@ -1518,7 +1525,7 @@ static ssize_t rk_fb_vsync_show(struct device *dev,
 }
 
 static DEVICE_ATTR(vsync, S_IRUGO, rk_fb_vsync_show, NULL);
-
+#endif
 
 /*****************************************************************
 this two function is for other module that in the kernel which
@@ -2157,7 +2164,7 @@ int rk_fb_register(struct rk_lcdc_device_driver *dev_drv,
 		fb_inf->fb[fb_inf->num_fb] = fbi;
 	        printk("%s>>>>>%s\n",__func__,fb_inf->fb[fb_inf->num_fb]->fix.id);
 	        fb_inf->num_fb++;
-		
+#ifndef CONFIG_IAM_CHANGES		
 		if(i == 0)
 		{
 			init_waitqueue_head(&dev_drv->vsync_info.wait);
@@ -2195,6 +2202,7 @@ int rk_fb_register(struct rk_lcdc_device_driver *dev_drv,
 			dev_drv->timeline = sw_sync_timeline_create("rk-fb");
 			dev_drv->timeline_max = 1;
 		}
+#endif
 	}
 #if !defined(CONFIG_FRAMEBUFFER_CONSOLE) && defined(CONFIG_LOGO)
     if(dev_drv->screen_ctr_info->prop == PRMRY) //show logo for primary display device
