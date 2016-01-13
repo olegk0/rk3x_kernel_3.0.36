@@ -418,7 +418,7 @@ endchoice
 
 config MTD_NAND_RK29
         tristate "NAND Flash support for RK29sdk"
-        depends on ARCH_RK29
+        depends on ARCH_RK29 || ARCH_RK30
         help
           This enables the NAND flash controller on the RK29 SoC
           

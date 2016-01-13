@@ -817,24 +817,11 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd, unsigned long
 	case VPU_IOC_GET_REG : {
 		vpu_request req;
 		vpu_reg *reg;
-        int ret;
 		if (copy_from_user(&req, (void __user *)arg, sizeof(vpu_request))) {
 			pr_err("error: VPU_IOC_GET_REG copy_from_user failed\n");
 			return -EFAULT;
 		} else {
-        if(!req.size){
-            u32 *tmp = kmalloc(SIZE_REG(REG_NUM_9190_DEC_PP) + 10, GFP_KERNEL);
-            int i;            
-            for (i = 0; i < REG_NUM_9190_DEC_PP; i++)
-                tmp[i] = dec_dev.hwregs[i];            
-            if (copy_to_user((void __user *)req.req, tmp, SIZE_REG(REG_NUM_9190_DEC_PP)))                        
-                ret = -EFAULT;
-            else
-                ret = 0;
-            kfree(tmp);
-            return ret;
-        }else{
-			ret = wait_event_interruptible_timeout(session->wait, !list_empty(&session->done), VPU_TIMEOUT_DELAY);
+			int ret = wait_event_interruptible_timeout(session->wait, !list_empty(&session->done), VPU_TIMEOUT_DELAY);
 			if (!list_empty(&session->done)) {
 				if (ret < 0) {
 					pr_err("warning: pid %d wait task sucess but wait_evernt ret %d\n", session->pid, ret);
@@ -864,7 +851,6 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd, unsigned long
 				return ret;
 			}
 		}
-        }
 		mutex_lock(&service.lock);
 		reg = list_entry(session->done.next, vpu_reg, session_link);
 		return_reg(reg, (u32 __user *)req.req);

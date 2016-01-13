@@ -61,9 +61,7 @@ MODULE_DESCRIPTION("driver module for 8170/81990 Hantro decoder/pp");
 
 /* Decoder interrupt register */
 #define X170_INTERRUPT_REGISTER_DEC     (1*4)
-//#define X170_INTERRUPT_REGISTER_DEC     (1)
 #define X170_INTERRUPT_REGISTER_PP      (60*4)
-//#define X170_INTERRUPT_REGISTER_PP      (60)
 
 /* Logic module base address */
 #define HXDEC_LOGIC_MODULE0_BASE   0xC0000000
@@ -128,8 +126,6 @@ typedef struct
     int dec_irq;
     int pp_irq;
 #endif
-    atomic_t		irq_count_codec;
-	atomic_t		irq_count_pp;
 } hx170dec_t;
 
 static hx170dec_t hx170dec_data;
@@ -147,13 +143,12 @@ static void ResetAsic(hx170dec_t * dev);
 static void dump_regs(unsigned long data);
 #endif
 
-static int irq_def = DEC_IRQ;
-module_param(irq_def, int, S_IRUGO);
-
 /* IRQ handler */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18))
+static irqreturn_t hx170dec_isr(int irq, void *dev_id, struct pt_regs *regs);
+#else
 static irqreturn_t hx170dec_isr(int irq, void *dev_id);
-static irqreturn_t hx170dec_thread(int irq, void *dev_id);
-
+#endif
 //***********************************From RockChip vpu_service***************************
 #define MHZ					(1000*1000)
 
@@ -607,7 +602,7 @@ int __init hx170dec_init(void)
 
     hx170dec_data.dec_io_offset = DEC_IO_OFFSET;
     hx170dec_data.dec_io_size = DEC_IO_SIZE;
-    hx170dec_data.irq = irq_def;
+    hx170dec_data.irq = DEC_IRQ;
 
     PDEBUG("module init\n");
 
@@ -631,9 +626,6 @@ int __init hx170dec_init(void)
 
 //	INIT_DELAYED_WORK(&service.power_off_work, vpu_power_off_work);
 //***********************
-	atomic_set(&hx170dec_data.irq_count_codec, 0);
-	atomic_set(&hx170dec_data.irq_count_pp, 0);
-    
 	vpu_service_set_freq(VPU_FREQ_266M);
 
 	result = vpu_service_power_on();
@@ -682,7 +674,13 @@ int __init hx170dec_init(void)
     /* get the IRQ line */
     if(hx170dec_data.irq > 0)
     {
-        result = request_threaded_irq(hx170dec_data.irq, hx170dec_isr, hx170dec_thread, 0, "vdpu", (void *)&hx170dec_data);
+        result = request_irq(hx170dec_data.irq, hx170dec_isr,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18))
+                             SA_INTERRUPT | SA_SHIRQ,
+#else
+                             IRQF_DISABLED | IRQF_SHARED,
+#endif
+                             "hx170dec", (void *) &hx170dec_data);
         if(result != 0)
         {
             if(result == -EINVAL)
@@ -782,7 +780,8 @@ static int CheckHwId(hx170dec_t * dev)
     {
         if(hwid == DecHwId[numHw])
         {
-            printk(KERN_INFO "hx170dec: Compatible HW found at 0x%08lx\n", dev->dec_hwregs);
+            printk(KERN_INFO "hx170dec: Compatible HW found at offset 0x%08lx\n",
+                   dev->dec_io_offset);
             return 1;
         }
     }
@@ -843,65 +842,90 @@ static void ReleaseIO(void)
     Description     : interrupt handler
     Return type     : irqreturn_t
 ------------------------------------------------------------------------------*/
-static irqreturn_t hx170dec_isr(int irq, void *dev_id)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18))
+irqreturn_t hx170dec_isr(int irq, void *dev_id, struct pt_regs *regs)
+#else
+irqreturn_t hx170dec_isr(int irq, void *dev_id)
+#endif
 {
-	hx170dec_t *dev = (hx170dec_t *) dev_id;
-	u32 irq_status = readl(dev->dec_hwregs + X170_INTERRUPT_REGISTER_DEC);
+    unsigned int handled = 0;
 
-	PDEBUG("vdpu_irq\n");
-
-	if (irq_status & HX_DEC_INTERRUPT_BIT) {
-		PDEBUG("vdpu_isr dec %x\n", irq_status);
-		if ((irq_status & 0x40001) == 0x40001)
-		{
-			do {
-				irq_status = readl(dev->dec_hwregs + X170_INTERRUPT_REGISTER_DEC);
-			} while ((irq_status & 0x40001) == 0x40001);
-		}
-		/* clear dec IRQ */
-		writel(irq_status & (~HX_DEC_INTERRUPT_BIT), dev->dec_hwregs + X170_INTERRUPT_REGISTER_DEC);
-		atomic_add(1, &dev->irq_count_codec);
-	}
-
-	irq_status  = readl(dev->dec_hwregs + X170_INTERRUPT_REGISTER_PP);
-	if (irq_status & HX_PP_INTERRUPT_BIT) {
-		PDEBUG("vdpu_isr pp  %x\n", irq_status);
-		/* clear pp IRQ */
-		writel(irq_status & (~HX_PP_INTERRUPT_BIT), dev->dec_hwregs + X170_INTERRUPT_REGISTER_PP);
-		atomic_add(1, &dev->irq_count_pp);
-	}
-
-	return IRQ_WAKE_THREAD;
-}
-
-irqreturn_t hx170dec_thread(int irq, void *dev_id)
-{
     hx170dec_t *dev = (hx170dec_t *) dev_id;
+    u32 irq_status_dec;
+    u32 irq_status_pp;
 
-//mutex_lock(&service.lock);
-    if(atomic_read(&dev->irq_count_codec))
+    handled = 0;
+
+    /* interrupt status register read */
+    irq_status_dec = readl(dev->dec_hwregs + X170_INTERRUPT_REGISTER_DEC);
+    irq_status_pp = readl(dev->dec_hwregs + X170_INTERRUPT_REGISTER_PP);
+
+    if((irq_status_dec & HX_DEC_INTERRUPT_BIT) ||
+       (irq_status_pp & HX_PP_INTERRUPT_BIT))
     {
+
+        if(irq_status_dec & HX_DEC_INTERRUPT_BIT)
+        {
 #ifdef HW_PERFORMANCE
             do_gettimeofday(&end_time);
 #endif
-		atomic_sub(1, &dev->irq_count_codec);
-		hx170dec_data.dec_irq = 1;
-    }
+            /* clear dec IRQ */
+            writel(irq_status_dec & (~HX_DEC_INTERRUPT_BIT),
+                   dev->dec_hwregs + X170_INTERRUPT_REGISTER_DEC);
+#ifdef ENABLE_FASYNC
+            /* fasync kill for decoder instances */
+            if(dev->async_queue_dec != NULL)
+            {
+                kill_fasync(&dev->async_queue_dec, SIGIO, POLL_IN);
+            }
+            else
+            {
+                printk(KERN_WARNING
+                       "hx170dec: DEC IRQ received w/o anybody waiting for it!\n");
+            }
+#else
+            hx170dec_data.dec_irq = 1;
+#endif
+            PDEBUG("decoder IRQ received!\n");
+        }
 
-    if(atomic_read(&dev->irq_count_pp))
-    {
+        if(irq_status_pp & HX_PP_INTERRUPT_BIT)
+        {
 #ifdef HW_PERFORMANCE
             do_gettimeofday(&end_time);
 #endif
+            /* clear pp IRQ */
+            writel(irq_status_pp & (~HX_PP_INTERRUPT_BIT),
+                   dev->dec_hwregs + X170_INTERRUPT_REGISTER_PP);
+#ifdef ENABLE_FASYNC
+            /* kill fasync for PP instances */
+            if(dev->async_queue_pp != NULL)
+            {
+                kill_fasync(&dev->async_queue_pp, SIGIO, POLL_IN);
+            }
+            else
+            {
+                printk(KERN_WARNING
+                       "hx170dec: PP IRQ received w/o anybody waiting for it!\n");
+            }
+#else
+            hx170dec_data.pp_irq = 1;
+#endif
+            PDEBUG("pp IRQ received!\n");
+        }
 
-		atomic_sub(1, &dev->irq_count_pp);
-		hx170dec_data.pp_irq = 1;
-
-    }
+        handled = 1;
+#ifndef ENABLE_FASYNC
 //        wake_up_interruptible_sync(&hx170dec_data.wait);
-    if(hx170dec_data.pp_irq || hx170dec_data.dec_irq)
         wake_up_interruptible_all(&hx170dec_data.wait);
+#endif
+    }
+    else
+    {
+        PDEBUG("IRQ received, but not x170's!\n");
+    }
 
+//    return IRQ_RETVAL(handled);
     return IRQ_HANDLED;
 }
 

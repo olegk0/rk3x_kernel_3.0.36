@@ -380,7 +380,6 @@ static int rk_fb_open(struct fb_info *info,int user)
     {
     	dev_drv->open(dev_drv,layer_id,1);
 #ifdef CONFIG_IAM_CHANGES
-        atomic_set(&dev_drv->layer_par[layer_id]->used, 0);
         dev_drv->layer_par[layer_id]->vsync = 1;
 #endif
     }
@@ -871,16 +870,6 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
     			return -ETIMEDOUT;
             }
             break;
-		case RK_FBIOSET_USED:
-			if (copy_from_user(&enable, argp, sizeof(enable)))
-				return -EFAULT;
-            atomic_set(&par->used, enable);
-			break;
-		case RK_FBIOGET_USED:
-            enable = atomic_read(&par->used);
-			if(copy_to_user(argp,&enable,sizeof(enable)))
-				return -EFAULT;
-			break;
 #endif
 		case RK_FBIOSET_ENABLE:
 			if (copy_from_user(&enable, argp, sizeof(enable)))

@@ -31,11 +31,8 @@
 #include <linux/io.h>
 
 #include <mach/rk29_nand.h>
-#include <mach/io.h>
+#include <mach/rk29_iomap.h>
 #include <mach/iomux.h>
-
-#define RK29_RESERVE_BLOCK_NUM    5
-#define CONFIG_MTD_PARTITIONS y
 
 #define PROGRAM_BUSY_COUNT   10000
 #define ERASE_BUSY_COUNT	    20000
@@ -1358,20 +1355,20 @@ static int rk29_nand_probe(struct platform_device *pdev)
 
 
 #ifdef CONFIG_MTD_PARTITIONS
-	num_partitions = parse_mtd_partitions(mtd, part_probes, &partitions, 0);
+        num_partitions = parse_mtd_partitions(mtd, part_probes, &partitions, 0);
 	if (num_partitions > 0) {
 		printk(KERN_INFO "Using commandline partition definition\n");
-		mtd_device_register(mtd, partitions, num_partitions);//add_mtd_partitions(mtd, partitions, num_partitions);
-		if(partitions)
-			kfree(partitions);
+              add_mtd_partitions(mtd, partitions, num_partitions);
+                if(partitions)
+		 kfree(partitions);
 	} else if (pdata->nr_parts) {
 		printk(KERN_INFO "Using board partition definition\n");
-		mtd_device_register(mtd, pdata->parts, pdata->nr_parts);//add_mtd_partitions(mtd, pdata->parts, pdata->nr_parts);
+		add_mtd_partitions(mtd, pdata->parts, pdata->nr_parts);
 	} else
 #endif
 	{
 		printk(KERN_INFO "no partition info available, registering whole flash at once\n");
-		mtd_device_register(mtd, NULL, 0);//		add_mtd_device(mtd);
+		add_mtd_device(mtd);
 	}
 
 	platform_set_drvdata(pdev, master);

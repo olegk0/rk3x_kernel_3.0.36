@@ -67,9 +67,6 @@
 #define RK_FBIOGET_LIST_STAT   		0X4631
 
 #ifdef CONFIG_IAM_CHANGES
-#define RK_FBIOSET_USED		0x5101	
-#define RK_FBIOGET_USED		0x5102
-
 #define FB_MAXPGSIZE 1920*1080*4
 #endif
 
@@ -255,7 +252,6 @@ struct layer_par {
 	u32 reserved;
 #ifdef CONFIG_IAM_CHANGES
 	bool vsync;
-	atomic_t used;
 #endif
 };
 

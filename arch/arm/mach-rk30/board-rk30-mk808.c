@@ -166,6 +166,45 @@ static struct spi_board_info board_spi_devices[] = {
 
 #ifdef CONFIG_IAM_CHANGES
 
+//for test
+//#define CONFIG_MTD_NAND_RK29
+#ifdef CONFIG_MTD_NAND_RK29
+#include <mach/rk29_nand.h>
+
+static int rk29_nand_io_init(void)
+{
+    return 0;
+}
+
+struct rk29_nand_platform_data rk29_nand_data = {
+    .width      = 1,     /* data bus width in bytes */
+    .hw_ecc     = 1,     /* hw ecc 0: soft ecc */
+    .num_flash    = 1,
+    .io_init   = rk29_nand_io_init,
+};
+
+static struct resource nand_resources[] = {
+    {
+        .start  = RK30_NANDC_PHYS,
+        .end    = RK30_NANDC_PHYS+RK30_NANDC_SIZE -1,
+        .flags  = IORESOURCE_MEM,
+    }
+};
+
+struct platform_device rk29_device_nand = {
+    .name   = "rk29-nand",
+    .id     =  -1,
+    .resource   = nand_resources,
+    .num_resources= ARRAY_SIZE(nand_resources),
+    .dev    = {
+        .platform_data= &rk29_nand_data,
+    },
+
+};
+
+
+#endif
+
 #define PWM_MUX_NAME      GPIO0A3_PWM0_NAME
 #define PWM_MUX_MODE_GPIO GPIO0A_GPIO0A3
 #define PWM_GPIO         RK30_PIN0_PA3
@@ -896,6 +935,9 @@ static struct platform_device *devices[] __initdata = {
 	&power_led_pwm,
 #endif
 	&rk_device_mmedia,
+#ifdef CONFIG_MTD_NAND_RK29
+	&rk29_device_nand,
+#endif
 #endif
 };
 

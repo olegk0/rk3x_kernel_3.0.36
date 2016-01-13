@@ -78,18 +78,18 @@ static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size, int ref_id)
 			break;
 		}
 	}
-    mutex_unlock(&usi_lock);
+//    mutex_unlock(&usi_lock);
 
     if(!find){
 		DDEBUG(1, "Free buf Not found");
-		return NULL;
+		goto err;
 	}
 	
 	if(umbs->uum.size > size){
 		new_umbs = kzalloc(sizeof(*new_umbs), GFP_KERNEL);
 		if(!new_umbs){
 			DDEBUG(1,"Don`t allocate mem");
-			return NULL;
+			goto err;
 		}
 	}
 
@@ -103,7 +103,7 @@ static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size, int ref_id)
 	}
 	secure_id = ump_dd_secure_id_get(umh);//UMP_INVALID_SECURE_ID
 
-	mutex_lock(&usi_lock);
+//	mutex_lock(&usi_lock);
 	if(new_umbs){// need resize block
 		new_umbs->uum.addr = upb.addr;
 		new_umbs->uum.size = size;
@@ -129,6 +129,8 @@ static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size, int ref_id)
 err_free:
 	if(new_umbs)
 		kfree(new_umbs);
+err:
+	mutex_unlock(&usi_lock);
 	return NULL;
 }
 
@@ -158,12 +160,12 @@ static int usi_ump_free_mb(int ref_id, ump_secure_id secure_id)
                 break;
 		}
     }
-    mutex_unlock(&usi_lock);
+//    mutex_unlock(&usi_lock);
 
     if(find){
         DDEBUG(3, "Mem block released");
 //defrag
-		mutex_lock(&usi_lock);
+//		mutex_lock(&usi_lock);
 		list_for_each_entry_safe(umbs, tumbs, &usi_list, node) {
 			if(umbs_prev && umbs_prev->stat == MB_FREE && umbs->stat == MB_FREE){
 				umbs->uum.size += umbs_prev->uum.size;
@@ -174,11 +176,12 @@ static int usi_ump_free_mb(int ref_id, ump_secure_id secure_id)
 			}
 			umbs_prev = umbs;
 		}
-		mutex_unlock(&usi_lock);
+//		mutex_unlock(&usi_lock);
     }else{
 		DDEBUG(1, "Mem block don`t found");
 		ret = -ENODEV;
     }
+	mutex_unlock(&usi_lock);
     DDEBUG(2, "--------used:%d", usi_priv.used);
     return ret;
 }
@@ -227,7 +230,7 @@ int usi_ump_release(struct inode *inode, struct file *file)
     mutex_lock(&usi_lock);    
     usi_priv.con_ids[cnt-1] = 0;
     mutex_unlock(&usi_lock);
-    
+    DDEBUG(3, "id:%d", cnt);
     return 0;
 }
 
@@ -246,7 +249,7 @@ int usi_ump_open(struct inode *inode, struct file *file)
         file->private_data = (void *)cnt;
     }
     mutex_unlock(&usi_lock);
-    
+    DDEBUG(3, "id:%d", cnt);
     return ret;
 }
 

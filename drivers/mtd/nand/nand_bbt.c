@@ -1276,6 +1276,7 @@ int nand_update_bbt(struct mtd_info *mtd, loff_t offs)
 	kfree(buf);
 	return res;
 }
+EXPORT_SYMBOL(nand_update_bbt);
 
 /* Define some generic bad / good block scan pattern which are used
  * while scanning a device for factory marked good / bad blocks. */

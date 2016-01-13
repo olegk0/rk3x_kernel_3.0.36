@@ -938,16 +938,19 @@ static unsigned char cursor_buf[CURSOR_BUF_SIZE];
 static int rk30_cursor_set_image(struct rk_lcdc_device_driver *dev_drv, char *imgdata)
 {
 	struct rk30_lcdc_device *lcdc_dev = container_of(dev_drv,struct rk30_lcdc_device,driver);
-//	unsigned long flags;
-	
-//	spin_lock_irqsave(&lcdc_dev->reg_lock,flags);
+
     spin_lock(&lcdc_dev->reg_lock);
+    
+//IAM TODO next lines for test
+    lcdc_msk_reg(lcdc_dev, SYS_CTRL0, m_HWC_RELOAD_EN, v_HWC_RELOAD_EN(0));
+	lcdc_cfg_done(lcdc_dev);
+	msleep(20);
+    
     lcdc_writel(lcdc_dev, HWC_MST, __pa(cursor_buf));
     lcdc_msk_reg(lcdc_dev, SYS_CTRL0, m_HWC_RELOAD_EN, v_HWC_RELOAD_EN(1));
     lcdc_cfg_done(lcdc_dev);
 //need sync with vsync? or wait while data loaded
     spin_unlock(&lcdc_dev->reg_lock);
-//	spin_unlock_irqrestore(&lcdc_dev->reg_lock,flags);
 
     return 0;
 }
