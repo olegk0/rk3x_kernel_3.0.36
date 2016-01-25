@@ -26,7 +26,7 @@
 #include <linux/init.h>
 #include <linux/pci.h>
 #include <linux/time.h>
-#include <linux/moduleparam.h>
+#include <linux/module.h>
 #include <sound/core.h>
 #include <sound/emu10k1.h>
 #include <sound/initval.h>
@@ -181,8 +181,10 @@ static int __devinit snd_card_emu10k1_probe(struct pci_dev *pci,
 	}
 #endif
  
-	strcpy(card->driver, emu->card_capabilities->driver);
-	strcpy(card->shortname, emu->card_capabilities->name);
+	strlcpy(card->driver, emu->card_capabilities->driver,
+		sizeof(card->driver));
+	strlcpy(card->shortname, emu->card_capabilities->name,
+		sizeof(card->shortname));
 	snprintf(card->longname, sizeof(card->longname),
 		 "%s (rev.%d, serial:0x%x) at 0x%lx, irq %i",
 		 card->shortname, emu->revision, emu->serial, emu->port, emu->irq);
@@ -264,7 +266,7 @@ static int snd_emu10k1_resume(struct pci_dev *pci)
 #endif
 
 static struct pci_driver driver = {
-	.name = "EMU10K1_Audigy",
+	.name = KBUILD_MODNAME,
 	.id_table = snd_emu10k1_ids,
 	.probe = snd_card_emu10k1_probe,
 	.remove = __devexit_p(snd_card_emu10k1_remove),

@@ -568,14 +568,11 @@ static int dwc_otg_pcd_ep_queue(struct usb_ep *_ep,
 	/* 20091226,HSL@RK */
 	if ( !list_empty(&req->queue) ) 
 	{
-		list_del_init(&req->queue);
-		ep = container_of(_ep, dwc_otg_pcd_ep_t, ep);
-		DWC_PRINT("%s::ep %s req not empty,done it error!\n" , __func__, _ep->name);
-		ep->pcd->vbus_status = 0;
-		if(ep->pcd->conn_status)
-		{
-			ep->pcd->conn_status = 0;
-		}
+        while(!list_empty(&req->queue) ) {
+                ep = container_of(_ep, dwc_otg_pcd_ep_t, ep);
+                request_done(ep, req, -ECONNABORTED);
+        DWC_PRINT("%s::ep %s req not empty,done it error!\n" , __func__, _ep->name);
+        }
 		return -EINVAL;
 	}
 	
@@ -665,13 +662,7 @@ static int dwc_otg_pcd_ep_queue(struct usb_ep *_ep,
 					pcd->ep0state = EP0_STATUS;
 				}
 				break;
-				
-			case EP0_STATUS:
- 				DWC_DEBUGPL(DBG_PCD,
- 					    "%s ep0: EP0_IN_STATUS_PHASE\n",
- 					    __func__);
- 				break;
- 				
+						
 			default:
 				DWC_DEBUGPL(DBG_ANY, "ep0: odd state %d\n", 
 											pcd->ep0state);
@@ -1782,8 +1773,7 @@ static void dwc_otg_pcd_check_vbus_timer( unsigned long data )
         { 
             pldata->clock_enable( pldata, 1);		
             pldata->phy_suspend(pldata, USB_PHY_ENABLED);
-        }
-        dwc_otg_enable_global_interrupts(otg_dev->core_if);
+        } 
     }
 	else if(pldata->get_status(USB_STATUS_BVABLID))
 	{  // bvalid
@@ -1793,10 +1783,7 @@ static void dwc_otg_pcd_check_vbus_timer( unsigned long data )
             DWC_PRINT("********vbus detect*********************************************\n");
     	    _pcd->vbus_status = 1;
             if(_pcd->conn_en)
-            {        
-                otg_dev->core_if->pcd_cb->stop(otg_dev->core_if->pcd_cb->p);
                 goto connect;
-            }
             else if( pldata->phy_status == USB_PHY_ENABLED )
             {
                 // not connect, suspend phy
@@ -1833,6 +1820,7 @@ static void dwc_otg_pcd_check_vbus_timer( unsigned long data )
         if(_pcd->conn_status)
         {
              _pcd->conn_status = 0;
+             dwc_otg_msc_unlock(_pcd);
         }
         else if( pldata->phy_status == USB_PHY_ENABLED )
         { 
@@ -1843,8 +1831,6 @@ static void dwc_otg_pcd_check_vbus_timer( unsigned long data )
             /* usb phy bypass to uart mode  */
             if( pldata->dwc_otg_uart_mode != NULL )
                 pldata->dwc_otg_uart_mode( pldata, PHY_UART_MODE);    
-            /* release wake lock */
-            dwc_otg_msc_unlock(_pcd);
         }  
     }
     add_timer(&_pcd->check_vbus_timer); 

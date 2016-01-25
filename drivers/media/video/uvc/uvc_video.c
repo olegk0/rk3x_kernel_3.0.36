@@ -750,8 +750,6 @@ static void uvc_video_complete_fun (struct urb *urb)
 	struct uvc_buffer *buf = NULL;
 	unsigned long flags;
 	int ret;
-	int i;
-	atomic_t *urb_state=NULL;
 
 	switch (urb->status) {
 	case 0:
@@ -771,33 +769,14 @@ static void uvc_video_complete_fun (struct urb *urb)
 		return;
 	}
 
-    for (i = 0; i < UVC_URBS; ++i) {    
-        if (stream->urb[i] == urb) {
-            urb_state = &stream->urb_state[i];
-            break;
-        }
-    }
-
-    if (urb_state == NULL) {
-        printk("urb(%p) cann't be finded in stream->urb(%p, %p, %p, %p, %p)\n",
-              urb,stream->urb[0],stream->urb[1],stream->urb[2],stream->urb[3],stream->urb[4]);
-        BUG();
-    }
-	
-	if (atomic_read(urb_state)==UrbDeactive) {
-	    printk(KERN_DEBUG "urb is deactive, this urb complete cancel!");
-		uvc_queue_cancel(queue, urb->status == -ESHUTDOWN);
-	    return;
-	}
-
 	spin_lock_irqsave(&queue->irqlock, flags);
 	if (!list_empty(&queue->irqqueue))
 		buf = list_first_entry(&queue->irqqueue, struct uvc_buffer,
 				       queue);
-    spin_unlock_irqrestore(&queue->irqlock, flags);	
-    
+	spin_unlock_irqrestore(&queue->irqlock, flags);
+
 	stream->decode(urb, stream, buf);
-	
+
 	if ((ret = usb_submit_urb(urb, GFP_ATOMIC)) < 0) {
 		uvc_printk(KERN_ERR, "Failed to resubmit video URB (%d).\n",
 			ret);
@@ -805,9 +784,18 @@ static void uvc_video_complete_fun (struct urb *urb)
 }
 static void uvc_video_complete_tasklet(unsigned long data)
 {
-    struct urb *urb = (struct urb*)data;   
+    struct urb *urb = (struct urb*)data;
+    struct uvc_streaming *stream = urb->context;
+    struct tasklet_struct *tasklet = NULL;
+    int i;
     
-    uvc_video_complete_fun(urb);    
+    uvc_video_complete_fun(urb);
+    for (i = 0; i < UVC_URBS; ++i) {    
+        if (stream->urb[i] == urb) {
+            tasklet = stream->tasklet[i];
+            break;
+        }
+    }
     
     return;
 }
@@ -816,17 +804,15 @@ static void uvc_video_complete(struct urb *urb)
     int i;
     struct uvc_streaming *stream = urb->context;
     struct tasklet_struct *tasklet = NULL;
-    atomic_t *urb_state;
     
     for (i = 0; i < UVC_URBS; ++i) {    
         if (stream->urb[i] == urb) {
             tasklet = stream->tasklet[i];
-            urb_state = &stream->urb_state[i];
             break;
         }
     }
 
-    if ((tasklet != NULL)&&(atomic_read(urb_state)==UrbActive)) {
+    if (tasklet != NULL) {
         tasklet_schedule(tasklet);
     } else {
         uvc_video_complete_fun(urb);
@@ -917,9 +903,8 @@ static void uvc_uninit_video(struct uvc_streaming *stream, int free_buffers)
 		urb = stream->urb[i];
 		if (urb == NULL)
 			continue;
-		else
-		    atomic_set(&stream->urb_state[i],UrbDeactive);
-		
+
+        /* ddl@rock-chips.com: Tasklet must be kill before kill urb in uninit */
         if (stream->tasklet[i]) {
             tasklet_kill(stream->tasklet[i]);
             kfree(stream->tasklet[i]);
@@ -984,7 +969,6 @@ static int uvc_init_video_isoc(struct uvc_streaming *stream,
 
 		stream->urb[i] = urb;
         /* ddl@rock-chips.com  */
-        atomic_set(&stream->urb_state[i],UrbActive);
         stream->tasklet[i] = kmalloc(sizeof(struct tasklet_struct), GFP_KERNEL);
         if (stream->tasklet[i] == NULL) {
             uvc_printk(KERN_ERR, "device %s requested tasklet memory fail!\n",

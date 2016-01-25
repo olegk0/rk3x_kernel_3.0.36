@@ -3,7 +3,7 @@
 
 #include <mach/sram.h>
 
-#define	TWL60xx_IRQ_BASE	IRQ_BOARD_BASE
+#define	TWL60xx_IRQ_BASE	(NR_GIC_IRQS + NR_GPIO_IRQS  )
 #ifdef CONFIG_TWL4030_CORE
 #define	TWL60xx_BASE_NR_IRQS	24
 #else

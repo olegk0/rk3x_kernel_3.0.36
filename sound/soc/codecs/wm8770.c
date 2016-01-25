@@ -14,6 +14,7 @@
 #include <linux/moduleparam.h>
 #include <linux/init.h>
 #include <linux/delay.h>
+#include <linux/of_device.h>
 #include <linux/pm.h>
 #include <linux/platform_device.h>
 #include <linux/spi/spi.h>
@@ -162,8 +163,8 @@ static const char *ain_text[] = {
 	"AIN5", "AIN6", "AIN7", "AIN8"
 };
 
-static const struct soc_enum ain_enum =
-	SOC_ENUM_DOUBLE(WM8770_ADCMUX, 0, 4, 8, ain_text);
+static SOC_ENUM_DOUBLE_DECL(ain_enum,
+			    WM8770_ADCMUX, 0, 4, ain_text);
 
 static const struct snd_kcontrol_new ain_mux =
 	SOC_DAPM_ENUM("Capture Mux", ain_enum);
@@ -684,6 +685,12 @@ static struct snd_soc_codec_driver soc_codec_dev_wm8770 = {
 	.reg_cache_default = wm8770_reg_defs
 };
 
+static const struct of_device_id wm8770_of_match[] = {
+	{ .compatible = "wlf,wm8770", },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, wm8770_of_match);
+
 #if defined(CONFIG_SPI_MASTER)
 static int __devinit wm8770_spi_probe(struct spi_device *spi)
 {
@@ -715,6 +722,7 @@ static struct spi_driver wm8770_spi_driver = {
 	.driver = {
 		.name = "wm8770",
 		.owner = THIS_MODULE,
+		.of_match_table = wm8770_of_match,
 	},
 	.probe = wm8770_spi_probe,
 	.remove = __devexit_p(wm8770_spi_remove)

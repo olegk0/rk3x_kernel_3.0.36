@@ -17,9 +17,11 @@
 
 struct i2c_client * rk1000_control_client = NULL;
 
+//Galland: to avoid losing RK1000 TV_OUT functionality, I leave this file here
+//   even though it's not included in JB kernel. To make it work I modified
+//   the last "#if 1" in sound/soc/codecs/rk1000_codec.c to "#if 0"
 
 
-#if 0
 int reg_send_data(struct i2c_client *client, const char start_reg,
 				const char *buf, int count, unsigned int scl_rate)
 {
@@ -28,7 +30,7 @@ int reg_send_data(struct i2c_client *client, const char start_reg,
     ret = i2c_master_reg8_send(client, start_reg, buf, (int)count, 20*1000);
     return ret;  
 }
-#endif
+
 
 static int rk1000_control_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
@@ -53,28 +55,16 @@ static int rk1000_control_probe(struct i2c_client *client,
 		DBG("got i2s clk ok!\n");
 		clk_enable(iis_clk);
 		clk_set_rate(iis_clk, 11289600);
-		#if defined(CONFIG_ARCH_RK29)
+		#ifdef CONFIG_ARCH_RK29
 		rk29_mux_api_set(GPIO2D0_I2S0CLK_MIIRXCLKIN_NAME, GPIO2H_I2S0_CLK);
-		#elif defined(CONFIG_ARCH_RK30)
-		rk30_mux_api_set(GPIO0B0_I2S8CHCLK_NAME, GPIO0B_I2S_8CH_CLK);
 		#else
-		iomux_set(I2S0_MCLK);
+		rk30_mux_api_set(GPIO0B0_I2S8CHCLK_NAME, GPIO0B_I2S_8CH_CLK);
 		#endif
 		clk_put(iis_clk);
 	}
     
     if(client->dev.platform_data) {
 		tv_data = client->dev.platform_data;
-		if(tv_data->io_pwr_pin != INVALID_GPIO) {
-	    	ret = gpio_request(tv_data->io_pwr_pin, "rk1000 pwr");
-		    if (ret){   
-		        printk("rk1000_control_probe request pwr gpio fail\n");
-		        //goto err1;
-		    }
-		    
-		    gpio_set_value(tv_data->io_pwr_pin, GPIO_HIGH);
-			gpio_free(tv_data->io_pwr_pin);
-		}
 		if(tv_data->io_reset_pin != INVALID_GPIO) {
 	    	ret = gpio_request(tv_data->io_reset_pin, "rk1000 reset");
 		    if (ret){   

@@ -52,3 +52,6 @@ obj-$(CONFIG_USB_RENESAS_USBHS)	+= renesas_usbhs/
 obj-$(CONFIG_USB_OTG_UTILS)	+= otg/
 obj-$(CONFIG_DWC_OTG)		+= dwc_otg/
 obj-$(CONFIG_USB_GADGET)	+= gadget/
+obj-$(CONFIG_ES603_PROTOCOL_DRIVER) += drv_es603usb/
+obj-$(CONFIG_SS801_PROTOCOL_DRIVER) += ES603_driver/
+

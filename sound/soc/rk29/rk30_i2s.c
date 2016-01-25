@@ -38,7 +38,7 @@
 #include "rk29_pcm.h"
 #include "rk29_i2s.h"
 
-#define ANDROID_REC
+//#define ANDROID_REC
 #if 0
 #define I2S_DBG(x...) printk(KERN_INFO x)
 #else
@@ -431,34 +431,34 @@ static int i2s_set_gpio_mode(struct snd_soc_dai *dai)
             break;
 #elif defined(CONFIG_ARCH_RK30)
         case 0:
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S0_MCLK));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S0_SCLK));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S0_LRCKRX));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S0_LRCKTX));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S0_SDI));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S0_SDO0));
-            #ifdef CONFIG_SND_I2SO_USE_EIGHT_CHANNELS
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S0_SDO1));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S0_SDO2));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S0_SDO3));
-            #endif
-			break;
+		rk30_mux_api_set(GPIO0A7_I2S8CHSDI_NAME, GPIO0A_GPIO0A7);
+		rk30_mux_api_set(GPIO0B0_I2S8CHCLK_NAME, GPIO0B_GPIO0B0);
+		rk30_mux_api_set(GPIO0B1_I2S8CHSCLK_NAME, GPIO0B_GPIO0B1);
+		rk30_mux_api_set(GPIO0B2_I2S8CHLRCKRX_NAME, GPIO0B_GPIO0B2);
+		rk30_mux_api_set(GPIO0B3_I2S8CHLRCKTX_NAME, GPIO0B_GPIO0B3);
+		rk30_mux_api_set(GPIO0B4_I2S8CHSDO0_NAME, GPIO0B_GPIO0B4);
+		#ifdef CONFIG_SND_I2SO_USE_EIGHT_CHANNELS
+		rk30_mux_api_set(GPIO0B5_I2S8CHSDO1_NAME, GPIO0B_GPIO0B5);
+		rk30_mux_api_set(GPIO0B6_I2S8CHSDO2_NAME, GPIO0B_GPIO0B6);
+		rk30_mux_api_set(GPIO0B7_I2S8CHSDO3_NAME, GPIO0B_GPIO0B7);
+		#endif
+		break;
         case 1:
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S1_MCLK));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S1_SCLK));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S1_LRCKRX));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S1_LRCKTX));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S1_SDI));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S1_SDO));
-			break;
+		rk30_mux_api_set(GPIO0C0_I2S12CHCLK_NAME, GPIO0C_GPIO0C0);
+		rk30_mux_api_set(GPIO0C1_I2S12CHSCLK_NAME, GPIO0C_GPIO0C1);
+		rk30_mux_api_set(GPIO0C2_I2S12CHLRCKRX_NAME, GPIO0C_GPIO0C2);
+		rk30_mux_api_set(GPIO0C3_I2S12CHLRCKTX_NAME, GPIO0C_GPIO0C3);
+		rk30_mux_api_set(GPIO0C4_I2S12CHSDI_NAME, GPIO0C_GPIO0C4);
+		rk30_mux_api_set(GPIO0C5_I2S12CHSDO_NAME, GPIO0C_GPIO0C5);
+		break;
         case 2:
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S2_MCLK));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S2_SCLK));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S2_LRCKRX));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S2_LRCKTX));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S2_SDI));
-            iomux_set_gpio_mode(iomux_mode_to_gpio(I2S2_SDO));
-            break;
+		rk30_mux_api_set(GPIO0D0_I2S22CHCLK_SMCCSN0_NAME, GPIO0D_GPIO0D0);
+		rk30_mux_api_set(GPIO0D1_I2S22CHSCLK_SMCWEN_NAME, GPIO0D_GPIO0D1);
+		rk30_mux_api_set(GPIO0D2_I2S22CHLRCKRX_SMCOEN_NAME, GPIO0D_GPIO0D2);
+		rk30_mux_api_set(GPIO0D3_I2S22CHLRCKTX_SMCADVN_NAME, GPIO0D_GPIO0D3);
+		rk30_mux_api_set(GPIO0D4_I2S22CHSDI_SMCADDR0_NAME, GPIO0D_GPIO0D4);
+		rk30_mux_api_set(GPIO0D5_I2S22CHSDO_SMCADDR1_NAME, GPIO0D_GPIO0D5);
+		break;
 #endif
 #if  defined(CONFIG_ARCH_RK2928) || defined(CONFIG_ARCH_RK3026)
         case 0:
@@ -655,7 +655,7 @@ static int __devinit rockchip_i2s_probe(struct platform_device *pdev)
 	
 	if(pdev->id >= MAX_I2S) {
 		dev_err(&pdev->dev, "id %d out of range\n", pdev->id);
-		return -EINVAL;        
+		return -EINVAL;
 	}
 
 	i2s = &rk29_i2s[pdev->id];
@@ -686,8 +686,13 @@ static int __devinit rockchip_i2s_probe(struct platform_device *pdev)
 	dai->playback.rates = SNDRV_PCM_RATE_8000_192000;
 	dai->playback.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE |
 		SNDRV_PCM_FMTBIT_S24_LE| SNDRV_PCM_FMTBIT_S32_LE;
+#ifdef CONFIG_SND_RK_SOC_HDMI_I2S
+	dai->capture.channels_min = 0;
+	dai->capture.channels_max = 0;
+#else
 	dai->capture.channels_min = 2;
 	dai->capture.channels_max = 2;
+#endif    
 	dai->capture.rates = ROCKCHIP_I2S_RATES;
 	dai->capture.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE;
 	dai->probe = rockchip_i2s_dai_probe; 

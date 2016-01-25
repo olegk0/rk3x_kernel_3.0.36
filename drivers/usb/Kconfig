@@ -170,4 +170,5 @@ source "drivers/usb/otg/Kconfig"
 
 source "drivers/usb/dwc_otg/Kconfig"
 
+source "drivers/usb/drv_es603usb/Kconfig"
 endif # USB_SUPPORT

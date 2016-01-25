@@ -2,7 +2,12 @@
 # all auto modem control drivers configuration
 #
 
-config BP_AUTO
-	bool "voice modem support"
+menuconfig BP_AUTO
+	bool "auto modem control driver support"
 	default n	
 
+if BP_AUTO
+
+	source "drivers/misc/bp/chips/Kconfig"
+
+endif

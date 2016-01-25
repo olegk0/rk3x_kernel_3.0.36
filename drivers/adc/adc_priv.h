@@ -72,8 +72,6 @@ struct adc_host {
         struct mutex m_lock;
         unsigned int client_count;
 	const struct adc_ops *ops;
-        struct adc_client *base_client;
-        struct adc_platform_data *pdata;
         unsigned long priv[0];
 };
 
@@ -81,9 +79,10 @@ static inline void *adc_priv(struct adc_host *adc)
 {
 	return adc->priv;
 }
-extern struct adc_host *g_adc;
+	
 struct adc_host *adc_alloc_host(struct device *dev, int extra, enum host_chn_mask mask);
 void adc_free_host(struct adc_host *adc);
 void adc_core_irq_handle(struct adc_host *adc);
+
 #endif
 

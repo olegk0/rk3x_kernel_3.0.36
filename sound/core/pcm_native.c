@@ -20,6 +20,7 @@
  */
 
 #include <linux/mm.h>
+#include <linux/module.h>
 #include <linux/file.h>
 #include <linux/slab.h>
 #include <linux/time.h>
@@ -1048,17 +1049,6 @@ static int snd_pcm_pause(struct snd_pcm_substream *substream, int push)
 	return snd_pcm_action(&snd_pcm_action_pause, substream, push);
 }
 
-/*
- * set volume.
- * add by qiuen
- */
-static int snd_pcm_vol(struct snd_pcm_substream *substream, int push)
-{
-	substream->number = push;
-
-	return substream->ops->trigger(substream, SNDRV_PCM_TRIGGER_VOLUME);
-}
-
 #ifdef CONFIG_PM
 /* suspend */
 
@@ -1392,6 +1382,8 @@ static int snd_pcm_do_drain_init(struct snd_pcm_substream *substream, int state)
 			if (! snd_pcm_playback_empty(substream)) {
 				snd_pcm_do_start(substream, SNDRV_PCM_STATE_DRAINING);
 				snd_pcm_post_start(substream, SNDRV_PCM_STATE_DRAINING);
+			} else {
+				runtime->status->state = SNDRV_PCM_STATE_SETUP;
 			}
 			break;
 		case SNDRV_PCM_STATE_RUNNING:
@@ -2082,15 +2074,11 @@ EXPORT_SYMBOL(snd_pcm_open_substream);
 
 static int snd_pcm_open_file(struct file *file,
 			     struct snd_pcm *pcm,
-			     int stream,
-			     struct snd_pcm_file **rpcm_file)
+			     int stream)
 {
 	struct snd_pcm_file *pcm_file;
 	struct snd_pcm_substream *substream;
 	int err;
-
-	if (rpcm_file)
-		*rpcm_file = NULL;
 
 	err = snd_pcm_open_substream(pcm, stream, file, &substream);
 	if (err < 0)
@@ -2107,8 +2095,7 @@ static int snd_pcm_open_file(struct file *file,
 		substream->pcm_release = pcm_release_private;
 	}
 	file->private_data = pcm_file;
-	if (rpcm_file)
-		*rpcm_file = pcm_file;
+
 	return 0;
 }
 
@@ -2143,7 +2130,6 @@ static int snd_pcm_capture_open(struct inode *inode, struct file *file)
 static int snd_pcm_open(struct file *file, struct snd_pcm *pcm, int stream)
 {
 	int err;
-	struct snd_pcm_file *pcm_file;
 	wait_queue_t wait;
 
 	if (pcm == NULL) {
@@ -2161,7 +2147,7 @@ static int snd_pcm_open(struct file *file, struct snd_pcm *pcm, int stream)
 	add_wait_queue(&pcm->open_wait, &wait);
 	mutex_lock(&pcm->open_mutex);
 	while (1) {
-		err = snd_pcm_open_file(file, pcm, stream, &pcm_file);
+		err = snd_pcm_open_file(file, pcm, stream);
 		if (err >= 0)
 			break;
 		if (err == -EAGAIN) {
@@ -2593,11 +2579,6 @@ static int snd_pcm_common_ioctl1(struct file *file,
 		return snd_pcm_drain(substream, file);
 	case SNDRV_PCM_IOCTL_DROP:
 		return snd_pcm_drop(substream);
-	/*add by qiuen for volume*/	
-	case SNDRV_PCM_IOCTL_VOL:
-		snd_pcm_vol(substream, (int)(unsigned long)arg);
-		return 0;
-	/**********end***********/
 	case SNDRV_PCM_IOCTL_PAUSE:
 	{
 		int res;
@@ -2610,10 +2591,6 @@ static int snd_pcm_common_ioctl1(struct file *file,
 	snd_printd("unknown ioctl = 0x%x\n", cmd);
 	return -ENOTTY;
 }
-#ifdef	CONFIG_FB_MIRRORING
-int (*audio_data_to_mirroring)(void* data,int size,int channel) = NULL;
-EXPORT_SYMBOL(audio_data_to_mirroring);
-#endif
 
 static int snd_pcm_playback_ioctl1(struct file *file,
 				   struct snd_pcm_substream *substream,
@@ -2636,13 +2613,6 @@ static int snd_pcm_playback_ioctl1(struct file *file,
 			return -EFAULT;
 		if (copy_from_user(&xferi, _xferi, sizeof(xferi)))
 			return -EFAULT;
-		#ifdef	CONFIG_FB_MIRRORING
-		
-		if(audio_data_to_mirroring!=NULL)
-		 	audio_data_to_mirroring(xferi.buf, xferi.frames*4,2);
-		
-		#endif
-
 		result = snd_pcm_lib_write(substream, xferi.buf, xferi.frames);
 		__put_user(result, &_xferi->result);
 		return result < 0 ? result : 0;
@@ -3206,8 +3176,8 @@ static const struct vm_operations_struct snd_pcm_vm_ops_data_fault = {
 /*
  * mmap the DMA buffer on RAM
  */
-static int snd_pcm_default_mmap(struct snd_pcm_substream *substream,
-				struct vm_area_struct *area)
+int snd_pcm_lib_default_mmap(struct snd_pcm_substream *substream,
+			     struct vm_area_struct *area)
 {
 	area->vm_flags |= VM_RESERVED;
 #ifdef ARCH_HAS_DMA_MMAP_COHERENT
@@ -3227,6 +3197,7 @@ static int snd_pcm_default_mmap(struct snd_pcm_substream *substream,
 	area->vm_ops = &snd_pcm_vm_ops_data_fault;
 	return 0;
 }
+EXPORT_SYMBOL_GPL(snd_pcm_lib_default_mmap);
 
 /*
  * mmap the DMA buffer on I/O memory area
@@ -3235,18 +3206,10 @@ static int snd_pcm_default_mmap(struct snd_pcm_substream *substream,
 int snd_pcm_lib_mmap_iomem(struct snd_pcm_substream *substream,
 			   struct vm_area_struct *area)
 {
-	long size;
-	unsigned long offset;
+	struct snd_pcm_runtime *runtime = substream->runtime;;
 
 	area->vm_page_prot = pgprot_noncached(area->vm_page_prot);
-	area->vm_flags |= VM_IO;
-	size = area->vm_end - area->vm_start;
-	offset = area->vm_pgoff << PAGE_SHIFT;
-	if (io_remap_pfn_range(area, area->vm_start,
-				(substream->runtime->dma_addr + offset) >> PAGE_SHIFT,
-				size, area->vm_page_prot))
-		return -EAGAIN;
-	return 0;
+	return vm_iomap_memory(area, runtime->dma_addr, runtime->dma_bytes);
 }
 
 EXPORT_SYMBOL(snd_pcm_lib_mmap_iomem);
@@ -3292,7 +3255,7 @@ int snd_pcm_mmap_data(struct snd_pcm_substream *substream, struct file *file,
 	if (substream->ops->mmap)
 		err = substream->ops->mmap(substream, area);
 	else
-		err = snd_pcm_default_mmap(substream, area);
+		err = snd_pcm_lib_default_mmap(substream, area);
 	if (!err)
 		atomic_inc(&substream->mmap_count);
 	return err;

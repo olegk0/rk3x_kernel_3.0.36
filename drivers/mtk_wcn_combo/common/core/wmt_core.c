@@ -1,10 +1,86 @@
+/* Copyright Statement:
+ *
+ * This software/firmware and related documentation ("MediaTek Software") are
+ * protected under relevant copyright laws. The information contained herein
+ * is confidential and proprietary to MediaTek Inc. and/or its licensors.
+ * Without the prior written permission of MediaTek inc. and/or its licensors,
+ * any reproduction, modification, use or disclosure of MediaTek Software,
+ * and information contained herein, in whole or in part, shall be strictly prohibited.
+ *
+ * MediaTek Inc. (C) 2010. All rights reserved.
+ *
+ * BY OPENING THIS FILE, RECEIVER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND AGREES
+ * THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK SOFTWARE")
+ * RECEIVED FROM MEDIATEK AND/OR ITS REPRESENTATIVES ARE PROVIDED TO RECEIVER ON
+ * AN "AS-IS" BASIS ONLY. MEDIATEK EXPRESSLY DISCLAIMS ANY AND ALL WARRANTIES,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NONINFRINGEMENT.
+ * NEITHER DOES MEDIATEK PROVIDE ANY WARRANTY WHATSOEVER WITH RESPECT TO THE
+ * SOFTWARE OF ANY THIRD PARTY WHICH MAY BE USED BY, INCORPORATED IN, OR
+ * SUPPLIED WITH THE MEDIATEK SOFTWARE, AND RECEIVER AGREES TO LOOK ONLY TO SUCH
+ * THIRD PARTY FOR ANY WARRANTY CLAIM RELATING THERETO. RECEIVER EXPRESSLY ACKNOWLEDGES
+ * THAT IT IS RECEIVER'S SOLE RESPONSIBILITY TO OBTAIN FROM ANY THIRD PARTY ALL PROPER LICENSES
+ * CONTAINED IN MEDIATEK SOFTWARE. MEDIATEK SHALL ALSO NOT BE RESPONSIBLE FOR ANY MEDIATEK
+ * SOFTWARE RELEASES MADE TO RECEIVER'S SPECIFICATION OR TO CONFORM TO A PARTICULAR
+ * STANDARD OR OPEN FORUM. RECEIVER'S SOLE AND EXCLUSIVE REMEDY AND MEDIATEK'S ENTIRE AND
+ * CUMULATIVE LIABILITY WITH RESPECT TO THE MEDIATEK SOFTWARE RELEASED HEREUNDER WILL BE,
+ * AT MEDIATEK'S OPTION, TO REVISE OR REPLACE THE MEDIATEK SOFTWARE AT ISSUE,
+ * OR REFUND ANY SOFTWARE LICENSE FEES OR SERVICE CHARGE PAID BY RECEIVER TO
+ * MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
+ *
+ * The following software/firmware and/or related documentation ("MediaTek Software")
+ * have been modified by MediaTek Inc. All revisions are subject to any receiver's
+ * applicable license agreements with MediaTek Inc.
+ */
+
+
 /*! \file
     \brief  Declaration of library functions
 
     Any definitions in this file will be shared among GLUE Layer and internal Driver Stack.
 */
 
+/*******************************************************************************
+* Copyright (c) 2009 MediaTek Inc.
+*
+* All rights reserved. Copying, compilation, modification, distribution
+* or any other use whatsoever of this material is strictly prohibited
+* except in accordance with a Software License Agreement with
+* MediaTek Inc.
+********************************************************************************
+*/
 
+/*******************************************************************************
+* LEGAL DISCLAIMER
+*
+* BY OPENING THIS FILE, BUYER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND
+* AGREES THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK
+* SOFTWARE") RECEIVED FROM MEDIATEK AND/OR ITS REPRESENTATIVES ARE
+* PROVIDED TO BUYER ON AN "AS-IS" BASIS ONLY. MEDIATEK EXPRESSLY
+* DISCLAIMS ANY AND ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+* LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+* PARTICULAR PURPOSE OR NONINFRINGEMENT. NEITHER DOES MEDIATEK PROVIDE
+* ANY WARRANTY WHATSOEVER WITH RESPECT TO THE SOFTWARE OF ANY THIRD PARTY
+* WHICH MAY BE USED BY, INCORPORATED IN, OR SUPPLIED WITH THE MEDIATEK
+* SOFTWARE, AND BUYER AGREES TO LOOK ONLY TO SUCH THIRD PARTY FOR ANY
+* WARRANTY CLAIM RELATING THERETO. MEDIATEK SHALL ALSO NOT BE RESPONSIBLE
+* FOR ANY MEDIATEK SOFTWARE RELEASES MADE TO BUYER'S SPECIFICATION OR TO
+* CONFORM TO A PARTICULAR STANDARD OR OPEN FORUM.
+*
+* BUYER'S SOLE AND EXCLUSIVE REMEDY AND MEDIATEK'S ENTIRE AND CUMULATIVE
+* LIABILITY WITH RESPECT TO THE MEDIATEK SOFTWARE RELEASED HEREUNDER WILL
+* BE, AT MEDIATEK'S OPTION, TO REVISE OR REPLACE THE MEDIATEK SOFTWARE AT
+* ISSUE, OR REFUND ANY SOFTWARE LICENSE FEES OR SERVICE CHARGE PAID BY
+* BUYER TO MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
+*
+* THE TRANSACTION CONTEMPLATED HEREUNDER SHALL BE CONSTRUED IN ACCORDANCE
+* WITH THE LAWS OF THE STATE OF CALIFORNIA, USA, EXCLUDING ITS CONFLICT
+* OF LAWS PRINCIPLES.  ANY DISPUTES, CONTROVERSIES OR CLAIMS ARISING
+* THEREOF AND RELATED THERETO SHALL BE SETTLED BY ARBITRATION IN SAN
+* FRANCISCO, CA, UNDER THE RULES OF THE INTERNATIONAL CHAMBER OF COMMERCE
+* (ICC).
+********************************************************************************
+*/
 
 /*******************************************************************************
 *                         C O M P I L E R   F L A G S
@@ -19,14 +95,13 @@
 #ifdef DFT_TAG
 #undef DFT_TAG
 #endif
-#define DFT_TAG         "[WMT-CORE]"
+#define DFT_TAG "[WMT-C]"
 
 
 /*******************************************************************************
 *                    E X T E R N A L   R E F E R E N C E S
 ********************************************************************************
 */
-#include "osal_typedef.h"
 
 #include "wmt_lib.h"
 #include "wmt_core.h"
@@ -102,9 +177,6 @@ P_WMT_FUNC_OPS gpWmtFuncOps[4] = {
 ********************************************************************************
 */
 
-static WMT_CTX gMtkWmtCtx;
-static UINT8 gLpbkBuf[WMT_LPBK_BUF_LEN] = {0}; 
-
 /*******************************************************************************
 *                  F U N C T I O N   D E C L A R A T I O N S
 ********************************************************************************
@@ -129,11 +201,11 @@ static INT32 opfunc_efuse_rw (P_WMT_OP pWmtOp);
 static INT32 opfunc_therm_ctrl (P_WMT_OP pWmtOp);
 static INT32 opfunc_gpio_ctrl (P_WMT_OP pWmtOp);
 static INT32 opfunc_sdio_ctrl (P_WMT_OP pWmtOp);
-static INT32 opfunc_pin_state (P_WMT_OP pWmtOp);
 static VOID wmt_core_dump_func_state (CHAR *pSource);
 static INT32 wmt_core_stp_init (VOID);
 static INT32 wmt_core_stp_deinit (VOID);
 static INT32 wmt_core_hw_check (VOID);
+static MTK_WCN_BOOL wmt_core_ic_ops_check (P_WMT_IC_OPS p_ops);
 
 
 
@@ -146,6 +218,9 @@ static INT32 wmt_core_hw_check (VOID);
 *                           P R I V A T E   D A T A
 ********************************************************************************
 */
+
+static WMT_CTX gMtkWmtCtx;
+static UINT8 gLpbkBuf[1024] = {0};
 
 const static UCHAR WMT_SLEEP_CMD[] = {0x01, 0x03, 0x01, 0x00, 0x01};
 const static UCHAR WMT_SLEEP_EVT[] = {0x02, 0x03, 0x02, 0x00, 0x00, 0x01};
@@ -199,7 +274,7 @@ static UCHAR WMT_SET_REG_WR_EVT[] = {0x02, 0x08, 0x04, 0x00/*length*/
     //, 0x00, 0x00, 0x00, 0x00 /* addr */
     //, 0x00, 0x00, 0x00, 0x00 /* value */
 };
-static UCHAR WMT_SET_REG_RD_EVT[] = {0x02, 0x08, 0x04, 0x00/*length*/
+static UCHAR WMT_SET_REG_RD_EVT[] = {0x02, 0x08, 0x0C, 0x00/*length*/
     , 0x00 /*S: 0*/
     , 0x00 /*type: reg */
     , 0x00 /*rev*/
@@ -211,7 +286,7 @@ static UCHAR WMT_SET_REG_RD_EVT[] = {0x02, 0x08, 0x04, 0x00/*length*/
 /* GeorgeKuo: Use designated initializers described in
  * http://gcc.gnu.org/onlinedocs/gcc-4.0.4/gcc/Designated-Inits.html
  */
- 
+
 const static WMT_OPID_FUNC wmt_core_opfunc[] = {
     [WMT_OPID_HIF_CONF] = opfunc_hif_conf,
     [WMT_OPID_PWR_ON] = opfunc_pwr_on,
@@ -231,13 +306,32 @@ const static WMT_OPID_FUNC wmt_core_opfunc[] = {
     [WMT_OPID_EFUSE_RW] = opfunc_efuse_rw,
     [WMT_OPID_GPIO_CTRL] = opfunc_gpio_ctrl,
     [WMT_OPID_SDIO_CTRL] = opfunc_sdio_ctrl,
-    [WMT_OPID_GPIO_STATE] = opfunc_pin_state,
 };
 
 /*******************************************************************************
 *                              F U N C T I O N S
 ********************************************************************************
 */
+
+static MTK_WCN_BOOL
+wmt_core_ic_ops_check (
+    P_WMT_IC_OPS p_ops
+    )
+{
+    if (!p_ops) {
+        return MTK_WCN_BOOL_FALSE;
+    }
+    if ( (NULL == p_ops->sw_init)
+        || (NULL == p_ops->sw_deinit)
+        || (NULL == p_ops->ic_ver_check)
+        || (NULL == p_ops->ic_pin_ctrl) ) {
+        return MTK_WCN_BOOL_FALSE;
+    }
+    else {
+        return MTK_WCN_BOOL_TRUE;
+    }
+}
+
 INT32 wmt_core_init(VOID)
 {
     INT32 i = 0;
@@ -284,7 +378,7 @@ wmt_core_tx (
     iRet = wmt_ctrl(&ctrlData);
     if (iRet) {
         /* ERROR */
-        WMT_ERR_FUNC("WMT-CORE: wmt_core_ctrl failed: WMT_CTRL_TX, iRet:%d\n", iRet);
+        WMT_ERR_FUNC("wmt_ctrl failed: WMT_CTRL_TX, iRet:%d\n", iRet);
         //(*sys_dbg_assert)(0, __FILE__, __LINE__);
         osal_assert(0);
     }
@@ -305,7 +399,7 @@ INT32 wmt_core_rx(PUINT8 pBuf, UINT32 bufLen, UINT32 *readSize)
     iRet = wmt_ctrl(&ctrlData);
     if (iRet) {
         /* ERROR */
-        WMT_ERR_FUNC("WMT-CORE: wmt_core_ctrl failed: WMT_CTRL_RX, iRet:%d\n", iRet);
+        WMT_ERR_FUNC("wmt_ctrl failed: WMT_CTRL_RX, iRet:%d\n", iRet);
         mtk_wcn_stp_dbg_dump_package();
         osal_assert(0);
     }
@@ -322,7 +416,7 @@ INT32 wmt_core_rx_flush(UINT32 type)
     iRet = wmt_ctrl(&ctrlData);
     if (iRet) {
         /* ERROR */
-        WMT_ERR_FUNC("WMT-CORE: wmt_core_ctrl failed: WMT_CTRL_RX_FLUSH, iRet:%d\n", iRet);
+        WMT_ERR_FUNC("wmt_ctrl failed: WMT_CTRL_RX_FLUSH, iRet:%d\n", iRet);
         osal_assert(0);
     }
     return iRet;
@@ -365,37 +459,37 @@ INT32 wmt_core_func_ctrl_cmd (
 //        iRet = (*kal_stp_tx)((PUINT8)&rWmtPktCmd, u4WmtCmdPduLen, &u4WrittenSize);
        iRet = wmt_core_tx((PUINT8)&rWmtPktCmd, u4WmtCmdPduLen, &u4WrittenSize, MTK_WCN_BOOL_FALSE);
         if (iRet) {
-            WMT_ERR_FUNC("WMT-CORE: wmt_func_ctrl_cmd kal_stp_tx failed \n");
+            WMT_ERR_FUNC("wmt_core_tx failed(%d) \n", iRet);
             break;
         }
 
         iRet = wmt_core_rx((PUINT8)&rWmtPktEvent, u4WmtEventPduLen, &u4ReadSize);
         if (iRet) {
-            WMT_ERR_FUNC("WMT-CORE: wmt_func_ctrl_cmd kal_stp_rx failed\n");
+            WMT_ERR_FUNC("wmt_core_rx failed(%d)\n", iRet);
             break;
         }
 
         /* Error Checking */
         if (PKT_TYPE_EVENT != rWmtPktEvent.eType) {
-            WMT_ERR_FUNC("WMT-CORE: wmt_func_ctrl_cmd PKT_TYPE_EVENT != rWmtPktEvent.eType %d\n", rWmtPktEvent.eType);
+            WMT_ERR_FUNC("PKT_TYPE_EVENT != rWmtPktEvent.eType(%d)\n", rWmtPktEvent.eType);
             break;
         }
 
         if (rWmtPktCmd.eOpCode != rWmtPktEvent.eOpCode) {
-            WMT_ERR_FUNC("WMT-CORE: wmt_func_ctrl_cmd rWmtPktCmd.eOpCode(0x%x) != rWmtPktEvent.eType(0x%x)\n",
+            WMT_ERR_FUNC("rWmtPktCmd.eOpCode(0x%x) != rWmtPktEvent.eType(0x%x)\n",
                 rWmtPktCmd.eOpCode, rWmtPktEvent.eOpCode);
             break;
         }
 
         if (u4WmtEventPduLen != (rWmtPktEvent.u2SduLen + WMT_HDR_LEN)) {
-            WMT_ERR_FUNC("WMT-CORE: wmt_func_ctrl_cmd u4WmtEventPduLen(0x%x) != rWmtPktEvent.u2SduLen(0x%x)+4\n",
+            WMT_ERR_FUNC("u4WmtEventPduLen(0x%x) != rWmtPktEvent.u2SduLen(0x%x)+4\n",
                 u4WmtEventPduLen, rWmtPktEvent.u2SduLen);
             break;
         }
 
         // Status field of event check
         if (0 != rWmtPktEvent.aucParam[0]) {
-            WMT_ERR_FUNC("WMT-CORE: wmt_func_ctrl_cmd, 0 != status(%d)\n", rWmtPktEvent.aucParam[0]);
+            WMT_ERR_FUNC("0 != status(%d)\n", rWmtPktEvent.aucParam[0]);
             break;
         }
 
@@ -403,11 +497,11 @@ INT32 wmt_core_func_ctrl_cmd (
     } while (0);
 
     if (MTK_WCN_BOOL_FALSE == fgFail) {
-        //WMT_INFO_FUNC("WMT-CORE: wmt_func_ctrl_cmd OK!\n");
+        //WMT_INFO_FUNC("OK!\n");
         return 0;
     }
     else {
-        WMT_ERR_FUNC("WMT-CORE: wmt_func_ctrl_cmd 0x%x FAIL\n", rWmtPktCmd.aucParam[0]);
+        WMT_ERR_FUNC("FAIL(0x%x)\n", rWmtPktCmd.aucParam[0]);
         return -2;
     }
 }
@@ -416,7 +510,7 @@ INT32 wmt_core_opid_handler(P_WMT_OP pWmtOp)
 {
     UINT32 opId;
     INT32 ret;
-    
+
     opId = pWmtOp->opId;
 
     if (wmt_core_opfunc[opId]) {
@@ -424,7 +518,7 @@ INT32 wmt_core_opid_handler(P_WMT_OP pWmtOp)
         return ret;
     }
     else {
-        WMT_ERR_FUNC("WMT-CORE: null handler (%d)\n", pWmtOp->opId);
+        WMT_ERR_FUNC("null handler (%d)\n", pWmtOp->opId);
         return -2;
     }
 }
@@ -440,12 +534,12 @@ INT32 wmt_core_opid(P_WMT_OP pWmtOp)
     }
 
     if (WMT_OPID_MAX <= pWmtOp->opId) {
-        WMT_ERR_FUNC("WMT-CORE: invalid OPID(%d)\n", pWmtOp->opId);
+        WMT_ERR_FUNC("invalid OPID(%d)\n", pWmtOp->opId);
         return -2;
     }
 
     // TODO: [FixMe][GeorgeKuo] do sanity check to const function table when init and skip checking here
-    return wmt_core_opid_handler(pWmtOp);    
+    return wmt_core_opid_handler(pWmtOp);
 }
 
 INT32 wmt_core_ctrl (ENUM_WMT_CTRL_T ctrId, PUINT32 pPa1, PUINT32 pPa2)
@@ -462,7 +556,7 @@ INT32 wmt_core_ctrl (ENUM_WMT_CTRL_T ctrId, PUINT32 pPa1, PUINT32 pPa2)
     iRet = wmt_ctrl(&ctrlData);
     if (iRet) {
         /* ERROR */
-        WMT_ERR_FUNC("WMT-CORE: wmt_core_ctrl failed: id(%d), type(%d), value(%d) iRet:(%d)\n", ctrId, val1, val2, iRet);
+        WMT_ERR_FUNC("failed: id(%d), type(%d), value(%d) iRet:(%d)\n", ctrId, val1, val2, iRet);
         osal_assert(0);
     }
     else {
@@ -577,26 +671,26 @@ wmt_core_init_script (
     INT32 iRet;
 
     for (i = 0; i < count; i++) {
-        WMT_DBG_FUNC("WMT-CORE: init_script operation %s start \n", script[i].str);
+        WMT_DBG_FUNC("operation %s start \n", script[i].str);
         /* CMD */
         //iRet = (*kal_stp_tx)(script[i].cmd, script[i].cmdSz, &u4Res);
         iRet = wmt_core_tx(script[i].cmd, script[i].cmdSz, &u4Res, MTK_WCN_BOOL_FALSE);
         if (iRet || (u4Res != script[i].cmdSz)) {
-            WMT_ERR_FUNC("WMT-CORE: write (%s) iRet(%d) cmd len err(%d, %d) \n", script[i].str, iRet, u4Res, script[i].cmdSz);
+            WMT_ERR_FUNC("write (%s) iRet(%d) cmd len err(%d, %d) \n", script[i].str, iRet, u4Res, script[i].cmdSz);
             break;
         }
         /* EVENT BUF */
         osal_memset(evtBuf, 0, sizeof(evtBuf));
         iRet = wmt_core_rx(evtBuf, script[i].evtSz, &u4Res);
         if (iRet || (u4Res != script[i].evtSz)) {
-            WMT_ERR_FUNC("WMT-CORE: read (%s) iRet(%d) evt len err(rx:%d, exp:%d) \n", script[i].str, iRet, u4Res, script[i].evtSz);
+            WMT_ERR_FUNC("read (%s) iRet(%d) evt len err(rx:%d, exp:%d) \n", script[i].str, iRet, u4Res, script[i].evtSz);
             mtk_wcn_stp_dbg_dump_package();
             break;
         }
         /* RESULT */
         if (osal_memcmp(evtBuf, script[i].evt, script[i].evtSz) != 0) {
-            WMT_ERR_FUNC("WMT-CORE:compare %s result error \n", script[i].str);
-            WMT_ERR_FUNC("WMT-CORE:rx(%d):[%02X,%02X,%02X,%02X,%02X] exp(%d):[%02X,%02X,%02X,%02X,%02X]\n",
+            WMT_ERR_FUNC("compare (%s) result error \n", script[i].str);
+            WMT_ERR_FUNC("rx(%d):[%02X,%02X,%02X,%02X,%02X] exp(%d):[%02X,%02X,%02X,%02X,%02X]\n",
                 u4Res, evtBuf[0], evtBuf[1], evtBuf[2], evtBuf[3], evtBuf[4],
                 script[i].evtSz, script[i].evt[0], script[i].evt[1], script[i].evt[2], script[i].evt[3], script[i].evt[4]);
             mtk_wcn_stp_dbg_dump_package();
@@ -616,11 +710,11 @@ wmt_core_stp_init (VOID)
     UINT32 ctrlPa1;
     UINT32 ctrlPa2;
     P_WMT_CTX pctx = &gMtkWmtCtx;
-	P_WMT_GEN_CONF pWmtGenConf = NULL;
-    wmt_conf_read_file();
-	pWmtGenConf = wmt_conf_get_cfg();
+
+    WMT_LOUD_FUNC("start\n");
+
     if (!(pctx->wmtInfoBit & WMT_OP_HIF_BIT)) {
-        WMT_ERR_FUNC("WMT-CORE: no hif info!\n");
+        WMT_ERR_FUNC("no hif info!\n");
         osal_assert(0);
         return -1;
     }
@@ -631,7 +725,7 @@ wmt_core_stp_init (VOID)
         ctrlPa2 = 1; /* turn on SDIO2 slot */
         iRet = wmt_core_ctrl(WMT_CTRL_SDIO_HW, &ctrlPa1, &ctrlPa2) ;
         if (iRet) {
-            WMT_ERR_FUNC("WMT-CORE: turn on SLOT_SDIO2 fail (%d)\n", iRet);
+            WMT_ERR_FUNC("turn on SLOT_SDIO2 fail(%d)\n", iRet);
             osal_assert(0);
 
             return -2;
@@ -642,69 +736,83 @@ wmt_core_stp_init (VOID)
         ctrlPa2 = 1; /* turn on STP driver */
         iRet = wmt_core_ctrl(WMT_CTRL_SDIO_FUNC, &ctrlPa1, &ctrlPa2) ;
         if (iRet) {
-            WMT_ERR_FUNC("WMT-CORE: turn on SDIO_FUNC_STP func fail (%d)\n", iRet);
+            WMT_ERR_FUNC("turn on SDIO_FUNC_STP func fail(%d)\n", iRet);
 
             /* check all sub-func and do power off */
             return -3;
         }
+        WMT_LOUD_FUNC("turn on SDIO_FUNC_STP ok\n");
     }
 
     //4 <1> open stp
     ctrlPa1 = 0; ctrlPa2 = 0;
     iRet = wmt_core_ctrl(WMT_CTRL_STP_OPEN, &ctrlPa1, &ctrlPa2);
     if (iRet) {
-        WMT_ERR_FUNC("WMT-CORE: wmt open stp\n");
+        WMT_ERR_FUNC("open stp fail(%d)\n", iRet);
         return -4;
     }
 
+    /* Zhiguo & George: Remove redundant host default baud rate setting to
+     * 115200bps. It's now done by 6620_launcher in WMT_CTRL_STP_OPEN handling.
+     */
+#if 0
     if (WMT_HIF_UART == pctx->wmtHifConf.hifType) {
         ctrlPa1 = WMT_DEFAULT_BAUD_RATE; ctrlPa2 = 0;
         iRet = wmt_core_ctrl(WMT_CTRL_HOST_BAUDRATE_SET, &ctrlPa1, &ctrlPa2);
         if (iRet) {
-            WMT_ERR_FUNC("WMT-CORE: change host baudrate(%d) fails \n", pctx->wmtHifConf.au4HifConf[0]);
+            WMT_ERR_FUNC("change host baudrate(%d) fail(%d)\n", pctx->wmtHifConf.au4HifConf[0], iRet);
             return -5;
         }
     }
-    //WMT_DBG_FUNC("WMT-CORE: change host baudrate(%d) ok \n", gMtkWmtCtx.wmtHifConf.au4HifConf[0]);
+    WMT_INFO_FUNC("change host baudrate(%d) ok \n", gMtkWmtCtx.wmtHifConf.au4HifConf[0]);
+#else
+
+    if (WMT_HIF_UART == pctx->wmtHifConf.hifType) {
+        WMT_INFO_FUNC("open stp ok, expect host baudrate to be (%d) \n", WMT_DEFAULT_BAUD_RATE);
+    }
+    else {
+        WMT_LOUD_FUNC("open stp ok\n");
+    }
+
+#endif
 
     //4 <1.5> disable and un-ready stp
     ctrlPa1 = WMT_STP_CONF_EN; ctrlPa2 = 0;
     iRet += wmt_core_ctrl(WMT_CTRL_STP_CONF, &ctrlPa1, &ctrlPa2);
+    WMT_LOUD_FUNC("stp conf en(0, %d)\n", iRet);
     ctrlPa1 = WMT_STP_CONF_RDY; ctrlPa2 = 0;
     iRet += wmt_core_ctrl(WMT_CTRL_STP_CONF, &ctrlPa1, &ctrlPa2);
+    WMT_LOUD_FUNC("stp conf rdy(0, %d)\n", iRet);
 
     //4 <2> set mode and enable
     if (WMT_HIF_UART == pctx->wmtHifConf.hifType) {
         ctrlPa1 = WMT_STP_CONF_MODE; ctrlPa2 = MTKSTP_UART_MAND_MODE;
         iRet += wmt_core_ctrl(WMT_CTRL_STP_CONF, &ctrlPa1, &ctrlPa2);
+        WMT_LOUD_FUNC("stp conf mode(mand, %d)\n", iRet);
     }
     else if (WMT_HIF_SDIO == pctx->wmtHifConf.hifType) {
         ctrlPa1 = WMT_STP_CONF_MODE; ctrlPa2 = MTKSTP_SDIO_MODE;
         iRet += wmt_core_ctrl(WMT_CTRL_STP_CONF, &ctrlPa1, &ctrlPa2);
+        WMT_LOUD_FUNC("stp conf mode(sdio, %d)\n", iRet);
     }
     ctrlPa1 = WMT_STP_CONF_EN; ctrlPa2 = 1;
     iRet += wmt_core_ctrl(WMT_CTRL_STP_CONF, &ctrlPa1, &ctrlPa2);
     if (iRet) {
-        WMT_ERR_FUNC("WMT-CORE: stp_init <1><2> fail:%d\n", iRet);
+        WMT_ERR_FUNC("stp conf en(1) fail:%d\n", iRet);
         return -7;
     }
+    WMT_LOUD_FUNC("stp conf en(1) ok\n");
 
     // TODO: [ChangeFeature][GeorgeKuo] can we apply raise UART baud rate firstly for ALL supported chips???
 
     iRet = wmt_core_hw_check();
     if (iRet) {
-        WMT_ERR_FUNC("hw_check fail:%d\n", iRet);
+        WMT_ERR_FUNC("hw_check fail(%d)\n", iRet);
         return -8;
     }
+    WMT_LOUD_FUNC("hw_check ok\n");
     /* mtkWmtCtx.p_ic_ops is identified and checked ok */
-    if ((NULL != pctx->p_ic_ops->co_clock_ctrl) && (pWmtGenConf != NULL))	
-	{
-	    (*(pctx->p_ic_ops->co_clock_ctrl))(pWmtGenConf->co_clock_flag == 0 ? WMT_CO_CLOCK_DIS : WMT_CO_CLOCK_EN);	
-	}	
-	else	
-	{
-	    WMT_INFO_FUNC("pctx->p_ic_ops->co_clock_ctrl(0x%x), pWmtGenConf(0x%x)\n", pctx->p_ic_ops->co_clock_ctrl, pWmtGenConf);
-	}
+
     osal_assert(NULL != pctx->p_ic_ops->sw_init);
     if (NULL != pctx->p_ic_ops->sw_init) {
         iRet = (*(pctx->p_ic_ops->sw_init))(&pctx->wmtHifConf);
@@ -717,10 +825,12 @@ wmt_core_stp_init (VOID)
         WMT_ERR_FUNC("gMtkWmtCtx.p_ic_ops->sw_init fail:%d\n", iRet);
         return -10;
     }
+    WMT_LOUD_FUNC("p_ic_ops->sw_init ok\n");
 
     //4 <10> set stp ready
     ctrlPa1 = WMT_STP_CONF_RDY; ctrlPa2 = 1;
     iRet = wmt_core_ctrl(WMT_CTRL_STP_CONF, &ctrlPa1, &ctrlPa2);
+    WMT_LOUD_FUNC("stp conf rdy(1, %d)\n", iRet);
 
     return iRet;
 }
@@ -794,14 +904,13 @@ wmt_core_dump_func_state (
     CHAR *pSource
     )
 {
-   WMT_INFO_FUNC("[%s]status(b:%d f:%d g:%d w:%d lpbk:%d coredump:%d wmt:%d sd1:%d sd2:%d stp:%d)\n",
+   WMT_INFO_FUNC("[%s]status(b:%d f:%d g:%d w:%d lpbk:%d wmt:%d sd1:%d sd2:%d stp:%d)\n",
         (pSource == NULL ? (CHAR *)"CORE" : pSource),
         gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_BT],
         gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_FM],
         gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_GPS],
         gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WIFI],
         gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_LPBK],
-        gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_COREDUMP],
         gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WMT],
         gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_SDIO1],
         gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_SDIO2],
@@ -819,7 +928,7 @@ wmt_core_patch_check (
 {
     if (MAJORNUM(u4HwVer) != MAJORNUM(u4PatchVer)) {
         /*major no. does not match*/
-        WMT_ERR_FUNC("WMT-CORE: chip version(0x%d) does not match patch version(0x%d)\n", u4HwVer, u4PatchVer);
+        WMT_ERR_FUNC("chip version(0x%x) does not match patch version(0x%x)\n", u4HwVer, u4PatchVer);
         return MTK_WCN_BOOL_FALSE;
     }
     return MTK_WCN_BOOL_TRUE;
@@ -831,6 +940,8 @@ wmt_core_hw_check (VOID)
     UINT32 chipid;
     P_WMT_IC_OPS p_ops;
     INT32 iret;
+
+    WMT_LOUD_FUNC("start\n");
 
     // 1. get chip id
     chipid = 0;
@@ -885,18 +996,18 @@ wmt_core_hw_check (VOID)
 static INT32 opfunc_hif_conf(P_WMT_OP pWmtOp)
 {
     if (!(pWmtOp->u4InfoBit & WMT_OP_HIF_BIT)) {
-        WMT_ERR_FUNC("WMT-CORE: no HIF_BIT in WMT_OP!\n");
+        WMT_ERR_FUNC("no HIF_BIT in WMT_OP!\n");
         return -1;
     }
 
     if (gMtkWmtCtx.wmtInfoBit & WMT_OP_HIF_BIT) {
-        WMT_ERR_FUNC("WMT-CORE: WMT HIF already exist. overwrite! old (%d), new(%d))\n",
+        WMT_INFO_FUNC("WMT HIF already exist. overwrite! old (%d), new(%d))\n",
             gMtkWmtCtx.wmtHifConf.hifType,
             pWmtOp->au4OpData[0]);
     }
     else {
         gMtkWmtCtx.wmtInfoBit |= WMT_OP_HIF_BIT;
-        WMT_ERR_FUNC("WMT-CORE: WMT HIF info added\n");
+        WMT_INFO_FUNC("WMT HIF info added\n");
     }
 
     osal_memcpy(&gMtkWmtCtx.wmtHifConf,
@@ -915,7 +1026,7 @@ static INT32 opfunc_pwr_on(P_WMT_OP pWmtOp)
     INT32 retry = WMT_PWRON_RTY_DFT;
 
     if (DRV_STS_POWER_OFF != gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WMT]) {
-        WMT_ERR_FUNC("WMT-CORE: already powered on, WMT DRV_STS_[0x%x]\n",
+        WMT_ERR_FUNC("already powered on, WMT DRV_STS_[0x%x]\n",
             gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WMT]);
         osal_assert(0);
         return -1;
@@ -932,9 +1043,9 @@ pwr_on_rty:
     ctrlPa2 = 0;
     iRet = wmt_core_ctrl(WMT_CTRL_HW_PWR_ON, &ctrlPa1, &ctrlPa2) ;
     if (iRet) {
-        WMT_ERR_FUNC("WMT-CORE: WMT_CTRL_HW_PWR_ON fail iRet(%d)\n", iRet);
+        WMT_ERR_FUNC("WMT_CTRL_HW_PWR_ON fail iRet(%d)\n", iRet);
         if (0 == retry--) {
-            WMT_INFO_FUNC("WMT-CORE: retry (%d)\n", retry);
+            WMT_INFO_FUNC("retry (%d)\n", retry);
             goto pwr_on_rty;
         }
         return -1;
@@ -944,25 +1055,25 @@ pwr_on_rty:
     /* init stp */
     iRet = wmt_core_stp_init();
     if (iRet) {
-        WMT_ERR_FUNC("WMT-CORE: wmt_core_stp_init fail (%d)\n", iRet);
+        WMT_ERR_FUNC("wmt_core_stp_init fail (%d)\n", iRet);
         osal_assert(0);
 
         /* deinit stp */
         iRet = wmt_core_stp_deinit();
         iRet = opfunc_pwr_off(pWmtOp);
         if (iRet) {
-            WMT_ERR_FUNC("WMT-CORE: opfunc_pwr_off fail during pwr_on retry\n");
+            WMT_ERR_FUNC("opfunc_pwr_off fail(%d) during pwr_on retry\n", iRet);
         }
 
         if (0 < retry--) {
-            WMT_INFO_FUNC("WMT-CORE: retry (%d)\n", retry);
+            WMT_INFO_FUNC("do retry, count left(%d)\n", retry);
             goto pwr_on_rty;
         }
         iRet = -2;
         return iRet;
     }
 
-    WMT_DBG_FUNC("WMT-CORE: WMT [FUNC_ON]\n");
+    WMT_DBG_FUNC("WMT [FUNC_ON]\n");
     gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WMT] = DRV_STS_FUNC_ON;
 
     /* What to do when state is changed from POWER_OFF to POWER_ON?
@@ -982,7 +1093,7 @@ static INT32 opfunc_pwr_off(P_WMT_OP pWmtOp)
     UINT32 ctrlPa2;
 
     if (DRV_STS_POWER_OFF == gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WMT]) {
-        WMT_WARN_FUNC("WMT-CORE: WMT already off, WMT DRV_STS_[0x%x]\n", gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WMT]);
+        WMT_WARN_FUNC("WMT already off, WMT DRV_STS_[0x%x]\n", gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WMT]);
         osal_assert(0);
         return -1;
     }
@@ -1028,8 +1139,8 @@ opfunc_func_on (
     drvType = pWmtOp->au4OpData[0];
 
     /* Check abnormal type */
-    if (WMTDRV_TYPE_COREDUMP < drvType) {
-        WMT_ERR_FUNC("abnormal Fun(%d)\n",
+    if (WMTDRV_TYPE_MAX <= drvType) {
+        WMT_ERR_FUNC("abnormal func(%d)\n",
             drvType);
         osal_assert(0);
         return -1;
@@ -1092,13 +1203,13 @@ opfunc_func_on (
                                           * procedures already, or failed in STP init before. Here is
                                           * the assert condition.
                                         **/
-                        WMT_ERR_FUNC("WMT-CORE: turn on Wi-Fi in comm SDIO2 but SDIO in FUNC_OFF state(0x%x)\n", gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_SDIO2]);
+                        WMT_ERR_FUNC("turn on Wi-Fi in comm SDIO2 but SDIO in FUNC_OFF state(0x%x)\n", gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_SDIO2]);
                         osal_assert(0);
                         return -4;
                     }
                 }
                 else {
-                    WMT_ERR_FUNC("WMT-CORE: error, not implemented yet gMtkWmtCtx.wmtHifConf.hifType: 0x%x, unspecified wifi_hif\n", gMtkWmtCtx.wmtHifConf.hifType);
+                    WMT_ERR_FUNC("not supported gMtkWmtCtx.wmtHifConf.hifType: 0x%x, unspecified wifi_hif\n", gMtkWmtCtx.wmtHifConf.hifType);
                     // TODO:  Wi-Fi/WMT uses other interfaces. NOT IMPLEMENTED YET!
                 }
 
@@ -1113,7 +1224,7 @@ opfunc_func_on (
                     wmt_core_ctrl(WMT_CTRL_SDIO_HW, &ctrlPa1, &ctrlPa2) ;
                     //does not need to check turn off result
                     gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_SDIO1] = DRV_STS_POWER_OFF;
-                    
+
                 }
                 gMtkWmtCtx.eDrvStatus[drvType] = DRV_STS_POWER_OFF;
             }
@@ -1124,7 +1235,7 @@ opfunc_func_on (
         }
         else
         {
-            WMT_WARN_FUNC("WMT-CORE: ops for type(%d) not found\n", drvType);
+            WMT_WARN_FUNC("ops for type(%d) not found\n", drvType);
             iRet = -5;
         }
     }
@@ -1133,14 +1244,11 @@ opfunc_func_on (
         if (WMTDRV_TYPE_LPBK == drvType) {
             gMtkWmtCtx.eDrvStatus[drvType] = DRV_STS_FUNC_ON;
         }
-        else if (WMTDRV_TYPE_COREDUMP == drvType) {
-            gMtkWmtCtx.eDrvStatus[drvType] = DRV_STS_FUNC_ON;
-        };
         iRet = 0;
     }
 
     if (iRet) {
-        WMT_ERR_FUNC("WMT-CORE:type(0x%x) function on failed, ret(%d)\n", drvType, iRet);
+        WMT_ERR_FUNC("type(0x%x) failed(%d)\n", drvType, iRet);
         osal_assert(0);
         //FIX-ME:[Chaozhong Liang], Error handling? check subsystem state and do pwr off if necessary?
         /* check all sub-func and do power off */
@@ -1148,13 +1256,12 @@ opfunc_func_on (
             (DRV_STS_POWER_OFF == gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_GPS]) &&
             (DRV_STS_POWER_OFF == gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_FM]) &&
             (DRV_STS_POWER_OFF == gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WIFI]) &&
-            (DRV_STS_POWER_OFF == gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_LPBK]) &&
-            (DRV_STS_POWER_OFF == gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_COREDUMP])) {
-            WMT_INFO_FUNC("WMT-CORE:Fun(%d) [POWER_OFF] and power down chip\n", drvType);
+            (DRV_STS_POWER_OFF == gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_LPBK])) {
+            WMT_INFO_FUNC("Fun(%d) [POWER_OFF] and power down chip\n", drvType);
 
             iPwrOffRet = opfunc_pwr_off(pWmtOp);
             if (iPwrOffRet) {
-                WMT_ERR_FUNC("WMT-CORE: wmt_pwr_off fail(%d) when turn off func(%d)\n", iPwrOffRet, drvType);
+                WMT_ERR_FUNC("pwr_off fail(%d) when turn off func(%d)\n", iPwrOffRet, drvType);
                 osal_assert(0);
             }
         }
@@ -1176,15 +1283,15 @@ static INT32 opfunc_func_off(P_WMT_OP pWmtOp)
 
     drvType = pWmtOp->au4OpData[0];
     /* Check abnormal type */
-    if (WMTDRV_TYPE_COREDUMP < drvType) {
-        WMT_ERR_FUNC("WMT-CORE: abnormal Fun(%d) in wmt_func_off \n", drvType);
+    if (WMTDRV_TYPE_LPBK < drvType) {
+        WMT_ERR_FUNC("abnormal Fun(%d)\n", drvType);
         osal_assert(0);
         return -1;
     }
 
     /* Check abnormal state */
     if (DRV_STS_MAX <= gMtkWmtCtx.eDrvStatus[drvType]) {
-        WMT_ERR_FUNC("WMT-CORE: Fun(%d) DRV_STS_[0x%x] abnormal in wmt_func_off \n",
+        WMT_ERR_FUNC("Fun(%d) DRV_STS_[0x%x] abnormal\n",
             drvType,
             gMtkWmtCtx.eDrvStatus[drvType]);
         osal_assert(0);
@@ -1192,7 +1299,7 @@ static INT32 opfunc_func_off(P_WMT_OP pWmtOp)
     }
 
     if (DRV_STS_FUNC_ON != gMtkWmtCtx.eDrvStatus[drvType]) {
-        WMT_WARN_FUNC("WMT-CORE: Fun(%d) DRV_STS_[0x%x] already non-FUN_ON in wmt_func_off \n",
+        WMT_WARN_FUNC("Fun(%d) DRV_STS_[0x%x] already non-FUN_ON\n",
             drvType,
             gMtkWmtCtx.eDrvStatus[drvType]);
         //needs to check 4 subsystem's state?
@@ -1208,7 +1315,7 @@ static INT32 opfunc_func_off(P_WMT_OP pWmtOp)
                 ctrlPa2 = 0; /* turn off SDIO1 slot */
                 iRet = wmt_core_ctrl(WMT_CTRL_SDIO_HW, &ctrlPa1, &ctrlPa2) ;
                 if (iRet) {
-                    WMT_ERR_FUNC("WMT-CORE: turn on SLOT_SDIO1 fail (%d)\n", iRet);
+                    WMT_ERR_FUNC("turn on SLOT_SDIO1 fail (%d)\n", iRet);
                     osal_assert(0);
                     /* check all sub-func and do power off */
                 }
@@ -1218,13 +1325,11 @@ static INT32 opfunc_func_off(P_WMT_OP pWmtOp)
         }
         else
         {
-            WMT_WARN_FUNC("WMT-CORE: ops for type(%d) not found\n", drvType);
+            WMT_WARN_FUNC("ops for type(%d) not found\n", drvType);
             iRet = -3;
         }
     } else {
-        if (WMTDRV_TYPE_LPBK == drvType) {
-            gMtkWmtCtx.eDrvStatus[drvType] = DRV_STS_POWER_OFF;
-        }else if (WMTDRV_TYPE_COREDUMP == drvType) {
+         if (WMTDRV_TYPE_LPBK == drvType) {
             gMtkWmtCtx.eDrvStatus[drvType] = DRV_STS_POWER_OFF;
         }
         iRet = 0;
@@ -1233,7 +1338,7 @@ static INT32 opfunc_func_off(P_WMT_OP pWmtOp)
     //shall we put device state to POWER_OFF state when fail?
     gMtkWmtCtx.eDrvStatus[drvType] = DRV_STS_POWER_OFF;
     if (iRet) {
-        WMT_ERR_FUNC("WMT-CORE: type(0x%x) function off failed, ret(%d)\n", drvType, iRet);
+        WMT_ERR_FUNC("type(0x%x) failed(%d)\n", drvType, iRet);
         osal_assert(0);
         //no matter subsystem function control fail or not, chip should be powered off when no subsystem is active
         //return iRet;
@@ -1245,13 +1350,12 @@ static INT32 opfunc_func_off(P_WMT_OP pWmtOp)
         (DRV_STS_POWER_OFF == gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_GPS]) &&
         (DRV_STS_POWER_OFF == gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_FM]) &&
         (DRV_STS_POWER_OFF == gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WIFI]) &&
-        (DRV_STS_POWER_OFF == gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_LPBK]) &&
-        (DRV_STS_POWER_OFF == gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_COREDUMP])) {
-        WMT_INFO_FUNC("WMT-CORE:Fun(%d) [POWER_OFF] and power down chip\n", drvType);
+        (DRV_STS_POWER_OFF == gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_LPBK])) {
+        WMT_INFO_FUNC("Fun(%d) [POWER_OFF] and power down chip\n", drvType);
 
         iRet = opfunc_pwr_off(pWmtOp);
         if (iRet) {
-            WMT_ERR_FUNC("WMT-CORE: wmt_pwr_off fail(%d) when turn off func(%d)\n", iRet, drvType);
+            WMT_ERR_FUNC("pwr_off fail(%d) when turn off func(%d)\n", iRet, drvType);
             osal_assert(0);
         }
     }
@@ -1302,7 +1406,6 @@ typedef INT32 (*STP_PSM_CB)(INT32);
 
     if (SLEEP == pWmtOp->au4OpData[0]) {
         WMT_DBG_FUNC("**** Send sleep command\n");
-		//mtk_wcn_stp_set_psm_state(ACT_INACT);
         //(*kal_stp_flush_rx)(WMT_TASK_INDX);
         ret = wmt_core_tx(&WMT_SLEEP_CMD[0], sizeof(WMT_SLEEP_CMD), &u4_result, 0);
         if (ret || (u4_result != sizeof(WMT_SLEEP_CMD))) {
@@ -1442,7 +1545,7 @@ static INT32 opfunc_dsns(P_WMT_OP pWmtOp)
     //iRet = (*kal_stp_tx)(WMT_DSNS_CMD, osal_sizeof(WMT_DSNS_CMD), &u4Res);
     iRet = wmt_core_tx((PUINT8)WMT_DSNS_CMD, osal_sizeof(WMT_DSNS_CMD), &u4Res, MTK_WCN_BOOL_FALSE);
     if (iRet || (u4Res != osal_sizeof(WMT_DSNS_CMD))) {
-        WMT_ERR_FUNC("WMT-CORE: DSNS_CMD iRet(%d) cmd len err(%d, %d) \n", iRet, u4Res, osal_sizeof(WMT_DSNS_CMD));
+        WMT_ERR_FUNC("DSNS_CMD iRet(%d) tx len err(%d, %d) \n", iRet, u4Res, osal_sizeof(WMT_DSNS_CMD));
         return iRet;
     }
 
@@ -1450,14 +1553,14 @@ static INT32 opfunc_dsns(P_WMT_OP pWmtOp)
 
     iRet = wmt_core_rx(evtBuf, evtLen, &u4Res);
     if (iRet || (u4Res != evtLen)) {
-        WMT_ERR_FUNC("WMT-CORE: read DSNS_EVT fail(%d) len(%d, %d)\n", iRet, u4Res, evtLen);
+        WMT_ERR_FUNC("read DSNS_EVT fail(%d) len(%d, %d)\n", iRet, u4Res, evtLen);
         mtk_wcn_stp_dbg_dump_package();
         return iRet;
     }
 
     if (osal_memcmp(evtBuf, WMT_DSNS_EVT, osal_sizeof(WMT_DSNS_EVT)) != 0) {
-        WMT_ERR_FUNC("WMT-CORE: compare WMT_DSNS_EVT error\n");
-        WMT_ERR_FUNC("WMT-CORE: rx(%d):[%02X,%02X,%02X,%02X,%02X] exp(%d):[%02X,%02X,%02X,%02X,%02X]\n",
+        WMT_ERR_FUNC("compare WMT_DSNS_EVT error\n");
+        WMT_ERR_FUNC("rx(%d):[%02X,%02X,%02X,%02X,%02X] exp(%d):[%02X,%02X,%02X,%02X,%02X]\n",
         u4Res, evtBuf[0], evtBuf[1], evtBuf[2], evtBuf[3], evtBuf[4],
         osal_sizeof(WMT_DSNS_EVT), WMT_DSNS_EVT[0], WMT_DSNS_EVT[1], WMT_DSNS_EVT[2], WMT_DSNS_EVT[3], WMT_DSNS_EVT[4]);
     } else {
@@ -1485,12 +1588,13 @@ static INT32 opfunc_lpbk(P_WMT_OP pWmtOp)
     MTK_WCN_BOOL fgFail;
     buf_length = pWmtOp->au4OpData[0];    //packet length
     pbuffer = (VOID *)pWmtOp->au4OpData[1]; //packet buffer pointer
-    WMT_DBG_FUNC("WMT-CORE: -->wmt_do_lpbk \n");
+    WMT_LOUD_FUNC("start\n");
     /*check if WMTDRV_TYPE_LPBK function is already on */
-    if (DRV_STS_FUNC_ON!= gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_LPBK] || buf_length + osal_sizeof(WMT_TEST_LPBK_CMD) > osal_sizeof(gLpbkBuf)) {
-            WMT_ERR_FUNC("WMT-CORE: abnormal LPBK in wmt_do_lpbk\n");
-            osal_assert(0);
-            return -2;
+    if ( (DRV_STS_FUNC_ON != gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_LPBK])
+        || (buf_length + osal_sizeof(WMT_TEST_LPBK_CMD) > osal_sizeof(gLpbkBuf)) ) {
+        WMT_ERR_FUNC("abnormal LPBK in wmt_do_lpbk\n");
+        osal_assert(0);
+        return -2;
     }
     /*package loopback for STP*/
 
@@ -1528,7 +1632,7 @@ static INT32 opfunc_lpbk(P_WMT_OP pWmtOp)
             break;
         }
         if (osal_memcmp(WMT_TEST_LPBK_EVT, gLpbkBuf, osal_sizeof(WMT_TEST_LPBK_EVT))) {
-            WMT_ERR_FUNC("WMT-CORE WMT_TEST_LPBK_EVT error! read len %d [%02x,%02x,%02x,%02x,%02x] \n",
+            WMT_ERR_FUNC("WMT_TEST_LPBK_EVT error! read len %d [%02x,%02x,%02x,%02x,%02x] \n",
                 (INT32)u4ReadSize,
                 gLpbkBuf[0], gLpbkBuf[1], gLpbkBuf[2], gLpbkBuf[3], gLpbkBuf[4]
             );
@@ -1539,7 +1643,7 @@ static INT32 opfunc_lpbk(P_WMT_OP pWmtOp)
         fgFail = MTK_WCN_BOOL_FALSE;
     }while(0);
     /*return result*/
-    //WMT_DBG_FUNC("WMT-CORE: <--wmt_do_lpbk, fgFail = %d \n", fgFail);
+    //WMT_LOUD_FUNC("end fgFail = %d \n", fgFail);
     return fgFail;
 
 }
@@ -1640,12 +1744,12 @@ static INT32 opfunc_cmd_test(P_WMT_OP pWmtOp)
     //iRet = (*kal_stp_tx)(tstCmd, tstCmdSz, &u4Res);
     iRet = wmt_core_tx((PUINT8)tstCmd, tstCmdSz, &u4Res, MTK_WCN_BOOL_FALSE);
     if (iRet || (u4Res != tstCmdSz)) {
-        WMT_ERR_FUNC("WMT-CORE: wmt_cmd_test iRet(%d) cmd len err(%d, %d) \n", iRet, u4Res, tstCmdSz);
+        WMT_ERR_FUNC("tx fail(%d) cmd len err(%d, %d) \n", iRet, u4Res, tstCmdSz);
         return -1;
     }
 
     if ((cmdNo == 0) || (cmdNo == 1)) {
-        WMT_INFO_FUNC("WMT-CORE: not to rx event for assert command\n");
+        WMT_INFO_FUNC("not to rx event for assert command\n");
         return 0;
     }
 
@@ -1695,31 +1799,17 @@ static INT32 opfunc_hw_rst(P_WMT_OP pWmtOp)
     //gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_SDIO2]= DRV_STS_POWER_OFF;
     gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_STP]  = DRV_STS_POWER_OFF;
 
-    /* if wmt is poweroff, we need poweron chip first*/
-    if (DRV_STS_POWER_OFF == gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WMT]) {
-        WMT_WARN_FUNC("WMT-CORE: WMT is off, need re-poweron\n");
-        /* power on control */
-        ctrlPa1 = 0;
-        ctrlPa2 = 0;
-        iRet = wmt_core_ctrl(WMT_CTRL_HW_PWR_ON, &ctrlPa1, &ctrlPa2) ;
-        if (iRet) {
-            WMT_ERR_FUNC("WMT-CORE: WMT_CTRL_HW_PWR_ON fail iRet(%d)\n", iRet);
-            return -1;
-        }
-        gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WMT] = DRV_STS_POWER_ON;
-    }
-    
     /*--> reset SDIO fucntion/slot additionally if wifi ON*/
     if (gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WIFI] == DRV_STS_FUNC_ON) {
             ctrlPa1 = WMT_SDIO_FUNC_WIFI;
             ctrlPa2 = 0;     /* turn off Wi-Fi driver */
             iRet = wmt_core_ctrl(WMT_CTRL_SDIO_FUNC, &ctrlPa1, &ctrlPa2) ;
             if (iRet) {
-                WMT_ERR_FUNC("WMT-CORE: turn off SDIO_WIFI func fail (%d)\n", iRet);
+                WMT_ERR_FUNC("turn off SDIO_WIFI func fail (%d)\n", iRet);
 
                 /* check all sub-func and do power off */
             } else {
-                WMT_INFO_FUNC("wmt core: turn off SDIO WIFI func ok!!\n");
+                WMT_INFO_FUNC("turn off SDIO WIFI func ok\n");
             }
             //Anyway, turn off Wi-Fi Function
             gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WIFI] = DRV_STS_POWER_OFF;
@@ -1729,12 +1819,12 @@ static INT32 opfunc_hw_rst(P_WMT_OP pWmtOp)
             ctrlPa2 = 0;     /* turn off SDIO1 slot */
             iRet = wmt_core_ctrl(WMT_CTRL_SDIO_HW, &ctrlPa1, &ctrlPa2) ;
             if (iRet) {
-                WMT_ERR_FUNC("WMT-CORE: turn off SLOT_SDIO1 fail (%d)\n", iRet);
+                WMT_ERR_FUNC("turn off SLOT_SDIO1 fail (%d)\n", iRet);
                 osal_assert(0);
 
                 /* check all sub-func and do power off */
             } else {
-                WMT_INFO_FUNC("WMT-CORE: turn off SLOT_SDIO1 successfully (%d)\n", iRet);
+                WMT_INFO_FUNC("turn off SLOT_SDIO1 ok\n");
             }
             gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_SDIO1] = DRV_STS_POWER_OFF;
         }
@@ -1746,25 +1836,25 @@ static INT32 opfunc_hw_rst(P_WMT_OP pWmtOp)
         ctrlPa2 = 0; /* turn off STP driver */
         iRet = wmt_core_ctrl(WMT_CTRL_SDIO_FUNC, &ctrlPa1, &ctrlPa2) ;
         if (iRet) {
-            WMT_ERR_FUNC("WMT-CORE: turn off SDIO_FUNC_STP func fail (%d)\n", iRet);
+            WMT_ERR_FUNC("turn off SDIO_FUNC_STP func fail (%d)\n", iRet);
 
             /* check all sub-func and do power off */
             //goto stp_deinit_done;
         } else {
-            WMT_INFO_FUNC("WMT-CORE: turn off SDIO_FUNC_STP func successfully (%d)\n", iRet);
+            WMT_INFO_FUNC("turn off SDIO_FUNC_STP func ok\n");
         }
 
         ctrlPa1 = WMT_SDIO_SLOT_SDIO2;
         ctrlPa2 = 0; /* turn off SDIO2 slot */
         iRet = wmt_core_ctrl(WMT_CTRL_SDIO_HW, &ctrlPa1, &ctrlPa2) ;
         if (iRet) {
-            WMT_ERR_FUNC("WMT-CORE: turn off SLOT_SDIO2 fail (%d)\n", iRet);
+            WMT_ERR_FUNC("turn off SLOT_SDIO2 fail (%d)\n", iRet);
             osal_assert(0);
 
             /* check all sub-func and do power off */
             //goto stp_deinit_done;
         } else {
-            WMT_INFO_FUNC("WMT-CORE: turn off SLOT_SDIO2 successfully (%d)\n", iRet);
+            WMT_INFO_FUNC("turn off SLOT_SDIO2 ok\n");
         }
             gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_SDIO2] = DRV_STS_POWER_OFF;
     }
@@ -1773,9 +1863,9 @@ static INT32 opfunc_hw_rst(P_WMT_OP pWmtOp)
     ctrlPa1 = 0; ctrlPa2 = 0;
     iRet = wmt_core_ctrl(WMT_CTRL_HW_RST, &ctrlPa1, &ctrlPa2) ;
     if (iRet) {
-        WMT_ERR_FUNC("WMT-CORE: [HW RST] WMT_CTRL_POWER_OFF fail (%d)", iRet);
+        WMT_ERR_FUNC("[HW RST] WMT_CTRL_POWER_OFF fail (%d)", iRet);
     } else {
-        WMT_INFO_FUNC("WMT-CORE: [HW RST] WMT_CTRL_POWER_OFF ok (%d)", iRet);
+        WMT_INFO_FUNC("[HW RST] WMT_CTRL_POWER_OFF ok (%d)", iRet);
     }
 #endif
     gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WMT] = DRV_STS_POWER_OFF;
@@ -1783,16 +1873,16 @@ static INT32 opfunc_hw_rst(P_WMT_OP pWmtOp)
     /*-->PesetCombo chip*/
     iRet = wmt_core_ctrl(WMT_CTRL_HW_RST, &ctrlPa1, &ctrlPa2) ;
     if (iRet) {
-        WMT_ERR_FUNC("WMT-CORE: -->[HW RST] fail iRet(%d)\n", iRet);
+        WMT_ERR_FUNC("HW RST fail iRet(%d)\n", iRet);
     } else {
-        WMT_INFO_FUNC("WMT-CORE: -->[HW RST] ok\n");
+        WMT_INFO_FUNC("HW RST ok\n");
     }
 
     //4  close stp
     ctrlPa1 = 0; ctrlPa2 = 0;
     iRet = wmt_core_ctrl(WMT_CTRL_STP_CLOSE, &ctrlPa1, &ctrlPa2);
     if (iRet) {
-        WMT_ERR_FUNC("WMT-CORE: wmt close stp failed\n");
+        WMT_ERR_FUNC("STP_CLOSE failed\n");
         return -1;
     }
 
@@ -1811,12 +1901,12 @@ static INT32 opfunc_sw_rst(P_WMT_OP pWmtOp)
     }
     else
     {
-        WMT_ERR_FUNC("WMT-CORE: error, gMtkWmtCtx.p_ic_ops->swInit(NULL)\n");
+        WMT_ERR_FUNC("gMtkWmtCtx.p_ic_ops->swInit(NULL)\n");
         return -1;
     }
     if (0 == iRet)
     {
-        WMT_ERR_FUNC("WMT-CORE: WMT-->[FUNC_ON] succeed\n");
+        WMT_ERR_FUNC("[FUNC_ON] succeed\n");
         gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WMT] = DRV_STS_FUNC_ON;
         return 0;
     }
@@ -1846,7 +1936,7 @@ static INT32 opfunc_therm_ctrl(P_WMT_OP pWmtOp)
     //iRet = (*kal_stp_tx)(WMT_THERM_CMD, osal_sizeof(WMT_THERM_CMD), &u4Res);
     iRet = wmt_core_tx((PUINT8)WMT_THERM_CMD, osal_sizeof(WMT_THERM_CMD), &u4Res, MTK_WCN_BOOL_FALSE);
     if (iRet || (u4Res != osal_sizeof(WMT_THERM_CMD))) {
-        WMT_ERR_FUNC("WMT-CORE: THERM_CTRL_CMD iRet(%d) cmd len err(%d, %d) \n", iRet, u4Res, osal_sizeof(WMT_THERM_CMD));
+        WMT_ERR_FUNC("THERM_CTRL_CMD iRet(%d) cmd len err(%d, %d) \n", iRet, u4Res, osal_sizeof(WMT_THERM_CMD));
         return iRet;
     }
 
@@ -1854,15 +1944,15 @@ static INT32 opfunc_therm_ctrl(P_WMT_OP pWmtOp)
 
     iRet = wmt_core_rx(evtBuf, evtLen, &u4Res);
     if (iRet || ((u4Res != osal_sizeof(WMT_THERM_CTRL_EVT)) && (u4Res != osal_sizeof(WMT_THERM_READ_EVT) ))) {
-        WMT_ERR_FUNC("WMT-CORE: read THERM_CTRL_EVT/THERM_READ_EVENT fail(%d) len(%d, %d)\n", iRet, u4Res, evtLen);
+        WMT_ERR_FUNC("read THERM_CTRL_EVT/THERM_READ_EVENT fail(%d) len(%d, %d)\n", iRet, u4Res, evtLen);
         mtk_wcn_stp_dbg_dump_package();
         return iRet;
     }
     if (u4Res == osal_sizeof(WMT_THERM_CTRL_EVT))
     {
         if (osal_memcmp(evtBuf, WMT_THERM_CTRL_EVT, osal_sizeof(WMT_THERM_CTRL_EVT)) != 0) {
-            WMT_ERR_FUNC("WMT-CORE: compare WMT_THERM_CTRL_EVT error\n");
-            WMT_ERR_FUNC("WMT-CORE: rx(%d):[%02X,%02X,%02X,%02X,%02X] exp(%d):[%02X,%02X,%02X,%02X,%02X]\n",
+            WMT_ERR_FUNC("compare WMT_THERM_CTRL_EVT error\n");
+            WMT_ERR_FUNC("rx(%d):[%02X,%02X,%02X,%02X,%02X] exp(%d):[%02X,%02X,%02X,%02X,%02X]\n",
             u4Res, evtBuf[0], evtBuf[1], evtBuf[2], evtBuf[3],evtBuf[4],
             osal_sizeof(WMT_THERM_CTRL_EVT), WMT_THERM_CTRL_EVT[0], WMT_THERM_CTRL_EVT[1], WMT_THERM_CTRL_EVT[2], WMT_THERM_CTRL_EVT[3], WMT_THERM_CTRL_EVT[4]);
             pWmtOp->au4OpData[1] = MTK_WCN_BOOL_FALSE;/*will return to function driver*/
@@ -1876,8 +1966,8 @@ static INT32 opfunc_therm_ctrl(P_WMT_OP pWmtOp)
     {
     /*no need to judge the real thermal value*/
         if (osal_memcmp(evtBuf, WMT_THERM_READ_EVT, osal_sizeof(WMT_THERM_READ_EVT) - 1) != 0) {
-            WMT_ERR_FUNC("WMT-CORE: compare WMT_THERM_READ_EVT error\n");
-            WMT_ERR_FUNC("WMT-CORE: rx(%d):[%02X,%02X,%02X,%02X,%02X,%02X] exp(%d):[%02X,%02X,%02X,%02X]\n",
+            WMT_ERR_FUNC("compare WMT_THERM_READ_EVT error\n");
+            WMT_ERR_FUNC("rx(%d):[%02X,%02X,%02X,%02X,%02X,%02X] exp(%d):[%02X,%02X,%02X,%02X]\n",
             u4Res, evtBuf[0], evtBuf[1], evtBuf[2], evtBuf[3],evtBuf[4],evtBuf[5],
             osal_sizeof(WMT_THERM_READ_EVT), WMT_THERM_READ_EVT[0], WMT_THERM_READ_EVT[1], WMT_THERM_READ_EVT[2], WMT_THERM_READ_EVT[3]);
             pWmtOp->au4OpData[1] = 0xFF;    /*will return to function driver*/
@@ -1901,7 +1991,7 @@ static INT32 opfunc_efuse_rw(P_WMT_OP pWmtOp)
     UINT8 evtBuf[16] = {0};
 
     if (DRV_STS_FUNC_ON != gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WMT]) {
-        WMT_ERR_FUNC("WMT-CORE: wmt_efuse_rw fail: chip is powered off\n");
+        WMT_ERR_FUNC("fail: chip is powered off\n");
         return -1;
     }
 
@@ -1915,7 +2005,7 @@ static INT32 opfunc_efuse_rw(P_WMT_OP pWmtOp)
     //iRet = (*kal_stp_tx)(WMT_EFUSE_CMD, osal_sizeof(WMT_EFUSE_CMD), &u4Res);
     iRet = wmt_core_tx((PUINT8)WMT_EFUSE_CMD, osal_sizeof(WMT_EFUSE_CMD), &u4Res, MTK_WCN_BOOL_FALSE);
     if (iRet || (u4Res != osal_sizeof(WMT_EFUSE_CMD))) {
-        WMT_ERR_FUNC("WMT-CORE: EFUSE_CMD iRet(%d) cmd len err(%d, %d) \n", iRet, u4Res, osal_sizeof(WMT_EFUSE_CMD));
+        WMT_ERR_FUNC("EFUSE_CMD iRet(%d) cmd len err(%d, %d) \n", iRet, u4Res, osal_sizeof(WMT_EFUSE_CMD));
         return iRet;
     }
 
@@ -1923,7 +2013,7 @@ static INT32 opfunc_efuse_rw(P_WMT_OP pWmtOp)
 
     iRet = wmt_core_rx(evtBuf, evtLen, &u4Res);
     if (iRet || (u4Res != evtLen)) {
-        WMT_ERR_FUNC("WMT-CORE: read REG_EVB fail(%d) len(%d, %d)\n", iRet, u4Res, evtLen);
+        WMT_ERR_FUNC("read EFUSE_EVT fail(%d) len(%d, %d)\n", iRet, u4Res, evtLen);
     }
     wmt_core_dump_data(&evtBuf[0], "efuse_evt", osal_sizeof(evtBuf));
 
@@ -1939,12 +2029,12 @@ static INT32 opfunc_gpio_ctrl (P_WMT_OP pWmtOp)
     UINT32 flag;
 
     if (DRV_STS_FUNC_ON != gMtkWmtCtx.eDrvStatus[WMTDRV_TYPE_WMT]) {
-        WMT_ERR_FUNC("WMT-CORE: wmt_gpio_ctrl fail: chip is powered off\n");
+        WMT_ERR_FUNC("fail: chip is powered off\n");
         return -1;
     }
 
     if (!gMtkWmtCtx.p_ic_ops->ic_pin_ctrl) {
-        WMT_ERR_FUNC("WMT-CORE: error, gMtkWmtCtx.p_ic_ops->ic_pin_ctrl(NULL)\n");
+        WMT_ERR_FUNC("gMtkWmtCtx.p_ic_ops->ic_pin_ctrl(NULL)\n");
         return -1;
     }
 
@@ -1981,45 +2071,5 @@ INT32 opfunc_sdio_ctrl (P_WMT_OP pWmtOp)
     return 0;
 
 }
-
-
-MTK_WCN_BOOL wmt_core_is_quick_ps_support (void)
-{
-    P_WMT_CTX pctx = &gMtkWmtCtx;
-	if ((NULL != pctx->p_ic_ops) && (NULL != pctx->p_ic_ops->is_quick_sleep))
-	{
-	    return (*(pctx->p_ic_ops->is_quick_sleep))();
-	}
-	return MTK_WCN_BOOL_FALSE;
-}
-
-MTK_WCN_BOOL wmt_core_get_aee_dump_flag(void)
-{
-    MTK_WCN_BOOL bRet = MTK_WCN_BOOL_FALSE;
-    P_WMT_CTX pctx = &gMtkWmtCtx;
-	
-	if ((NULL != pctx->p_ic_ops) && (NULL != pctx->p_ic_ops->is_aee_dump_support))
-	{
-	    bRet = (*(pctx->p_ic_ops->is_aee_dump_support))();
-	}
-	else
-	{
-	    bRet = MTK_WCN_BOOL_FALSE;
-	}
-	
-	return bRet;
-}
-
-
-INT32 opfunc_pin_state (P_WMT_OP pWmtOp)
-{
-    
-    UINT32 ctrlPa1 = 0;
-    UINT32 ctrlPa2 = 0;
-    UINT32 iRet = 0;
-	iRet = wmt_core_ctrl(WMT_CTRL_HW_STATE_DUMP, &ctrlPa1, &ctrlPa2) ;
-	return iRet;
-}
-
 
 

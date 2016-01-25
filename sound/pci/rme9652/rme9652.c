@@ -24,7 +24,7 @@
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/pci.h>
-#include <linux/moduleparam.h>
+#include <linux/module.h>
 
 #include <sound/core.h>
 #include <sound/control.h>
@@ -285,7 +285,7 @@ static char channel_map_9636_ds[26] = {
 	/* ADAT channels are remapped */
 	1, 3, 5, 7, 9, 11, 13, 15,
 	/* channels 8 and 9 are S/PDIF */
-	24, 25
+	24, 25,
 	/* others don't exist */
 	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 };
@@ -2479,7 +2479,7 @@ static int __devinit snd_rme9652_create(struct snd_card *card,
 	}
 	
 	if (request_irq(pci->irq, snd_rme9652_interrupt, IRQF_SHARED,
-			"rme9652", rme9652)) {
+			KBUILD_MODNAME, rme9652)) {
 		snd_printk(KERN_ERR "unable to request IRQ %d\n", pci->irq);
 		return -EBUSY;
 	}
@@ -2632,7 +2632,7 @@ static void __devexit snd_rme9652_remove(struct pci_dev *pci)
 }
 
 static struct pci_driver driver = {
-	.name	  = "RME Digi9652 (Hammerfall)",
+	.name	  = KBUILD_MODNAME,
 	.id_table = snd_rme9652_ids,
 	.probe	  = snd_rme9652_probe,
 	.remove	  = __devexit_p(snd_rme9652_remove),

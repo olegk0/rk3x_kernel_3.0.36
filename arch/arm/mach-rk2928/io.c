@@ -28,7 +28,6 @@
 	}
 
 static struct map_desc rk2928_io_desc[] __initdata = {
-	RK2928_DEVICE(ROM),
 	RK2928_DEVICE(CORE),
 	RK2928_DEVICE(CPU_AXI_BUS),
 #if CONFIG_RK_DEBUG_UART == 0
@@ -51,7 +50,12 @@ static struct map_desc rk2928_io_desc[] __initdata = {
 	RK2928_DEVICE(DDR_PHY),
 	RK2928_DEVICE(RKI2C0),
 	RK2928_DEVICE(RKI2C1),
-	RK2928_DEVICE(EFUSE),
+	{
+		.virtual = (unsigned long) RK2928_IMEM_NONCACHED,
+		.pfn = __phys_to_pfn(RK2928_IMEM_PHYS),
+		.length = RK2928_IMEM_SIZE,
+		.type = MT_MEMORY_NONCACHED,
+	},
 };
 
 void __init rk2928_map_common_io(void)

@@ -41,17 +41,17 @@ module_param(dbg_thresd, int, S_IRUGO|S_IWUSR);
 
 static int  rk30_lcdc_clk_enable(struct rk30_lcdc_device *lcdc_dev)
 {
-	spin_lock(&lcdc_dev->reg_lock);
 	if(!lcdc_dev->clk_on)
 	{
 		clk_enable(lcdc_dev->pd);
 		clk_enable(lcdc_dev->hclk);
 		clk_enable(lcdc_dev->dclk);
 		clk_enable(lcdc_dev->aclk);
-
+	
+		spin_lock(&lcdc_dev->reg_lock);
 		lcdc_dev->clk_on = 1;
+		spin_unlock(&lcdc_dev->reg_lock);
 	}
-	spin_unlock(&lcdc_dev->reg_lock);
 	printk("rk30 lcdc%d clk enable...\n",lcdc_dev->id);
 	
 	return 0;
@@ -59,18 +59,17 @@ static int  rk30_lcdc_clk_enable(struct rk30_lcdc_device *lcdc_dev)
 
 static int rk30_lcdc_clk_disable(struct rk30_lcdc_device *lcdc_dev)
 {
-	spin_lock(&lcdc_dev->reg_lock);
 	if(lcdc_dev->clk_on)
 	{
+		spin_lock(&lcdc_dev->reg_lock);
 		lcdc_dev->clk_on = 0;
-
+		spin_unlock(&lcdc_dev->reg_lock);
 		mdelay(30);
 		clk_disable(lcdc_dev->dclk);
 		clk_disable(lcdc_dev->hclk);
 		clk_disable(lcdc_dev->aclk);
 		clk_disable(lcdc_dev->pd);
 	}
-	spin_unlock(&lcdc_dev->reg_lock);
 	printk("rk30 lcdc%d clk disable...\n",lcdc_dev->id);
 	return 0;
 }
@@ -78,15 +77,20 @@ static int rk30_lcdc_clk_disable(struct rk30_lcdc_device *lcdc_dev)
 static int rk30_lcdc_read_reg_defalut_cfg(struct rk30_lcdc_device *lcdc_dev)
 {
 	int reg = 0;
-	
+	spin_lock(&lcdc_dev->reg_lock);
 	if(likely(lcdc_dev->clk_on))
 	{
-		spin_lock(&lcdc_dev->reg_lock);
 		for(reg=SYS_CTRL0;reg<=DSP_VACT_ST_END_F1; reg +=4)
 		{
 			lcdc_readl(lcdc_dev,reg);
 		}
+		
 		spin_unlock(&lcdc_dev->reg_lock);
+	}
+	else   //clk already disabled 
+	{
+		spin_unlock(&lcdc_dev->reg_lock);
+		
 	}
 
 	return 0;
@@ -136,9 +140,9 @@ static int rk30_lcdc_init(struct rk_lcdc_device_driver *dev_drv)
               m_FRM_START_INT_EN | m_HOR_START_INT_EN,v_FRM_START_INT_CLEAR(1) | v_BUS_ERR_INT_CLEAR(0) |
               v_LINE_FLAG_INT_EN(0) | v_FRM_START_INT_EN(0) | v_HOR_START_INT_EN(0));  //enable frame start interrupt for sync
               
-	if(dev_drv->cur_screen->dsp_lut)
-	{
-        lcdc_msk_reg(lcdc_dev,SYS_CTRL1,m_DSP_LUT_RAM_EN,v_DSP_LUT_RAM_EN(0));
+        if(dev_drv->cur_screen->dsp_lut)
+        {
+        	lcdc_msk_reg(lcdc_dev,SYS_CTRL1,m_DSP_LUT_RAM_EN,v_DSP_LUT_RAM_EN(0));
 		lcdc_cfg_done(lcdc_dev);
 		msleep(25);
 		for(i=0;i<256;i++)
@@ -149,7 +153,7 @@ static int rk30_lcdc_init(struct rk_lcdc_device_driver *dev_drv)
 			
 		}
 		lcdc_msk_reg(lcdc_dev,SYS_CTRL1,m_DSP_LUT_RAM_EN,v_DSP_LUT_RAM_EN(1));
-	}
+        }
 	
 	lcdc_cfg_done(lcdc_dev);  // write any value to  REG_CFG_DONE let config become effective
 
@@ -170,8 +174,13 @@ static int rk30_lcdc_deinit(struct rk30_lcdc_device *lcdc_dev)
 			v_LINE_FLAG_INT_EN(0) | v_BUS_ERR_INT_EN(0));  //disable all lcdc interrupt
 		lcdc_set_bit(lcdc_dev,SYS_CTRL0,m_LCDC_STANDBY);
 		lcdc_cfg_done(lcdc_dev);
+		spin_unlock(&lcdc_dev->reg_lock);
 	}
-	spin_unlock(&lcdc_dev->reg_lock);
+	else   //clk already disabled 
+	{
+		spin_unlock(&lcdc_dev->reg_lock);
+		return 0;
+	}
 	mdelay(1);
 	
 	return 0;
@@ -190,12 +199,13 @@ static int rk30_load_screen(struct rk_lcdc_device_driver *dev_drv, bool initscre
 	u16 lower_margin = screen->lower_margin;
 	u16 x_res = screen->x_res, y_res = screen->y_res;
 
+	
 	// set the rgb or mcu
 	spin_lock(&lcdc_dev->reg_lock);
 	if(likely(lcdc_dev->clk_on))
 	{
 		if(screen->type==SCREEN_MCU)
-		{			
+		{
 	    		lcdc_msk_reg(lcdc_dev, MCU_CTRL, m_MCU_OUTPUT_SELECT,v_MCU_OUTPUT_SELECT(1));
 			// set out format and mcu timing
 	   		mcu_total  = (screen->mcu_wrperiod*150*1000)/1000000;
@@ -530,7 +540,7 @@ static  int win2_display(struct rk30_lcdc_device *lcdc_dev,struct layer_par *par
 static  int win0_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 	struct layer_par *par )
 {
-	u32 xact, yact, xvir, yvir, xpos, ypos, sxact, syact;
+	u32 xact, yact, xvir, yvir, xpos, ypos;
 	u32 ScaleYrgbX = 0x1000;
 	u32 ScaleYrgbY = 0x1000;
 	u32 ScaleCbrX = 0x1000;
@@ -547,18 +557,9 @@ static  int win0_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 
 	DBG(1,"%s for lcdc%d>>format:%s>>>xact:%d>>yact:%d>>xsize:%d>>ysize:%d>>xvir:%d>>yvir:%d>>xpos:%d>>ypos:%d>>\n",
 		__func__,lcdc_dev->id,get_format_string(par->format,fmt),xact,yact,par->xsize,par->ysize,xvir,yvir,xpos,ypos);
-//IAM
-    if(par->scale_x > 0)
-		sxact = par->scale_x;
-	else
-		sxact = xact;
-	if(par->scale_y > 0)
-		syact = par->scale_y;
-	else
-		syact = yact;
 
-	ScaleYrgbX = CalScale(sxact, par->xsize); //both RGB and yuv need this two factor
-	ScaleYrgbY = CalScale(syact, par->ysize);
+	ScaleYrgbX = CalScale(xact, par->xsize); //both RGB and yuv need this two factor
+	ScaleYrgbY = CalScale(yact, par->ysize);
 	fmt_cfg = par->format;
 	switch (par->format)
 	{
@@ -569,16 +570,16 @@ static  int win0_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 	case RGB565:
 		break;
 	case YUV422:// yuv422
-		ScaleCbrX = CalScale((sxact/2), par->xsize);
-		ScaleCbrY = CalScale(syact, par->ysize);
+		ScaleCbrX = CalScale((xact/2), par->xsize);
+		ScaleCbrY = CalScale(yact, par->ysize);
 		break;
 	case YUV420: // yuv420
-		ScaleCbrX = CalScale(sxact/2, par->xsize);
-	   	ScaleCbrY = CalScale(syact/2, par->ysize);
+		ScaleCbrX = CalScale(xact/2, par->xsize);
+	   	ScaleCbrY = CalScale(yact/2, par->ysize);
 	   	break;
 	case YUV444:// yuv444
-		ScaleCbrX = CalScale(sxact, par->xsize);
-		ScaleCbrY = CalScale(syact, par->ysize);
+		ScaleCbrX = CalScale(xact, par->xsize);
+		ScaleCbrY = CalScale(yact, par->ysize);
 		break;
 	default:
 		fmt_cfg = 0;
@@ -595,7 +596,7 @@ static  int win0_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 		lcdc_writel(lcdc_dev, WIN0_ACT_INFO,v_ACT_WIDTH(xact) | v_ACT_HEIGHT(yact));
 		lcdc_writel(lcdc_dev, WIN0_DSP_ST, v_DSP_STX(xpos) | v_DSP_STY(ypos));
 		lcdc_writel(lcdc_dev, WIN0_DSP_INFO, v_DSP_WIDTH(par->xsize)| v_DSP_HEIGHT(par->ysize));
-		lcdc_msk_reg(lcdc_dev, WIN0_COLOR_KEY_CTRL, m_COLORKEY_EN | m_KEYCOLOR,	v_COLORKEY_EN(1) | v_KEYCOLOR(par->color_key));
+//		lcdc_msk_reg(lcdc_dev, WIN0_COLOR_KEY_CTRL, m_COLORKEY_EN | m_KEYCOLOR,	v_COLORKEY_EN(1) | v_KEYCOLOR(par->color_key));
 		switch(par->format) 
 		{
 		case XBGR888:
@@ -635,7 +636,7 @@ static  int win0_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 static int win1_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 	struct layer_par *par )
 {
-	u32 xact, yact, xvir, yvir, xpos, ypos, sxact, syact;
+	u32 xact, yact, xvir, yvir, xpos, ypos;
 	u32 ScaleYrgbX = 0x1000;
 	u32 ScaleYrgbY = 0x1000;
 	u32 ScaleCbrX = 0x1000;
@@ -652,18 +653,8 @@ static int win1_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 	DBG(1,"%s for lcdc%d>>format:%s>>>xact:%d>>yact:%d>>xsize:%d>>ysize:%d>>xvir:%d>>yvir:%d>>xpos:%d>>ypos:%d>>\n",
 		__func__,lcdc_dev->id,get_format_string(par->format,fmt),xact,yact,par->xsize,par->ysize,xvir,yvir,xpos,ypos);
 
-//IAM
-    if(par->scale_x > 0)
-		sxact = par->scale_x;
-	else
-		sxact = xact;
-	if(par->scale_y > 0)
-		syact = par->scale_y;
-	else
-		syact = yact;
-
-	ScaleYrgbX = CalScale(sxact, par->xsize); //both RGB and yuv need this two factor
-	ScaleYrgbY = CalScale(syact, par->ysize);
+	ScaleYrgbX = CalScale(xact, par->xsize); //both RGB and yuv need this two factor
+	ScaleYrgbY = CalScale(yact, par->ysize);
 	fmt_cfg = par->format;
 	switch (par->format)
 	{
@@ -674,16 +665,16 @@ static int win1_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 	case RGB565:
 		break;
 	case YUV422:// yuv422
-		ScaleCbrX = CalScale((sxact/2), par->xsize);
-		ScaleCbrY = CalScale(syact, par->ysize);
+		ScaleCbrX = CalScale((xact/2), par->xsize);
+		ScaleCbrY = CalScale(yact, par->ysize);
 		break;
 	case YUV420: // yuv420
-		ScaleCbrX = CalScale(sxact/2, par->xsize);
-	   	ScaleCbrY = CalScale(syact/2, par->ysize);
+		ScaleCbrX = CalScale(xact/2, par->xsize);
+	   	ScaleCbrY = CalScale(yact/2, par->ysize);
 	   	break;
 	case YUV444:// yuv444
-		ScaleCbrX = CalScale(sxact, par->xsize);
-		ScaleCbrY = CalScale(syact, par->ysize);
+		ScaleCbrX = CalScale(xact, par->xsize);
+		ScaleCbrY = CalScale(yact, par->ysize);
 		break;
 	default:
 		fmt_cfg = 0;
@@ -700,7 +691,7 @@ static int win1_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 		lcdc_writel(lcdc_dev, WIN1_ACT_INFO,v_ACT_WIDTH(xact) | v_ACT_HEIGHT(yact));
 		lcdc_writel(lcdc_dev, WIN1_DSP_ST,v_DSP_STX(xpos) | v_DSP_STY(ypos));
 		lcdc_writel(lcdc_dev, WIN1_DSP_INFO,v_DSP_WIDTH(par->xsize) | v_DSP_HEIGHT(par->ysize));
-		lcdc_msk_reg(lcdc_dev, WIN1_COLOR_KEY_CTRL, m_COLORKEY_EN | m_KEYCOLOR,v_COLORKEY_EN(1) | v_KEYCOLOR(par->color_key));
+//		lcdc_msk_reg(lcdc_dev, WIN1_COLOR_KEY_CTRL, m_COLORKEY_EN | m_KEYCOLOR,v_COLORKEY_EN(1) | v_KEYCOLOR(par->color_key));
 		switch(par->format)
 	    {
 	    case XBGR888:
@@ -757,7 +748,7 @@ static int win2_set_par(struct rk30_lcdc_device *lcdc_dev,rk_screen *screen,
 
 		lcdc_writel(lcdc_dev, WIN2_DSP_ST,v_DSP_STX(xpos) | v_DSP_STY(ypos));
 		lcdc_writel(lcdc_dev, WIN2_DSP_INFO,v_DSP_WIDTH(par->xsize) | v_DSP_HEIGHT(par->ysize));
-		lcdc_msk_reg(lcdc_dev, WIN2_COLOR_KEY_CTRL, m_COLORKEY_EN | m_KEYCOLOR,v_COLORKEY_EN(1) | v_KEYCOLOR(par->color_key));
+//		lcdc_msk_reg(lcdc_dev, WIN2_COLOR_KEY_CTRL, m_COLORKEY_EN | m_KEYCOLOR,v_COLORKEY_EN(1) | v_KEYCOLOR(par->color_key));
 		switch(par->format)
 	    {
 	    case XBGR888:
@@ -850,7 +841,7 @@ static int rk30_lcdc_open(struct rk_lcdc_device_driver *dev_drv,int layer_id,boo
 
 	if((!open) && (!lcdc_dev->atv_layer_cnt))  //when all layer closed,disable clk
 	{
-//IAM		rk30_lcdc_clk_disable(lcdc_dev);
+//IAM crashes		rk30_lcdc_clk_disable(lcdc_dev);
 	}
 
 	printk(KERN_INFO "lcdc%d win%d %s,atv layer:%d\n",
@@ -931,6 +922,9 @@ int rk30_lcdc_pan_display(struct rk_lcdc_device_driver * dev_drv,int layer_id)
 	}
 #ifdef CONFIG_THREE_FB_BUFFER
 	if(dev_drv->num_buf < 3) //3buffer ,no need to  wait for sysn
+#else
+//    if(dev_drv->vsync_info.active)
+    if(par->vsync)
 #endif
 	{
 		spin_lock_irqsave(&dev_drv->cpl_lock,flags);
@@ -954,17 +948,19 @@ static unsigned char cursor_buf[CURSOR_BUF_SIZE];
 static int rk30_cursor_set_image(struct rk_lcdc_device_driver *dev_drv, char *imgdata)
 {
 	struct rk30_lcdc_device *lcdc_dev = container_of(dev_drv,struct rk30_lcdc_device,driver);
-	unsigned long flags;
-	
-//	spin_lock_irqsave(&lcdc_dev->reg_lock,flags);
+
     spin_lock(&lcdc_dev->reg_lock);
-	lcdc_msk_reg(lcdc_dev, SYS_CTRL0, m_HWC_RELOAD_EN, v_HWC_RELOAD_EN(0));//IAM
+    
+//IAM TODO next lines for test
+    lcdc_msk_reg(lcdc_dev, SYS_CTRL0, m_HWC_RELOAD_EN, v_HWC_RELOAD_EN(0));
+	lcdc_cfg_done(lcdc_dev);
+	msleep(20);
+    
     lcdc_writel(lcdc_dev, HWC_MST, __pa(cursor_buf));
     lcdc_msk_reg(lcdc_dev, SYS_CTRL0, m_HWC_RELOAD_EN, v_HWC_RELOAD_EN(1));
     lcdc_cfg_done(lcdc_dev);
 //need sync with vsync? or wait while data loaded
     spin_unlock(&lcdc_dev->reg_lock);
-//	spin_unlock_irqrestore(&lcdc_dev->reg_lock,flags);
 
     return 0;
 }
@@ -1080,7 +1076,7 @@ int rk30_lcdc_ioctl(struct rk_lcdc_device_driver * dev_drv,unsigned int cmd, uns
 	return ret;
 }
 
-static int rk30_lcdc_get_layer_state(struct rk_lcdc_device_driver *dev_drv,int layer_id)
+static int rk30_lcdc_get_layer_state(struct rk_lcdc_device_driver *dev_drv, int layer_id)
 {
 	struct rk30_lcdc_device *lcdc_dev = container_of(dev_drv,struct rk30_lcdc_device,driver);
 	struct layer_par *par = dev_drv->layer_par[layer_id];
@@ -1088,45 +1084,24 @@ static int rk30_lcdc_get_layer_state(struct rk_lcdc_device_driver *dev_drv,int l
 	spin_lock(&lcdc_dev->reg_lock);
 	if(likely(lcdc_dev->clk_on))
 	{
-		if(layer_id == 0)
-		{
+		switch(layer_id){
+		case 0:
 			par->state = lcdc_read_bit(lcdc_dev,SYS_CTRL1,m_W0_EN);
-		}
-		else if( layer_id == 1)
-		{
+            break;
+		case 1:
 			par->state = lcdc_read_bit(lcdc_dev,SYS_CTRL1,m_W1_EN);
-		}
-//IAM
-		else if( layer_id == 2)
-		{
+            break;
+		case 2:
 			par->state = lcdc_read_bit(lcdc_dev,SYS_CTRL1,m_W2_EN);
+            break;
 		}
 
 	}
 	spin_unlock(&lcdc_dev->reg_lock);
-	
+
 	return par->state;
-	
 }
-/*
-static int rk30_lcdc_wait_end_paint(struct rk_lcdc_device_driver *dev_drv)
-{
-	struct rk30_lcdc_device *lcdc_dev = container_of(dev_drv,struct rk30_lcdc_device,driver);
-	int cnt=200;
-	
-	if(likely(lcdc_dev->clk_on))
-	{
-		while(lcdc_readl(lcdc_dev,INT_STATUS) & m_FRM_START_INT_CLEAR){
-			udelay(100);
-			cnt--;
-			if(!cnt)
-				return -ETIMEDOUT;
-		}
-		return 0;
-	}
-	return -ENODEV;
-}
-*/
+
 /***********************************
 overlay manager
 swap:1 win0 on the top of win1
@@ -1561,10 +1536,9 @@ int rk30_lcdc_early_suspend(struct rk_lcdc_device_driver *dev_drv)
 		dev_drv->screen_ctr_info->io_disable();
 	dev_drv->suspend_flag = 1;
         flush_kthread_worker(&dev_drv->update_regs_worker);
-	
+	spin_lock(&lcdc_dev->reg_lock);
 	if(likely(lcdc_dev->clk_on))
 	{
-		spin_lock(&lcdc_dev->reg_lock);
 		lcdc_msk_reg(lcdc_dev, INT_STATUS, m_FRM_START_INT_CLEAR, v_FRM_START_INT_CLEAR(1));
 		lcdc_msk_reg(lcdc_dev, SYS_CTRL0,m_LCDC_STANDBY,v_LCDC_STANDBY(1));
 		lcdc_cfg_done(lcdc_dev);
@@ -1572,6 +1546,7 @@ int rk30_lcdc_early_suspend(struct rk_lcdc_device_driver *dev_drv)
 	}
 	else  //clk already disabled
 	{
+		spin_unlock(&lcdc_dev->reg_lock);
 		return 0;
 	}
 		
@@ -1630,8 +1605,9 @@ int rk30_lcdc_early_resume(struct rk_lcdc_device_driver *dev_drv)
 static irqreturn_t rk30_lcdc_isr(int irq, void *dev_id)
 {
 	struct rk30_lcdc_device *lcdc_dev = (struct rk30_lcdc_device *)dev_id;
+#ifndef CONFIG_IAM_CHANGES
 	ktime_t timestamp = ktime_get();
-	
+#endif	
 	lcdc_msk_reg(lcdc_dev, INT_STATUS, m_FRM_START_INT_CLEAR, v_FRM_START_INT_CLEAR(1));
 	//lcdc_cfg_done(lcdc_dev);
 	//lcdc_msk_reg(lcdc_dev, INT_STATUS, m_LINE_FLAG_INT_CLEAR, v_LINE_FLAG_INT_CLEAR(1));
@@ -1642,10 +1618,10 @@ static irqreturn_t rk30_lcdc_isr(int irq, void *dev_id)
 		complete(&(lcdc_dev->driver.frame_done));
 		spin_unlock(&(lcdc_dev->driver.cpl_lock));
 	}
-
+#ifndef CONFIG_IAM_CHANGES
 	lcdc_dev->driver.vsync_info.timestamp = timestamp;
 	wake_up_interruptible_all(&lcdc_dev->driver.vsync_info.wait);
-	
+#endif	
 	return IRQ_HANDLED;
 }
 
@@ -1690,7 +1666,6 @@ static struct rk_lcdc_device_driver lcdc_driver = {
 	.read_dsp_lut           = rk30_read_dsp_lut,
 	.get_dsp_addr           = rk30_lcdc_get_dsp_addr,
 	.set_layer_state		= rk30_lcdc_set_state,
-//	.wait_end_paint		= rk30_lcdc_wait_end_paint,
 };
 #ifdef CONFIG_PM
 static int rk30_lcdc_suspend(struct platform_device *pdev, pm_message_t state)

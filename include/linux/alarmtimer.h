@@ -13,15 +13,6 @@ enum alarmtimer_type {
 	ALARM_NUMTYPE,
 };
 
-enum alarmtimer_restart {
-	ALARMTIMER_NORESTART,
-	ALARMTIMER_RESTART,
-};
-
-
-#define ALARMTIMER_STATE_INACTIVE	0x00
-#define ALARMTIMER_STATE_ENQUEUED	0x01
-
 /**
  * struct alarm - Alarm timer structure
  * @node:	timerqueue node for adding to the event list this value
@@ -32,28 +23,18 @@ enum alarmtimer_restart {
  * @enabled:	Flag that represents if the alarm is set to fire or not
  * @data:	Internal data value.
  */
-struct alarmtimer {
+struct alarm {
 	struct timerqueue_node	node;
-	struct hrtimer		timer;
-	enum alarmtimer_restart	(*function)(struct alarmtimer *, ktime_t now);
+	ktime_t			period;
+	void			(*function)(struct alarm *);
 	enum alarmtimer_type	type;
-	int			state;
+	bool			enabled;
 	void			*data;
 };
 
-void alarmtimer_init(struct alarmtimer *alarm, enum alarmtimer_type type,
-		enum alarmtimer_restart (*function)(struct alarmtimer *, ktime_t));
-int alarmtimer_start(struct alarmtimer *alarm, ktime_t start);
-int alarmtimer_start_relative(struct alarmtimer *alarm, ktime_t start);
-void alarmtimer_restart(struct alarmtimer *alarm);
-int alarmtimer_try_to_cancel(struct alarmtimer *alarm);
-int alarmtimer_cancel(struct alarmtimer *alarm);
-
-u64 alarmtimer_forward(struct alarmtimer *alarm, ktime_t now, ktime_t interval);
-u64 alarmtimer_forward_now(struct alarmtimer *alarm, ktime_t interval);
-ktime_t alarmtimer_expires_remaining(const struct alarmtimer *alarm);
-
-/* Provide way to access the rtc device being used by alarmtimers */
-struct rtc_device *alarmtimer_get_rtcdev(void);
+void alarm_init(struct alarm *alarm, enum alarmtimer_type type,
+		void (*function)(struct alarm *));
+void alarm_start(struct alarm *alarm, ktime_t start, ktime_t period);
+void alarm_cancel(struct alarm *alarm);
 
 #endif

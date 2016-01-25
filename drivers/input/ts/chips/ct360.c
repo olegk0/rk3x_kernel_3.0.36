@@ -328,10 +328,10 @@ static int ts_init(struct ts_private_data *ts)
 	
 	char loader_buf[3] = {0xfF,0x0f,0x2A};
 	
-	gpio_direction_output(ts->pdata->reset_pin, GPIO_LOW);
-	mdelay(10);
-	gpio_direction_output(ts->pdata->reset_pin, GPIO_HIGH);
-	msleep(300);
+	//gpio_direction_output(ts->pdata->reset_pin, GPIO_LOW);
+	//mdelay(10);
+	//gpio_direction_output(ts->pdata->reset_pin, GPIO_HIGH);
+	//msleep(300);
 
 	//init some register
 	//to do	

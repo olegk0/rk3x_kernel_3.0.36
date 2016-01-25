@@ -13,7 +13,6 @@
  */
 
 #include <mach/io.h>
-#include <mach/debug_uart.h>
 
 #ifdef DEBUG_UART_PHYS
 	.macro addruart, rp, rv

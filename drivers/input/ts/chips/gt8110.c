@@ -32,7 +32,7 @@
 #include <linux/earlysuspend.h>
 #endif	 
 #include <linux/ts-auto.h>
-	 
+#include <linux/rk_board_id.h>	 
 	 
 #if 0
 #define DBG(x...)  printk(x)
@@ -48,6 +48,17 @@
 #define GT8110_ID_REG		0x00
 #define GT8110_DATA_REG		0x00
 
+struct ts_operate ts_gt8110_ops;
+
+
+#if defined(CONFIG_RK_BOARD_ID)
+extern enum rk_board_id rk_get_board_id(void);
+#else
+static enum rk_board_id rk_get_board_id(void)
+{
+	return -1;
+}
+#endif
 
 /****************operate according to ts chip:start************/
 
@@ -65,7 +76,7 @@ static int ts_active(struct ts_private_data *ts, int enable)
 	}
 	else
 	{
-		result = ts_bulk_write(ts, (unsigned short )buf_suspend[0], 2, (unsigned short *)&buf_suspend[1]);
+		result = ts_bulk_write(ts, (unsigned short )buf_suspend[0], 2, &buf_suspend[1]);
 		if(result < 0)
 		{
 			printk("%s:fail to init ts\n",__func__);
@@ -83,7 +94,8 @@ static int ts_init(struct ts_private_data *ts)
 {
 	int irq_pin = irq_to_gpio(ts->pdata->irq);
 	char version_data[18] = {240};
-	char init_data[95] = {
+	char tp_config[10] = {0x65};
+	char init_data_c1014[95] = {
 	0x65,0x02,0x00,0x10,0x00,0x10,0x0A,0x62,0x4A,0x00,
 	0x0F,0x28,0x02,0x10,0x10,0x00,0x00,0x20,0x00,0x00,
 	0x10,0x10,0x10,0x00,0x37,0x00,0x00,0x00,0x01,0x02,
@@ -95,10 +107,23 @@ static int ts_init(struct ts_private_data *ts)
 	0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
 	0x00,0x00,0x00,0x00,0x00
         };
-	int result = 0, i = 0;
 
+    char init_data_c8002[95] = {
+	0x65,0x01,0x00,0x10,0x00,0x10,0x05,0x6E,0x0A,0x00,
+	0x0F,0x1E,0x02,0x08,0x10,0x00,0x00,0x27,0x00,0x00,
+	0x50,0x10,0x10,0x11,0x37,0x00,0x00,0x00,0x01,0x02,
+	0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0xFF,
+	0xFF,0xFF,0xFF,0x00,0x01,0x02,0x03,0x04,0x05,0x06,
+	0x07,0x08,0x09,0x0A,0xFF,0xFF,0xFF,0xFF,0xFF,0x00,
+	0x00,0x50,0x64,0x50,0x00,0x00,0x00,0x00,0x00,0x00,
+	0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+	0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+	0x00,0x00,0x00,0x00,0x20
+        };
+	int result = 0, i = 0;
+	int board_id; 
 	//read version	
-	result = ts_bulk_read(ts, (unsigned short)version_data[0], 16, (unsigned short *)&version_data[1]);
+	result = ts_bulk_read(ts, (unsigned short)version_data[0], 16, &version_data[1]);
 	if(result < 0)
 	{
 		printk("%s:fail to init ts\n",__func__);
@@ -106,17 +131,61 @@ static int ts_init(struct ts_private_data *ts)
 	}
 	version_data[17]='\0';
 
-	printk("%s:%s version is %s\n",__func__,ts->ops->name, version_data);
-#if 1
-	//init some register
-	result = ts_bulk_write(ts, (unsigned short )init_data[0], 94, (unsigned short *)&init_data[1]);
+//read config
+	result = ts_bulk_read(ts, (unsigned short)tp_config[0], sizeof(tp_config) - 1, &tp_config[1]);
 	if(result < 0)
 	{
-		printk("%s:fail to init ts\n",__func__);
+		printk("%s:read ts config fail\n",__func__);
 		return result;
 	}
+
+	printk("%s:%s version is %s, config:%d\n",__func__,ts->ops->name, version_data, tp_config[6]);
+
+#if defined(CONFIG_RK_BOARD_ID)
+	board_id = rk_get_board_id();
+	if ( board_id ==  BOARD_ID_C8002 )
+	{
+		ts_gt8110_ops.ts_id = TS_ID_GT8005;
+		result = ts_bulk_write(ts, (unsigned short )init_data_c8002[0], 94, &init_data_c8002[1]);
+		if(result < 0)
+		{
+			printk("%s:fail to init ts\n",__func__);
+			return result;
+		}
+			
+	}
+	else
+	{
+		ts_gt8110_ops.ts_id = TS_ID_GT8110;
+		result = ts_bulk_write(ts, (unsigned short )init_data_c1014[0], 94, &init_data_c1014[1]);
+		if(result < 0)
+		{
+			printk("%s:fail to init ts\n",__func__);
+			return result;
+		}
+		
+	}			
+#else
+	//init some register
+	if (tp_config[6] == 0x0a) {
+		result = ts_bulk_write(ts, (unsigned short )init_data_c1014[0], 94, &init_data_c1014[1]);
+		if(result < 0)
+		{
+			printk("%s:fail to init ts\n",__func__);
+			return result;
+		}
+		ts_gt8110_ops.ts_id = TS_ID_GT8110;
+	} else {
+		result = ts_bulk_write(ts, (unsigned short )init_data_c8002[0], 94, &init_data_c8002[1]);
+		if(result < 0)
+		{
+			printk("%s:fail to init ts\n",__func__);
+			return result;
+		}
+		ts_gt8110_ops.ts_id = TS_ID_GT8005;
+	}	
 #endif
-	result = ts_bulk_read(ts, (unsigned short)init_data[0], 94, (unsigned short *)&init_data[1]);
+	result = ts_bulk_read(ts, (unsigned short)init_data_c1014[0], 94, &init_data_c1014[1]);
 	if(result < 0)
 	{
 		printk("%s:fail to init ts\n",__func__);
@@ -126,7 +195,7 @@ static int ts_init(struct ts_private_data *ts)
 	
 	DBG("%s:rx:",__func__);
 	for(i=0; i<95; i++)
-	DBG("0x%x,",init_data[i]);
+	DBG("0x%x,",init_data_c1014[i]);
 
 	DBG("\n");
 	
@@ -202,15 +271,15 @@ static int ts_report_value(struct ts_private_data *ts)
 	int result = 0 , i = 0, j = 0, off = 0, id = 0;
 	int temp = 0, num = 0;
 
-	result = ts_bulk_read(ts, ts->ops->read_reg, ts->ops->read_len, (unsigned short *)buf);
+	result = ts_bulk_read(ts, ts->ops->read_reg, ts->ops->read_len, buf);
 	if(result < 0)
 	{
 		printk("%s:fail to init ts\n",__func__);
 		return result;
 	}
 
-	//for(i=0; i<ts->ops->read_len; i++)
-	//DBG("buf[%d]=0x%x\n",i,buf[i]);
+//	for(i=0; i<ts->ops->read_len; i++)
+//	DBG("buf[%d]=0x%x\n",i,buf[i]);
 
 	temp = (buf[1] << 8) | buf[0];
 
@@ -278,7 +347,11 @@ static int ts_report_value(struct ts_private_data *ts)
 			input_mt_slot(ts->input_dev, event->point[id].id);
 			input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, event->point[id].id);
 			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, 1);
-			input_report_abs(ts->input_dev, ABS_MT_POSITION_X, event->point[id].x);
+			if (ts_gt8110_ops.ts_id == TS_ID_GT8005) {
+				input_report_abs(ts->input_dev, ABS_MT_POSITION_X, 4096 - event->point[id].x);
+			} else {
+				input_report_abs(ts->input_dev, ABS_MT_POSITION_X, event->point[id].x);
+			}
 			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, event->point[id].y);
 			input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, 1);	
 	   		DBG("%s:%s press down,id=%d,x=%d,y=%d\n\n",__func__,ts->ops->name, event->point[id].id, event->point[id].x,event->point[id].y);

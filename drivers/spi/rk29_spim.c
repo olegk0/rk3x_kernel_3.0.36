@@ -69,11 +69,10 @@ struct chip_data {
 	u8 cs;			/* chip select pin */
 	u8 n_bytes;		/* current is a 1/2/4 byte op */
 	u8 tmode;		/* TR/TO/RO/EEPROM */
-	u8 mode;		/* ??? */
 	u8 type;		/* SPI/SSP/MicroWire */
 
 	u8 poll_mode;		/* 1 means use poll mode */
-	u8 slave_enable;
+
 	u32 dma_width;
 	u32 rx_threshold;
 	u32 tx_threshold;
@@ -142,7 +141,6 @@ static void printk_transfer_data(unsigned char *buf, int len)
 }
 #endif
 
-#if 0
 static void spi_dump_regs(struct rk29xx_spi *dws) {
 	DBG("MRST SPI0 registers:\n");
 	DBG("=================================\n");
@@ -164,7 +162,6 @@ static void spi_dump_regs(struct rk29xx_spi *dws) {
 	DBG("=================================\n");
 
 }
-#endif
 
 #ifdef CONFIG_DEBUG_FS
 static int spi_show_regs_open(struct inode *inode, struct file *file)
@@ -270,12 +267,7 @@ static void transfer_complete(struct rk29xx_spi *dws);
 static void wait_till_not_busy(struct rk29xx_spi *dws)
 {
 	unsigned long end = jiffies + 1 + usecs_to_jiffies(1000);
-	//if spi was slave, it is SR_BUSY always.  
-	if(dws->cur_chip) {
-		if(dws->cur_chip->slave_enable == 1)
-			return;
-	}
-	
+
 	while (time_before(jiffies, end)) {
 		if (!(rk29xx_readw(dws, SPIM_SR) & SR_BUSY))
 			return;
@@ -315,8 +307,6 @@ static void spi_cs_control(struct rk29xx_spi *dws, u32 cs, u8 flag)
 		rk29xx_writel(dws, SPIM_SER, 0);
 	return;
 	#else
-	
-	#error "Warning: not support"
 	struct rk29xx_spi_platform_data *pdata = dws->master->dev.platform_data;
 	struct spi_cs_gpio *cs_gpios = pdata->chipselect_gpios;
 
@@ -618,7 +608,6 @@ static void giveback(struct rk29xx_spi *dws)
 	dws->prev_chip = dws->cur_chip;
 	dws->cur_chip = NULL;
 	dws->dma_mapped = 0;
-
 	
 	/*it is important to close intterrupt*/
 	spi_mask_intr(dws, 0xff);
@@ -908,10 +897,7 @@ static void pump_transfers(unsigned long data)
 
 		cr0 &= ~(0x3 << SPI_MODE_OFFSET);		
 		cr0 &= ~(0x3 << SPI_TMOD_OFFSET);
-		cr0 &= ~(0x1 << SPI_OPMOD_OFFSET);	
-		cr0 |= (spi->mode << SPI_MODE_OFFSET);
 		cr0 |= (chip->tmode << SPI_TMOD_OFFSET);
-		cr0 |= ((chip->slave_enable & 1) << SPI_OPMOD_OFFSET);
 	} 
 
 	/*
@@ -951,11 +937,10 @@ static void pump_transfers(unsigned long data)
 		spi_chip_sel(dws, spi->chip_select);
 
         rk29xx_writew(dws, SPIM_CTRLR1, dws->len-1);
-		
+		spi_enable_chip(dws, 1);
+
 		if (txint_level)
 			rk29xx_writew(dws, SPIM_TXFTLR, txint_level);
-		spi_enable_chip(dws, 1);	
-			
 		if (rxint_level)
 			rk29xx_writew(dws, SPIM_RXFTLR, rxint_level);
 		/* Set the interrupt mask, for poll mode just diable all int */
@@ -1121,10 +1106,7 @@ static void dma_transfer(struct rk29xx_spi *dws)
 
 		cr0 &= ~(0x3 << SPI_MODE_OFFSET);
 		cr0 &= ~(0x3 << SPI_TMOD_OFFSET);
-		cr0 &= ~(0x1 << SPI_OPMOD_OFFSET);		
-		cr0 |= (spi->mode << SPI_MODE_OFFSET);
 		cr0 |= (chip->tmode << SPI_TMOD_OFFSET);
-		cr0 |= ((chip->slave_enable & 1) << SPI_OPMOD_OFFSET);
 	}
 
 	/*
@@ -1545,8 +1527,6 @@ static int rk29xx_pump_transfers(struct rk29xx_spi *dws, int mode)
 			chip->tmode = SPI_TMOD_TO;
 
 		cr0 &= ~(0x3 << SPI_MODE_OFFSET);
-		cr0 &= ~(0x3 << SPI_TMOD_OFFSET);
-		cr0 |= (spi->mode << SPI_MODE_OFFSET);
 		cr0 |= (chip->tmode << SPI_TMOD_OFFSET);
 	}
 	
@@ -1741,7 +1721,7 @@ static int rk29xx_spi_setup(struct spi_device *spi)
 
 		chip->poll_mode = chip_info->poll_mode;
 		chip->type = chip_info->type;
-		chip->slave_enable = chip_info->slave_enable;
+
 		chip->rx_threshold = 0;
 		chip->tx_threshold = 0;
 

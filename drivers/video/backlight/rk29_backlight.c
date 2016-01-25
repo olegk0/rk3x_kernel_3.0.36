@@ -26,12 +26,8 @@
 #include <linux/earlysuspend.h>
 #include <asm/io.h>
 #include <mach/board.h>
-#include <plat/pwm.h>
 
-#define PWM_DIV              PWM_DIV2
-#define PWM_APB_PRE_DIV      1000
-#define BL_STEP              (255)
-#define MAX_BRIGHTNESS_CORRECT (50)
+#include "rk2818_backlight.h"
 
 /*
  * Debug
@@ -42,15 +38,27 @@
 #define DBG(x...)
 #endif
 
-#define read_pwm_reg(addr)              __raw_readl(pwm_base + addr)
+#if defined(CONFIG_ARCH_RK30)
+#define write_pwm_reg(id, addr, val)        __raw_writel(val, addr+(RK30_PWM01_BASE+(id>>1)*0x20000)+id*0x10)
+#define read_pwm_reg(id, addr)              __raw_readl(addr+(RK30_PWM01_BASE+(id>>1)*0x20000+id*0x10))
+
+#elif defined(CONFIG_ARCH_RK2928)
+#define write_pwm_reg(id, addr, val)        __raw_writel(val, addr+(RK2928_PWM_BASE+id*0x10))
+#define read_pwm_reg(id, addr)              __raw_readl(addr+(RK2928_PWM_BASE+id*0x10))
+
+#elif defined(CONFIG_ARCH_RK29)
+#define write_pwm_reg(id, addr, val)        __raw_writel(val, addr+(RK29_PWM_BASE+id*0x10))
+#define read_pwm_reg(id, addr)              __raw_readl(addr+(RK29_PWM_BASE+id*0x10))    
+#endif
 
 static struct clk *pwm_clk;
-static void __iomem *pwm_base;
 static struct backlight_device *rk29_bl;
 static int suspend_flag = 0;
 
+extern int dwc_otg_check_dpdm(void);
 
-int convertint(const char s[])  
+
+int convertint(char s[])  
 {  
     int i;  
     int n = 0;  
@@ -61,8 +69,8 @@ int convertint(const char s[])
     return n;  
 } 
 
-static ssize_t backlight_write(struct device *dev, 
-		struct device_attribute *attr,const char *buf, size_t count)
+static ssize_t backlight_write(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
    
 	struct rk29_bl_info *rk29_bl_info = bl_get_data(rk29_bl);
@@ -78,71 +86,14 @@ static ssize_t backlight_write(struct device *dev,
 static ssize_t backlight_read(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
+	struct rk29_bl_info *rk29_bl_info = bl_get_data(rk29_bl);
+
 	DBG("rk29_bl_info->min_brightness=%d\n",rk29_bl_info->min_brightness);
-	return 0;
 }
 static DEVICE_ATTR(rk29backlight, 0660, backlight_read, backlight_write);
 
 static DEFINE_MUTEX(backlight_mutex);
 
-static inline void rk29_bl_min_brightness_check(struct rk29_bl_info *rk29_bl_info)
-{
-
-	if (rk29_bl_info->min_brightness < 0 || rk29_bl_info->min_brightness > BL_STEP)
-		rk29_bl_info->min_brightness = MAX_BRIGHTNESS_CORRECT;
-
-
-}	
-static inline void rk29_bl_max_brightness_check(struct rk29_bl_info *rk29_bl_info)
-{
-	if (rk29_bl_info->max_brightness <= 0 || rk29_bl_info->max_brightness > BL_STEP)
-		rk29_bl_info->max_brightness = BL_STEP;
-}	
-
-
-
-int rk29_bl_val_scalor_line(struct rk29_bl_info *rk29_bl_info,int brightness)
-{
-	//rk29_bl_min_brightness_check(rk29_bl_info);
-	//rk29_bl_max_brightness_check(rk29_bl_info);
-	if(rk29_bl_info->max_brightness<rk29_bl_info->min_brightness)
-		rk29_bl_info->max_brightness=rk29_bl_info->min_brightness;
-
-	if(brightness>rk29_bl_info->max_brightness)
-		brightness=rk29_bl_info->max_brightness;
-	else if(brightness<rk29_bl_info->min_brightness)
-		brightness=rk29_bl_info->min_brightness;
-	#if 0
-		brightness = brightness*(rk29_bl_info->max_brightness - rk29_bl_info->min_brightness);
-		brightness = (brightness/255) + rk29_bl_info->min_brightness;
-	#endif
-	return brightness;
-}
-int rk29_bl_val_scalor_conic(struct rk29_bl_info *rk29_bl_info,int brightness)
-{
-	
-	//rk29_bl_min_brightness_check(rk29_bl_info);
-	//rk29_bl_max_brightness_check(rk29_bl_info);
-	
-	if(rk29_bl_info->max_brightness<rk29_bl_info->min_brightness)
-		rk29_bl_info->max_brightness=rk29_bl_info->min_brightness;
-	#if 0
-	    	brightness = (brightness*brightness)*(rk29_bl_info->max_brightness - rk29_bl_info->min_brightness);
-		brightness = (brightness/(BL_STEP*BL_STEP)) + rk29_bl_info->min_brightness;
-	#else
-		if(brightness<rk29_bl_info->min_brightness)
-			brightness=rk29_bl_info->min_brightness;
-		brightness = (brightness-rk29_bl_info->min_brightness)*(brightness-rk29_bl_info->min_brightness);
-		brightness = (brightness/(rk29_bl_info->max_brightness - rk29_bl_info->min_brightness)) + rk29_bl_info->min_brightness;
-	#endif
-	
-	if(brightness > rk29_bl_info->max_brightness)
-		brightness = rk29_bl_info->max_brightness;
-	if(brightness < rk29_bl_info->min_brightness)	
-		brightness = rk29_bl_info->min_brightness;
-	
-	return brightness;
-}
 static int rk29_bl_update_status(struct backlight_device *bl)
 {
 	u32 divh,div_total;
@@ -152,28 +103,24 @@ static int rk29_bl_update_status(struct backlight_device *bl)
 	int brightness = 0;
 	
 	mutex_lock(&backlight_mutex);
-	//BL_CORE_DRIVER2 is the flag if backlight is into early_suspend.
+//BL_CORE_DRIVER2 is the flag if backlight is into early_suspend.
 	if (suspend_flag && (bl->props.state & BL_CORE_DRIVER2))
 	    goto out;
 
 	brightness = bl->props.brightness;
-
-	if(brightness)
-	{
-		if(rk29_bl_info->brightness_mode==BRIGHTNESS_MODE_LINE)
-			brightness=rk29_bl_val_scalor_line(rk29_bl_info,brightness);
-		else
-			brightness=rk29_bl_val_scalor_conic(rk29_bl_info,brightness);
+	if(rk29_bl_info->min_brightness){
+	    if(brightness){
+	    	brightness = brightness*(256 - rk29_bl_info->min_brightness);
+		brightness = (brightness>>8) + rk29_bl_info->min_brightness;
+	    }
+	    if(brightness > 255)
+	    	brightness = 255;
 	}
-	//printk("%s,req brightness=%d,real is=%d\n",__FUNCTION__,bl->props.brightness,brightness);
 
 	if (bl->props.power != FB_BLANK_UNBLANK)
 		brightness = 0;
 
 	if (bl->props.fb_blank != FB_BLANK_UNBLANK)
-		brightness = 0;	
-
-	if (bl->props.state & BL_CORE_DRIVER3)
 		brightness = 0;	
 
 	if ((bl->props.state & BL_CORE_DRIVER2) && !suspend_flag ){
@@ -182,13 +129,6 @@ static int rk29_bl_update_status(struct backlight_device *bl)
 	}else if(!(bl->props.state & BL_CORE_DRIVER2) && suspend_flag ){
 		suspend_flag = 0;
 	}
-	div_total = read_pwm_reg(PWM_REG_LRC);
-	if (ref) {
-		divh = div_total*brightness/BL_STEP;
-	} else {
-		divh = div_total*(BL_STEP-brightness)/BL_STEP;
-	}
-	rk_pwm_setup(id, PWM_DIV, divh, div_total);
 
 //BL_CORE_DRIVER1 is the flag if backlight pwm is closed.
 	if ((bl->props.state & BL_CORE_DRIVER1) && brightness ==0 ){  
@@ -202,16 +142,15 @@ static int rk29_bl_update_status(struct backlight_device *bl)
 			rk29_bl_info->pwm_resume();
 		clk_enable(pwm_clk);
 		msleep(1);
-		div_total = read_pwm_reg(PWM_REG_LRC);
-		if (ref) {
-			divh = div_total*brightness/BL_STEP;
-		} else {
-			divh = div_total*(BL_STEP-brightness)/BL_STEP;
-		}
-		rk_pwm_setup(id, PWM_DIV, divh, div_total);
 	}
 
-
+	div_total = read_pwm_reg(id, PWM_REG_LRC);
+	if (ref) {
+		divh = div_total*brightness/BL_STEP;
+	} else {
+		divh = div_total*(BL_STEP-brightness)/BL_STEP;
+	}
+	write_pwm_reg(id, PWM_REG_HRC, divh);
 
 	DBG("%s:line=%d,brightness = %d, div_total = %d, divh = %d state=%x \n",__FUNCTION__,__LINE__,brightness, div_total, divh,bl->props.state);
 out:
@@ -223,10 +162,11 @@ static int rk29_bl_get_brightness(struct backlight_device *bl)
 {
 	u32 divh,div_total;
 	struct rk29_bl_info *rk29_bl_info = bl_get_data(bl);
+	u32 id = rk29_bl_info->pwm_id;
 	u32 ref = rk29_bl_info->bl_ref;
 
-	div_total = read_pwm_reg(PWM_REG_LRC);
-	divh = read_pwm_reg(PWM_REG_HRC);
+	div_total = read_pwm_reg(id, PWM_REG_LRC);
+	divh = read_pwm_reg(id, PWM_REG_HRC);
 
 	if (!div_total)
 		return 0;
@@ -245,6 +185,7 @@ static struct backlight_ops rk29_bl_ops = {
 
 static void rk29_backlight_work_func(struct work_struct *work)
 {
+	rk29_bl->props.state &= ~BL_CORE_DRIVER2;
 	rk29_bl_update_status(rk29_bl);
 }
 static DECLARE_DELAYED_WORK(rk29_backlight_work, rk29_backlight_work_func);
@@ -252,6 +193,7 @@ static DECLARE_DELAYED_WORK(rk29_backlight_work, rk29_backlight_work_func);
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void rk29_bl_suspend(struct early_suspend *h)
 {
+	struct rk29_bl_info *rk29_bl_info = bl_get_data(rk29_bl);
 	int brightness = rk29_bl->props.brightness;
 
 	cancel_delayed_work_sync(&rk29_backlight_work);
@@ -270,7 +212,6 @@ static void rk29_bl_resume(struct early_suspend *h)
 {
 	struct rk29_bl_info *rk29_bl_info = bl_get_data(rk29_bl);
 	DBG("%s : %s\n", __FILE__, __FUNCTION__);
-	rk29_bl->props.state &= ~BL_CORE_DRIVER2;
 	
 	schedule_delayed_work(&rk29_backlight_work, msecs_to_jiffies(rk29_bl_info->delay_ms));
 }
@@ -281,28 +222,16 @@ static struct early_suspend bl_early_suspend = {
 	.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN - 1,
 };
 
-bool rk29_get_backlight_status(void)
-{
-	return ((rk29_bl->props.state & BL_CORE_DRIVER3)==BL_CORE_DRIVER3)?true:false;
-}
-EXPORT_SYMBOL(rk29_get_backlight_status);
-
 void rk29_backlight_set(bool on)
 {
 	printk("%s: set %d\n", __func__, on);
-	if(on){
-		rk29_bl->props.state &= ~BL_CORE_DRIVER3;
-		rk29_bl_update_status(rk29_bl);
-	}else{
-		rk29_bl->props.state |= BL_CORE_DRIVER3;
-		rk29_bl_update_status(rk29_bl);
-	}
+	if(on)
+		rk29_bl_resume(NULL);
+	else
+		rk29_bl_suspend(NULL);
 	return;
 }
 EXPORT_SYMBOL(rk29_backlight_set);
-#endif
-#ifdef CONFIG_BATTERY_RK30_ADC_FAC
-extern int adc_battery_notifier_call_chain(unsigned long val);
 #endif
 
 static int rk29_backlight_probe(struct platform_device *pdev)
@@ -323,23 +252,10 @@ static int rk29_backlight_probe(struct platform_device *pdev)
 
 	if (!rk29_bl_info->delay_ms)
 		rk29_bl_info->delay_ms = 100;
-	
-	rk29_bl_min_brightness_check(rk29_bl_info);
-	rk29_bl_max_brightness_check(rk29_bl_info);
-	#if 0
-	{
-		int temp,temp_val;
-		rk29_bl_info->max_brightness=180;
-		rk29_bl_info->min_brightness=20;
-		for(temp=0;temp<=255;temp++)
-		{	
-			temp_val=rk29_bl_val_scalor_conic(rk29_bl_info,temp);
-			//if(temp_val<=rk29_bl_info->max_brightness)
-			printk("conic req %d,get %d\n",temp,temp_val);
-		}	
-	}
-	#endif
-	
+
+	if (rk29_bl_info->min_brightness < 0 || rk29_bl_info->min_brightness > BL_STEP)
+		rk29_bl_info->min_brightness = 52;
+
 	if (rk29_bl_info && rk29_bl_info->io_init) {
 		rk29_bl_info->io_init();
 	}
@@ -357,8 +273,14 @@ static int rk29_backlight_probe(struct platform_device *pdev)
 		return -ENODEV;		
 	}
 
-	pwm_base = rk_pwm_get_base(id);
-	pwm_clk = rk_pwm_get_clk(id);
+#if defined(CONFIG_ARCH_RK29)
+	pwm_clk = clk_get(NULL, "pwm");
+#elif defined(CONFIG_ARCH_RK30) || defined(CONFIG_ARCH_RK2928)
+	if (id == 0 || id == 1)
+		pwm_clk = clk_get(NULL, "pwm01");
+	else if (id == 2 || id == 3)
+		pwm_clk = clk_get(NULL, "pwm23");
+#endif
 	if (IS_ERR(pwm_clk) || !pwm_clk) {
 		printk(KERN_ERR "failed to get pwm clock source\n");
 		return -ENODEV;
@@ -376,11 +298,22 @@ static int rk29_backlight_probe(struct platform_device *pdev)
 	}
 
 	clk_enable(pwm_clk);
-	rk_pwm_setup(id, PWM_DIV, divh, div_total);
+	write_pwm_reg(id, PWM_REG_CTRL, PWM_DIV|PWM_RESET);
+	write_pwm_reg(id, PWM_REG_LRC, div_total);
+	write_pwm_reg(id, PWM_REG_HRC, divh);
+	write_pwm_reg(id, PWM_REG_CNTR, 0x0);
+	write_pwm_reg(id, PWM_REG_CTRL, PWM_DIV|PWM_ENABLE|PWM_TIME_EN);
 
 	rk29_bl->props.power = FB_BLANK_UNBLANK;
 	rk29_bl->props.fb_blank = FB_BLANK_UNBLANK;
-	rk29_bl->props.brightness = BL_STEP / 2;
+	
+//	if((dwc_otg_check_dpdm() == 0) || (board_boot_mode() == BOOT_MODE_REBOOT)){
+		rk29_bl->props.brightness = BL_STEP / 2;
+//	}else{
+//		rk29_bl->props.brightness =5;
+
+//	}
+
 	rk29_bl->props.state = BL_CORE_DRIVER1;		
 
 	schedule_delayed_work(&rk29_backlight_work, msecs_to_jiffies(rk29_bl_info->delay_ms));
@@ -391,9 +324,7 @@ static int rk29_backlight_probe(struct platform_device *pdev)
 	}
 
 	register_early_suspend(&bl_early_suspend);
-#ifdef CONFIG_BATTERY_RK30_ADC_FAC
-	adc_battery_notifier_call_chain(BACKLIGHT_ON);
-#endif
+
 	printk("RK29 Backlight Driver Initialized.\n");
 	return ret;
 }

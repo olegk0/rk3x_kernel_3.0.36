@@ -37,19 +37,6 @@
 #include <media/videobuf2-core.h>
 #include <media/soc_mediabus.h>
 
-/*
-*			 Driver Version Note
-*
-*v0.1.1 : 
-*         1.Turn off cif and sensor before streamoff videobuf;
-*         2.Don't free videobuf struct, free operation run in next requset buffer;
-*
-*/
-
-#define RK_SOC_CAMERA_VERSION KERNEL_VERSION(0, 1, 1)
-static int version = RK_SOC_CAMERA_VERSION;
-module_param(version, int, S_IRUGO);
-
 /* Default to VGA resolution */
 #define DEFAULT_WIDTH	640
 #define DEFAULT_HEIGHT	480
@@ -77,10 +64,8 @@ static int soc_camera_power_set(struct soc_camera_device *icd,
 			return ret;
 		}
 
-		if (icl->power){
-			icl->power(icd->pdev, 0); // ensure power and reset pin are not active.
+		if (icl->power)
 			ret = icl->power(icd->pdev, power_on);
-			}
 		if (ret < 0) {
 			dev_err(&icd->dev,
 				"Platform failed to power-on the camera.\n");
@@ -506,6 +491,9 @@ static int soc_camera_open(struct file *file)
     		if (ret < 0)
     			goto epower;
 
+    		/* The camera could have been already on, try to reset */
+    		if (icl->reset)
+    			icl->reset(icd->pdev);
         }
 
 		ret = ici->ops->add(icd);
@@ -513,14 +501,7 @@ static int soc_camera_open(struct file *file)
 			dev_err(&icd->dev, "Couldn't activate the camera: %d\n", ret);
 			goto eiciadd;
 		}
-        /* ddl@rock-chips.com : accelerate device open  */
-        //reset MUST be done after mclk supply(for mt9335 isp)
-        
-        if ((file->f_flags & O_ACCMODE) == O_RDWR) {
-    		/* The camera could have been already on, try to reset */
-    		if (icl->reset)
-    			icl->reset(icd->pdev);
-            }
+
 		pm_runtime_enable(&icd->vdev->dev);
 		ret = pm_runtime_resume(&icd->vdev->dev);
 		if (ret < 0 && ret != -ENOSYS)
@@ -824,10 +805,6 @@ static int soc_camera_streamoff(struct file *file, void *priv,
 
 	if (icd->streamer != file)
 		return -EBUSY;
-    /* ddl@rock-chips.com: v0.1.1 */
-    v4l2_subdev_call(sd, video, s_stream, 0);
-    if (ici->ops->s_stream)
-		ici->ops->s_stream(icd, 0);				/* ddl@rock-chips.com : Add stream control for host */
 
 	/*
 	 * This calls buf_release from host driver's videobuf_queue_ops for all
@@ -838,8 +815,11 @@ static int soc_camera_streamoff(struct file *file, void *priv,
 	else
 		vb2_streamoff(&icd->vb2_vidq, i);
 
-    /* ddl@rock-chips.com: this code is invalidate, free can be run in requset buf */
-    //videobuf_mmap_free(&icd->vb_vidq);          /* ddl@rock-chips.com : free video buf */
+	v4l2_subdev_call(sd, video, s_stream, 0);
+    if (ici->ops->s_stream)
+		ici->ops->s_stream(icd, 0);				/* ddl@rock-chips.com : Add stream control for host */
+
+    videobuf_mmap_free(&icd->vb_vidq);          /* ddl@rock-chips.com : free video buf */
 	
 	return 0;
 }
@@ -856,19 +836,18 @@ static int soc_camera_queryctrl(struct file *file, void *priv,
 	if (!qc->id)
 		return -EINVAL;
 
-	/* first device controls */
-	//if device support digital zoom ,first use it to do zoom,zyc
-	for (i = 0; i < icd->ops->num_controls; i++)
-		if (qc->id == icd->ops->controls[i].id) {
-			memcpy(qc, &(icd->ops->controls[i]),
+	/* First check host controls */
+	for (i = 0; i < ici->ops->num_controls; i++)
+		if (qc->id == ici->ops->controls[i].id) {
+			memcpy(qc, &(ici->ops->controls[i]),
 				sizeof(*qc));
 			return 0;
 		}
 
-	/* then check host controls */
-	for (i = 0; i < ici->ops->num_controls; i++)
-		if (qc->id == ici->ops->controls[i].id) {
-			memcpy(qc, &(ici->ops->controls[i]),
+	/* Then device controls */
+	for (i = 0; i < icd->ops->num_controls; i++)
+		if (qc->id == icd->ops->controls[i].id) {
+			memcpy(qc, &(icd->ops->controls[i]),
 				sizeof(*qc));
 			return 0;
 		}
@@ -1215,14 +1194,13 @@ static int soc_camera_probe(struct device *dev)
 	if (ret < 0)
 		goto epower;
 
+	/* The camera could have been already on, try to reset */
+	if (icl->reset)
+		icl->reset(icd->pdev);
+
 	ret = ici->ops->add(icd);
 	if (ret < 0)
 		goto eadd;
-    
-    /* The camera could have been already on, try to reset */
-    //reset MUST be done after mclk supply(for mt9335 isp)
-    if (icl->reset)
-            icl->reset(icd->pdev);
 
 	/* Must have icd->vdev before registering the device */
 	ret = video_dev_create(icd);

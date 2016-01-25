@@ -58,13 +58,15 @@
 #include "board-rk2928-a720-camera.c" 
 #include "board-rk2928-a720-key.c"
 
+int __sramdata g_pmic_type =  0;
+#define PMIC_TYPE_TPS65910	2
+#define PMIC_TYPE_ACT8931	3
+
 #ifdef  CONFIG_THREE_FB_BUFFER
 #define RK30_FB0_MEM_SIZE 12*SZ_1M
 #else
 #define RK30_FB0_MEM_SIZE 8*SZ_1M
 #endif
-
-int __sramdata g_pmic_type =  0;
 
 static struct spi_board_info board_spi_devices[] = {
 };
@@ -129,13 +131,13 @@ static int rk29_backlight_pwm_suspend(void)
 		return -1;
 	}
 	#if defined(CONFIG_MFD_TPS65910)	
-	if(pmic_is_tps65910())
+	if(g_pmic_type == PMIC_TYPE_TPS65910)
 	{
 		gpio_direction_output(PWM_GPIO, GPIO_LOW);
 	}
 	#endif
 	#if defined(CONFIG_REGULATOR_ACT8931)
-	if(pmic_is_act8931())
+	if(g_pmic_type == PMIC_TYPE_ACT8931)
 	{
 		gpio_direction_output(PWM_GPIO, GPIO_HIGH);
 	}
@@ -215,7 +217,7 @@ static int rk_fb_io_disable(void)
 {
 
 	#if 0//defined(CONFIG_REGULATOR_ACT8931)
-	if(pmic_is_act8931())
+	if(g_pmic_type == PMIC_TYPE_ACT8931)
 	{
 		struct regulator *ldo;
 		ldo = regulator_get(NULL, "act_ldo4");	 //vcc_lcd
@@ -230,7 +232,7 @@ static int rk_fb_io_disable(void)
 static int rk_fb_io_enable(void)
 {
 	#if 0//defined(CONFIG_REGULATOR_ACT8931)
-	if(pmic_is_act8931())
+	if(g_pmic_type == PMIC_TYPE_ACT8931)
 	{
 		struct regulator *ldo;
 		ldo = regulator_get(NULL, "act_ldo4");	 //vcc_lcd
@@ -409,7 +411,7 @@ static struct sensor_platform_data mma7660_info = {
 
 #if CONFIG_RK30_PWM_REGULATOR
 static int pwm_voltage_map[] = {
-	950000,975000,1000000, 1025000, 1050000, 1075000, 1100000, 1125000, 1150000, 1175000, 1200000, 1225000, 1250000, 1275000, 1300000, 1325000, 1350000, 1375000, 1400000
+	1000000, 1025000, 1050000, 1075000, 1100000, 1125000, 1150000, 1175000, 1200000, 1225000, 1250000, 1275000, 1300000, 1325000, 1350000, 1375000, 1400000
 };
 
 static struct regulator_consumer_supply pwm_dcdc1_consumers[] = {
@@ -450,9 +452,9 @@ static struct pwm_platform_data pwm_regulator_info[1] = {
 #endif
 		.pwm_voltage = 1200000,
 		.suspend_voltage = 1050000,
-		.min_uV = 950000,
+		.min_uV = 1000000,
 		.max_uV	= 1400000,
-		.coefficient = 504,	//50.4%
+		.coefficient = 455,	//45.5%
 		.pwm_voltage_map = pwm_voltage_map,
 		.init_data	= &pwm_regulator_init_dcdc[0],
 	},
@@ -478,12 +480,12 @@ static void rkusb_wifi_power(int on) {
 	struct regulator *ldo = NULL;
 	
 #if defined(CONFIG_MFD_TPS65910)	
-	if(pmic_is_tps65910()) {
+	if(g_pmic_type == PMIC_TYPE_TPS65910) {
 		ldo = regulator_get(NULL, "vmmc");  //vccio_wl
 	}
 #endif
 #if defined(CONFIG_REGULATOR_ACT8931)
-	if(pmic_is_act8931()) {
+	if(g_pmic_type == PMIC_TYPE_ACT8931) {
 		ldo = regulator_get(NULL, "act_ldo4");  //vccio_wl
 	}
 #endif	
@@ -646,133 +648,14 @@ static struct platform_device *devices[] __initdata = {
 #ifdef CONFIG_I2C0_RK30
 #ifdef CONFIG_MFD_TPS65910
 #define TPS65910_HOST_IRQ        RK2928_PIN1_PB2
-#define PMU_POWER_SLEEP RK2928_PIN1_PA1
-
-static struct pmu_info  tps65910_dcdc_info[] = {
-	{
-		.name          = "vdd_cpu",   //arm
-		.min_uv          = 1200000,
-		.max_uv         = 1200000,
-	},
-	{
-		.name          = "vdd2",    //ddr
-		.min_uv          = 1200000,
-		.max_uv         = 1200000,
-	},
-	{
-		.name          = "vio",   //vcc_io
-		.min_uv          = 3300000,
-		.max_uv         = 3300000,
-	},
-	
-};
-static  struct pmu_info  tps65910_ldo_info[] = {
-	#if defined(CONFIG_MACH_RK2928_TB) || defined(CONFIG_MACH_RK2926_TB)
-	{
-		.name          = "vpll",   //vcc25
-		.min_uv          = 2500000,
-		.max_uv         = 2500000,
-	},
-	{
-		.name          = "vdig1",    //vcc18_cif
-		.min_uv          = 1800000,
-		.max_uv         = 1800000,
-	},
-	{
-		.name          = "vdac",   //vccio_wl
-		.min_uv          = 1800000,
-		.max_uv         = 1800000,
-	},
-	#else
-	{
-		.name          = "vdig1",    //vcc18_cif
-		.min_uv          = 1500000,
-		.max_uv         = 1500000,
-	},
-
-	{
-		.name          = "vdig2",   //vdd11
-		.min_uv          = 1200000,
-		.max_uv         = 1200000,
-	},
-	{
-		.name          = "vaux1",   //vcc28_cif
-		.min_uv          = 2800000,
-		.max_uv         = 2800000,
-	},
-	{
-		.name          = "vaux2",   //vcca33
-		.min_uv          = 3300000,
-		.max_uv         = 3300000,
-	},
-	{
-		.name          = "vaux33",   //vcc_tp
-		.min_uv          = 3300000,
-		.max_uv         = 3300000,
-	},
-	{
-		.name          = "vmmc",   //
-		.min_uv          = 3300000,
-		.max_uv         = 3300000,
-	},
-	#endif
- };
-
-#include "board-rk2928-sdk-tps65910.c"
+#include "board-rk2928-a720-tps65910.c"
 #endif
-
 #ifdef CONFIG_REGULATOR_ACT8931
 #ifdef CONFIG_MACH_RK2926_M713
 #define ACT8931_HOST_IRQ		RK2928_PIN1_PB1
 #else
 #define ACT8931_HOST_IRQ		RK2928_PIN1_PB2
 #endif
-#if defined(CONFIG_MACH_RK2928_SDK)
-#define ACT8931_CHGSEL_PIN RK2928_PIN0_PD0
-#else
-#define ACT8931_CHGSEL_PIN RK2928_PIN1_PA1
-#endif
-
-static struct pmu_info  act8931_dcdc_info[] = {
-	{
-		.name          = "act_dcdc1",   //vcc_io
-		.min_uv          = 3300000,
-		.max_uv         = 3300000,
-	},
-	{
-		.name          = "act_dcdc2",    //ddr
-		.min_uv          = 1500000,
-		.max_uv         = 1500000,
-	},
-	{
-		.name          = "vdd_cpu",   //vdd_arm
-		.min_uv          = 1200000,
-		.max_uv         = 1200000,
-	},
-	
-};
-static  struct pmu_info  act8931_ldo_info[] = {
-	{
-		.name          = "act_ldo1",   //vcc28_cif
-		.min_uv          = 2800000,
-		.max_uv         = 2800000,
-	},
-	{
-		.name          = "act_ldo2",    //vcc18_cif
-		.min_uv          = 1800000,
-		.max_uv         = 1800000,
-	},
-	{
-		.name          = "act_ldo3",    //vcca30
-		.min_uv          = 3000000,
-		.max_uv         = 3000000,
-	},
-	{
-		.name          = "act_ldo4",    //vcc_wl
-		.min_uv          = 3300000,
-		.max_uv         = 3300000,
-	},
-};
 #include "board-rk2928-sdk-act8931.c"
 #endif
 
@@ -880,14 +763,14 @@ void  rk30_pwm_resume_voltage_set(void)
 void __sramfunc board_pmu_suspend(void)
 {      
 	#if defined (CONFIG_MFD_TPS65910)
-       if(pmic_is_tps65910())
+       if(g_pmic_type == PMIC_TYPE_TPS65910)
        board_pmu_tps65910_suspend(); 
    	#endif   
 }
 void __sramfunc board_pmu_resume(void)
 {      
 	#if defined (CONFIG_MFD_TPS65910)
-       if(pmic_is_tps65910())
+       if(g_pmic_type == PMIC_TYPE_TPS65910)
        board_pmu_tps65910_resume(); 
 	#endif
 }
@@ -976,16 +859,15 @@ static void rk2928_pm_power_off(void)
 	printk(KERN_ERR "rk2928_pm_power_off start...\n");
         
         #if defined(CONFIG_REGULATOR_ACT8931)
-        if(pmic_is_act8931())
+        if(g_pmic_type == PMIC_TYPE_ACT8931)
         {
               if(act8931_charge_det)
                    arm_pm_restart(0, NULL);
-		 act8931_device_shutdown();
         }
         #endif
 	
 	#if defined(CONFIG_MFD_TPS65910)	
-	if(pmic_is_tps65910())
+	if(g_pmic_type == PMIC_TYPE_TPS65910)
 	{
 		tps65910_device_shutdown();//tps65910 shutdown
 	}

@@ -38,7 +38,6 @@
 #include "efi.h"
 #include "karma.h"
 #include "sysv68.h"
-#include "mtdpart.h"
 
 #ifdef CONFIG_BLK_DEV_MD
 extern void md_autodetect_dev(dev_t dev);
@@ -113,10 +112,6 @@ static int (*check_part[])(struct parsed_partitions *) = {
 #ifdef CONFIG_SYSV68_PARTITION
 	sysv68_partition,
 #endif
-#if defined(CONFIG_EMMC_RK)|| defined(CONFIG_SDMMC2_RK29)
-       mtdpart_partition,
-#endif
-
 	NULL
 };
  
@@ -566,7 +561,7 @@ static int drop_partitions(struct gendisk *disk, struct block_device *bdev)
 	#if defined(CONFIG_SDMMC_RK29) && !defined(CONFIG_SDMMC_RK29_OLD) 
 	    if(179 == MAJOR(bdev->bd_dev))
 	    {
-	        printk(KERN_INFO "%s: The sdcard partition have been using.So device busy! \n",__FUNCTION__);
+	        printk(KERN_INFO "%s..%d.. The sdcard partition have been using.So device busy! \n",__FUNCTION__, __LINE__);
 	    }
 	#endif    
 	    
@@ -608,8 +603,7 @@ rescan:
 	#if defined(CONFIG_SDMMC_RK29) && !defined(CONFIG_SDMMC_RK29_OLD) 
 	    if(179 == MAJOR(bdev->bd_dev))
 	    {
-	        printk(KERN_INFO "%s: check partition fail. partitionAddr=%lx.\n",
-				__FUNCTION__, (unsigned long)state);
+	        printk(KERN_INFO "%s..%d... ==== check partition fail. partitionAddr=%x.\n",__FUNCTION__, __LINE__, state);
 	    }
 	 #endif   	    
 		return 0;

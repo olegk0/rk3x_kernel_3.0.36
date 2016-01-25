@@ -28,6 +28,7 @@ MODULE_AUTHOR("Jaya Kumar <jayakumar.lkml@gmail.com>");
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
 
+
 #define W8001_MAX_LENGTH	11
 #define W8001_LEAD_MASK		0x80
 #define W8001_LEAD_BYTE		0x80
@@ -287,6 +288,8 @@ static irqreturn_t w8001_interrupt(struct serio *serio,
 	unsigned char tmp;
 
 	w8001->data[w8001->idx] = data;
+
+
 	switch (w8001->idx++) {
 	case 0:
 		if ((data & W8001_LEAD_MASK) != W8001_LEAD_BYTE) {
@@ -372,109 +375,35 @@ static int w8001_setup(struct w8001 *w8001)
 	struct input_dev *dev = w8001->dev;
 	struct w8001_coord coord;
 	struct w8001_touch_query touch;
-	int error;
-
-	error = w8001_command(w8001, W8001_CMD_STOP, false);
-	if (error)
-		return error;
-
-	msleep(250);	/* wait 250ms before querying the device */
 
 	dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS);
 	strlcat(w8001->name, "Wacom Serial", sizeof(w8001->name));
 
-	/* penabled? */
-	error = w8001_command(w8001, W8001_CMD_QUERY, true);
-	if (!error) {
-		__set_bit(BTN_TOUCH, dev->keybit);
-		__set_bit(BTN_TOOL_PEN, dev->keybit);
-		__set_bit(BTN_TOOL_RUBBER, dev->keybit);
-		__set_bit(BTN_STYLUS, dev->keybit);
-		__set_bit(BTN_STYLUS2, dev->keybit);
 
-		parse_pen_data(w8001->response, &coord);
-		w8001->max_pen_x = coord.x;
-		w8001->max_pen_y = coord.y;
+	__set_bit(BTN_TOUCH, dev->keybit);
+	__set_bit(BTN_TOOL_PEN, dev->keybit);
+	__set_bit(BTN_TOOL_RUBBER, dev->keybit);
+	__set_bit(BTN_STYLUS, dev->keybit);
+	__set_bit(BTN_STYLUS2, dev->keybit);
 
-		input_set_abs_params(dev, ABS_X, 0, coord.x, 0, 0);
-		input_set_abs_params(dev, ABS_Y, 0, coord.y, 0, 0);
-		input_abs_set_res(dev, ABS_X, W8001_PEN_RESOLUTION);
-		input_abs_set_res(dev, ABS_Y, W8001_PEN_RESOLUTION);
-		input_set_abs_params(dev, ABS_PRESSURE, 0, coord.pen_pressure, 0, 0);
-		if (coord.tilt_x && coord.tilt_y) {
-			input_set_abs_params(dev, ABS_TILT_X, 0, coord.tilt_x, 0, 0);
-			input_set_abs_params(dev, ABS_TILT_Y, 0, coord.tilt_y, 0, 0);
-		}
-		w8001->id = 0x90;
-		strlcat(w8001->name, " Penabled", sizeof(w8001->name));
-	}
+	__set_bit(INPUT_PROP_DIRECT, dev->propbit);
+	/*set wacom init data , donot need to read those data from touch control ic*/
+		
+	w8001->max_pen_x = 16480;
+	w8001->max_pen_y = 12410;
 
-	/* Touch enabled? */
-	error = w8001_command(w8001, W8001_CMD_TOUCHQUERY, true);
+	input_set_abs_params(dev, ABS_X, 0, w8001->max_pen_x, 0, 0);
+	input_set_abs_params(dev, ABS_Y, 0, w8001->max_pen_y, 0, 0);
+	input_abs_set_res(dev, ABS_X, W8001_PEN_RESOLUTION);
+	input_abs_set_res(dev, ABS_Y, W8001_PEN_RESOLUTION);
+	input_set_abs_params(dev, ABS_PRESSURE, 0, 511, 0, 0);
 
-	/*
-	 * Some non-touch devices may reply to the touch query. But their
-	 * second byte is empty, which indicates touch is not supported.
-	 */
-	if (!error && w8001->response[1]) {
-		__set_bit(BTN_TOUCH, dev->keybit);
-		__set_bit(BTN_TOOL_FINGER, dev->keybit);
+	w8001->id = 0;
 
-		parse_touchquery(w8001->response, &touch);
-		w8001->max_touch_x = touch.x;
-		w8001->max_touch_y = touch.y;
-
-		if (w8001->max_pen_x && w8001->max_pen_y) {
-			/* if pen is supported scale to pen maximum */
-			touch.x = w8001->max_pen_x;
-			touch.y = w8001->max_pen_y;
-			touch.panel_res = W8001_PEN_RESOLUTION;
-		}
-
-		input_set_abs_params(dev, ABS_X, 0, touch.x, 0, 0);
-		input_set_abs_params(dev, ABS_Y, 0, touch.y, 0, 0);
-		input_abs_set_res(dev, ABS_X, touch.panel_res);
-		input_abs_set_res(dev, ABS_Y, touch.panel_res);
-
-		switch (touch.sensor_id) {
-		case 0:
-		case 2:
-			w8001->pktlen = W8001_PKTLEN_TOUCH93;
-			w8001->id = 0x93;
-			strlcat(w8001->name, " 1FG", sizeof(w8001->name));
-			break;
-
-		case 1:
-		case 3:
-		case 4:
-			w8001->pktlen = W8001_PKTLEN_TOUCH9A;
-			strlcat(w8001->name, " 1FG", sizeof(w8001->name));
-			w8001->id = 0x9a;
-			break;
-
-		case 5:
-			w8001->pktlen = W8001_PKTLEN_TOUCH2FG;
-
-			input_mt_init_slots(dev, 2);
-			input_set_abs_params(dev, ABS_MT_POSITION_X,
-						0, touch.x, 0, 0);
-			input_set_abs_params(dev, ABS_MT_POSITION_Y,
-						0, touch.y, 0, 0);
-			input_set_abs_params(dev, ABS_MT_TOOL_TYPE,
-						0, MT_TOOL_MAX, 0, 0);
-
-			strlcat(w8001->name, " 2FG", sizeof(w8001->name));
-			if (w8001->max_pen_x && w8001->max_pen_y)
-				w8001->id = 0xE3;
-			else
-				w8001->id = 0xE2;
-			break;
-		}
-	}
-
+	strlcat(w8001->name, " Penabled", sizeof(w8001->name));
 	strlcat(w8001->name, " Touchscreen", sizeof(w8001->name));
 
-	return w8001_command(w8001, W8001_CMD_START, false);
+	return 0;
 }
 
 /*
@@ -583,5 +512,5 @@ static void __exit w8001_exit(void)
 	serio_unregister_driver(&w8001_drv);
 }
 
-module_init(w8001_init);
+late_initcall(w8001_init);
 module_exit(w8001_exit);

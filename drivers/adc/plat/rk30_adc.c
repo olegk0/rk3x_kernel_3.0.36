@@ -10,8 +10,7 @@
 #include "rk30_adc.h"
 
 //#define ADC_TEST
-#define SAMPLE_COUNT            10
-#define MIN_SAMPLE_VALUE        310
+
 struct rk30_adc_device {
 	int			 irq;
 	void __iomem		*regs;
@@ -115,74 +114,17 @@ static int rk30_adc_test(void)
 }
 #endif
 
-struct adc_client * adc_client[3] = {NULL,NULL,NULL};
-int adc_value[3] = {0,0,0};
-
-static void adc_callback(struct adc_client *client, void *param, int result)
-{
-	adc_value[client->chn] = result;
-	return;
-}
-
-static ssize_t adc_show(int chn,char *buf,int syncflag)
-{
-	if(NULL==adc_client[chn]) adc_client[chn]=adc_register(chn,adc_callback,NULL);
-
-	if(syncflag) adc_value[chn] = adc_sync_read(adc_client[chn]);
-	else adc_async_read(adc_client[chn]);
-
-	return sprintf(buf,"%d",adc_value[chn]);
-}
-
-static ssize_t adc0_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return adc_show(0,buf,0 /*async*/);
-}
-static ssize_t adc1_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return adc_show(1,buf,0 /*async*/);
-}
-static ssize_t adc2_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return adc_show(2,buf,0 /*async*/);
-}
-static ssize_t adc_sync_0_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return adc_show(0,buf,1 /*sync*/);
-}
-static ssize_t adc_sync_1_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return adc_show(1,buf,1 /*sync*/);
-}
-static ssize_t adc_sync_2_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return adc_show(2,buf,1 /*sync*/);
-}
-
-static DEVICE_ATTR(adc0, S_IRUGO | S_IWUSR, adc0_show, NULL);
-static DEVICE_ATTR(adc1, S_IRUGO | S_IWUSR, adc1_show, NULL);
-static DEVICE_ATTR(adc2, S_IRUGO | S_IWUSR, adc2_show, NULL);
-static DEVICE_ATTR(adc_sync_0, S_IRUGO | S_IWUSR, adc_sync_0_show, NULL);
-static DEVICE_ATTR(adc_sync_1, S_IRUGO | S_IWUSR, adc_sync_1_show, NULL);
-static DEVICE_ATTR(adc_sync_2, S_IRUGO | S_IWUSR, adc_sync_2_show, NULL);
-
 static int rk30_adc_probe(struct platform_device *pdev)
 {
-        struct adc_platform_data *pdata = pdev->dev.platform_data;
 	struct adc_host *adc = NULL;
 	struct rk30_adc_device *dev;
 	struct resource *res;
-	int ret = 0, i, v;
-	int err0,err1,err2,err3,err4,err5;
-
-        if(!pdata)
-                return -EINVAL;
+	int ret;
 
 	adc = adc_alloc_host(&pdev->dev, sizeof(struct rk30_adc_device), SARADC_CHN_MASK);
 	if (!adc)
 		return -ENOMEM;
 	adc->ops = &rk30_adc_ops;
-        adc->pdata = pdata;
 	dev = adc_priv(adc);
 	dev->adc = adc;
 	dev->irq = platform_get_irq(pdev, 0);
@@ -239,68 +181,29 @@ static int rk30_adc_probe(struct platform_device *pdev)
 		ret = -ENXIO;
 		goto err_ioarea;
 	}
-        g_adc = adc;
 	platform_set_drvdata(pdev, dev);
-
-        if(adc->pdata->base_chn > 0){
-                adc->base_client = adc_register(adc->pdata->base_chn, NULL, NULL);
-                if(!adc->base_client){
-		        dev_err(&pdev->dev, "adc_register(base_chn: %d) failed\n", adc->pdata->base_chn);
-                        ret = -ENOMEM;
-                        goto err_adc_register;
-                }
-                for(i = 0; i < SAMPLE_COUNT; i++){
-                        v = adc_sync_read(adc->base_client);
-                        if(v < 0){
-		                dev_err(&pdev->dev, "adc_register(base_chn: %d) failed\n", adc->pdata->base_chn);
-                                ret = v;
-                                goto err_adc_sync_read;
-                        }else if(v < MIN_SAMPLE_VALUE){
-		                dev_info(&pdev->dev, "chn[%d]: adc value(%d) is invalide\n", adc->pdata->base_chn, v);
-                                adc_unregister(adc->base_client);
-                                adc->base_client = NULL;
-                                break;
-                        }
-                        adc_dbg(&pdev->dev, "read ref_adc: %d\n", v);
-                        mdelay(1);
-                }
-        }
-        
-        err0 = device_create_file(&pdev->dev, &dev_attr_adc0);
-	err1 = device_create_file(&pdev->dev, &dev_attr_adc1);
-	err2 = device_create_file(&pdev->dev, &dev_attr_adc2);
-	err3 = device_create_file(&pdev->dev, &dev_attr_adc_sync_0);
-	err4 = device_create_file(&pdev->dev, &dev_attr_adc_sync_1);
-	err5 = device_create_file(&pdev->dev, &dev_attr_adc_sync_2);
-	if(err0 || err1 || err2 || err3 || err4 || err5)
-		dev_err(&pdev->dev, "create adc file failed: %d %d %d %d %d %d\n", err0, err1, err2, err3, err4, err5);
-        
 	dev_info(&pdev->dev, "rk30 adc: driver initialized\n");
 	return 0;
-err_adc_sync_read:
-        adc_unregister(adc->base_client);
-        adc->base_client = NULL;
-err_adc_register:
-	iounmap(dev->regs);
-err_ioarea:
+
+ err_ioarea:
 	release_resource(dev->ioarea);
 	kfree(dev->ioarea);
 
-err_clk:
+ err_clk:
 	clk_disable(dev->clk);
 
-err_pclk:
+ err_pclk:
 	clk_disable(dev->pclk);
 	clk_put(dev->pclk);
 
-err_clk2:
+ err_clk2:
 	clk_put(dev->clk);
 
-err_irq:
+ err_irq:
 	free_irq(dev->irq, dev);
 
-err_alloc:
-        adc_free_host(dev->adc);
+ err_alloc:
+	adc_free_host(dev->adc);
 	return ret;
 }
 
@@ -308,10 +211,6 @@ static int rk30_adc_remove(struct platform_device *pdev)
 {
 	struct rk30_adc_device *dev = platform_get_drvdata(pdev);
 
-        if(dev->adc->base_client){
-                adc_unregister(dev->adc->base_client);
-                dev->adc->base_client = NULL;
-        }
 	iounmap(dev->regs);
 	release_resource(dev->ioarea);
 	kfree(dev->ioarea);
@@ -373,13 +272,10 @@ module_exit(rk30_adc_exit);
 MODULE_DESCRIPTION("Driver for ADC");
 MODULE_AUTHOR("kfx, kfx@rock-chips.com");
 MODULE_LICENSE("GPL");
-
 static int __init adc_test_init(void)
 {
-        printk("def_ref_volt: %dmV, curr_ref_volt: %dmV\n", 
-                        adc_get_def_ref_volt(), adc_get_curr_ref_volt());
 #ifdef ADC_TEST	
-	rk30_adc_test();
+		rk30_adc_test();
 #endif
 	return 0;
 

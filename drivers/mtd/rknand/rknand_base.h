@@ -72,9 +72,6 @@ struct rknand_info {
     void (*nand_timing_config)(unsigned long AHBnKHz);
     void (*rknand_suspend)(void);
     void (*rknand_resume)(void);
-    int (*rknand_re_init)(void);
-    void (*rknand_dev_cache_flush)(void);
-    int (*ftl_discard) (int Index, int nSec);  
     int reserved[20];
 };
 
@@ -86,7 +83,5 @@ extern void rknand_buffer_shutdown(void);
 extern int add_rknand_device(struct rknand_info * prknand_Info);
 extern int get_rknand_device(struct rknand_info ** prknand_Info);
 extern int rknand_buffer_sync(void);
-extern void rknand_cache_flush(void);
-extern void rknand_dev_cache_flush(void);
 
 #endif

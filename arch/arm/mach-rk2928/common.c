@@ -16,7 +16,6 @@
 #include <mach/loader.h>
 #include <mach/ddr.h>
 #include <mach/cpu.h>
-#include <mach/debug_uart.h>
 
 static void __init rk2928_cpu_axi_init(void)
 {
@@ -114,6 +113,9 @@ void __init rk2928_init_irq(void)
         soc_gpio_init();
 }
 
+extern void __init rk2928_map_common_io(void);
+extern int __init clk_disable_unused(void);
+
 static unsigned int __initdata ddr_freq = DDR_FREQ;
 static int __init ddr_freq_setup(char *str)
 {
@@ -126,28 +128,10 @@ void __init rk2928_map_io(void)
 {
 	rk2928_map_common_io();
 #ifdef DEBUG_UART_BASE
-#ifdef CONFIG_RK_USB_UART
-	writel_relaxed(0x04000000, RK2928_GRF_BASE + GRF_UOC1_CON4);
-	if(!(readl_relaxed(RK2928_GRF_BASE + 0x014c) & (1<<10)))//detect id
-	{
-	    writel_relaxed(0x34000000, RK2928_GRF_BASE + GRF_UOC1_CON4);
-	}
-	else
-	{
-        if(!(readl_relaxed(RK2928_GRF_BASE + 0x014c) & (1<<7)))//detect vbus
-        {
-            writel_relaxed(0x10001000, RK2928_GRF_BASE + GRF_UOC0_CON0);
-            writel_relaxed(0x007f0055, RK2928_GRF_BASE + GRF_UOC0_CON5);
-            writel_relaxed(0x34003000, RK2928_GRF_BASE + GRF_UOC1_CON4);
-        }   
-        else
-	    {
-            writel_relaxed(0x34000000, RK2928_GRF_BASE + GRF_UOC1_CON4);
-	    }
-    }
-#else
-        writel_relaxed(0x34000000, RK2928_GRF_BASE + GRF_UOC1_CON4);
-#endif
+        #ifdef CONFIG_RK_USB_UART
+        writel_relaxed(0x007f0051, RK2928_GRF_BASE + GRF_UOC0_CON5);
+        writel_relaxed(0x34003000, RK2928_GRF_BASE + GRF_UOC1_CON4);
+        #endif
         writel_relaxed(0x07, DEBUG_UART_BASE + 0x88);
         writel_relaxed(0x07, DEBUG_UART_BASE + 0x88);
         writel_relaxed(0x00, DEBUG_UART_BASE + 0x04);
@@ -167,6 +151,7 @@ void __init rk2928_map_io(void)
 	rk2928_boot_mode_init();
 }
 
+extern u32 ddr_get_cap(void);
 static __init u32 rk2928_get_ddr_size(void)
 {
 #ifdef CONFIG_MACH_RK2928_FPGA

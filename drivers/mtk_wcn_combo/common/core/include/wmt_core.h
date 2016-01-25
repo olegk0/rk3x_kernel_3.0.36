@@ -1,10 +1,86 @@
+/* Copyright Statement:
+ *
+ * This software/firmware and related documentation ("MediaTek Software") are
+ * protected under relevant copyright laws. The information contained herein
+ * is confidential and proprietary to MediaTek Inc. and/or its licensors.
+ * Without the prior written permission of MediaTek inc. and/or its licensors,
+ * any reproduction, modification, use or disclosure of MediaTek Software,
+ * and information contained herein, in whole or in part, shall be strictly prohibited.
+ *
+ * MediaTek Inc. (C) 2010. All rights reserved.
+ *
+ * BY OPENING THIS FILE, RECEIVER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND AGREES
+ * THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK SOFTWARE")
+ * RECEIVED FROM MEDIATEK AND/OR ITS REPRESENTATIVES ARE PROVIDED TO RECEIVER ON
+ * AN "AS-IS" BASIS ONLY. MEDIATEK EXPRESSLY DISCLAIMS ANY AND ALL WARRANTIES,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NONINFRINGEMENT.
+ * NEITHER DOES MEDIATEK PROVIDE ANY WARRANTY WHATSOEVER WITH RESPECT TO THE
+ * SOFTWARE OF ANY THIRD PARTY WHICH MAY BE USED BY, INCORPORATED IN, OR
+ * SUPPLIED WITH THE MEDIATEK SOFTWARE, AND RECEIVER AGREES TO LOOK ONLY TO SUCH
+ * THIRD PARTY FOR ANY WARRANTY CLAIM RELATING THERETO. RECEIVER EXPRESSLY ACKNOWLEDGES
+ * THAT IT IS RECEIVER'S SOLE RESPONSIBILITY TO OBTAIN FROM ANY THIRD PARTY ALL PROPER LICENSES
+ * CONTAINED IN MEDIATEK SOFTWARE. MEDIATEK SHALL ALSO NOT BE RESPONSIBLE FOR ANY MEDIATEK
+ * SOFTWARE RELEASES MADE TO RECEIVER'S SPECIFICATION OR TO CONFORM TO A PARTICULAR
+ * STANDARD OR OPEN FORUM. RECEIVER'S SOLE AND EXCLUSIVE REMEDY AND MEDIATEK'S ENTIRE AND
+ * CUMULATIVE LIABILITY WITH RESPECT TO THE MEDIATEK SOFTWARE RELEASED HEREUNDER WILL BE,
+ * AT MEDIATEK'S OPTION, TO REVISE OR REPLACE THE MEDIATEK SOFTWARE AT ISSUE,
+ * OR REFUND ANY SOFTWARE LICENSE FEES OR SERVICE CHARGE PAID BY RECEIVER TO
+ * MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
+ *
+ * The following software/firmware and/or related documentation ("MediaTek Software")
+ * have been modified by MediaTek Inc. All revisions are subject to any receiver's
+ * applicable license agreements with MediaTek Inc.
+ */
+
+
 /*! \file
     \brief  Declaration of library functions
 
     Any definitions in this file will be shared among GLUE Layer and internal Driver Stack.
 */
 
+/*******************************************************************************
+* Copyright (c) 2009 MediaTek Inc.
+*
+* All rights reserved. Copying, compilation, modification, distribution
+* or any other use whatsoever of this material is strictly prohibited
+* except in accordance with a Software License Agreement with
+* MediaTek Inc.
+********************************************************************************
+*/
 
+/*******************************************************************************
+* LEGAL DISCLAIMER
+*
+* BY OPENING THIS FILE, BUYER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND
+* AGREES THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK
+* SOFTWARE") RECEIVED FROM MEDIATEK AND/OR ITS REPRESENTATIVES ARE
+* PROVIDED TO BUYER ON AN "AS-IS" BASIS ONLY. MEDIATEK EXPRESSLY
+* DISCLAIMS ANY AND ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+* LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+* PARTICULAR PURPOSE OR NONINFRINGEMENT. NEITHER DOES MEDIATEK PROVIDE
+* ANY WARRANTY WHATSOEVER WITH RESPECT TO THE SOFTWARE OF ANY THIRD PARTY
+* WHICH MAY BE USED BY, INCORPORATED IN, OR SUPPLIED WITH THE MEDIATEK
+* SOFTWARE, AND BUYER AGREES TO LOOK ONLY TO SUCH THIRD PARTY FOR ANY
+* WARRANTY CLAIM RELATING THERETO. MEDIATEK SHALL ALSO NOT BE RESPONSIBLE
+* FOR ANY MEDIATEK SOFTWARE RELEASES MADE TO BUYER'S SPECIFICATION OR TO
+* CONFORM TO A PARTICULAR STANDARD OR OPEN FORUM.
+*
+* BUYER'S SOLE AND EXCLUSIVE REMEDY AND MEDIATEK'S ENTIRE AND CUMULATIVE
+* LIABILITY WITH RESPECT TO THE MEDIATEK SOFTWARE RELEASED HEREUNDER WILL
+* BE, AT MEDIATEK'S OPTION, TO REVISE OR REPLACE THE MEDIATEK SOFTWARE AT
+* ISSUE, OR REFUND ANY SOFTWARE LICENSE FEES OR SERVICE CHARGE PAID BY
+* BUYER TO MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
+*
+* THE TRANSACTION CONTEMPLATED HEREUNDER SHALL BE CONSTRUED IN ACCORDANCE
+* WITH THE LAWS OF THE STATE OF CALIFORNIA, USA, EXCLUDING ITS CONFLICT
+* OF LAWS PRINCIPLES.  ANY DISPUTES, CONTROVERSIES OR CLAIMS ARISING
+* THEREOF AND RELATED THERETO SHALL BE SETTLED BY ARBITRATION IN SAN
+* FRANCISCO, CA, UNDER THE RULES OF THE INTERNATIONAL CHAMBER OF COMMERCE
+* (ICC).
+********************************************************************************
+*/
 
 #ifndef _WMT_CORE_H_
 #define _WMT_CORE_H_
@@ -13,6 +89,7 @@
 #include "wmt_ctrl.h"
 #include "wmt_exp.h"
 #include "wmt_plat.h"
+#include "core_exp.h"
 //TODO: [GeorgeKuo][FixMe] remove temporarily
 //#include "mtk_wcn_cmb_stub.h" /* for AIF state definition */
 
@@ -20,34 +97,27 @@
 *                         C O M P I L E R   F L A G S
 ********************************************************************************
 */
-#if defined(MT6620E3) || defined(MT6620E6)   //need modify this part
-#define CFG_CORE_MT6620_SUPPORT 1 /* whether MT6620 is supported or not */
-#else
-#define CFG_CORE_MT6620_SUPPORT 1 /* whether MT6620 is supported or not */
-#endif
 
-#if defined(MT6628)
-#define CFG_CORE_MT6628_SUPPORT 1 /* whether MT6628 is supported or not */
-#else
-#define CFG_CORE_MT6628_SUPPORT 1 /* whether MT6628 is supported or not */
-#endif
+#define CFG_CORE_MT6620_SUPPORT 1 /* whether MT6620 is supported or not */
+#define CFG_CORE_MT6628_SUPPORT 0 /* whether MT6628 is supported or not */
 
 // TODO:[ChangeFeature][George] move this definition outside so that wmt_dev can remove wmt_core.h inclusion.
+#if 0/*move to core_exp.h*/
 #define defaultPatchName "mt66xx_patch_hdr.bin"
-
+#endif
 
 /*******************************************************************************
 *                                 M A C R O S
 ********************************************************************************
 */
-
+#if 0/*move to core_exp.h*/
 #define BCNT_PATCH_BUF_HEADROOM (8)
 
 #define DWCNT_HIF_CONF    (4)
 #define DWCNT_STRAP_CONF  (4)
 #define DWCNT_RESERVED    (8)
 #define DWCNT_CTRL_DATA  (16)
-
+#endif
 
 #if 0 // TODO: [obsolete][GeorgeKuo]: remove ubsolete definitions
 #define WMT_SET (1)
@@ -64,8 +134,7 @@
 #define WMT_FLAG_LEN            (1)
 #define WMT_HIF_UART_INFO_LEN   (4)
 #define WMT_FUNC_CTRL_PARAM_LEN (1)
-#define WMT_LPBK_CMD_LEN        (5)
-#define WMT_LPBK_BUF_LEN        (1024+WMT_LPBK_CMD_LEN)
+
 #define WMT_DEFAULT_BAUD_RATE   (115200)
 
 #define INIT_CMD(c, e, s) {.cmd= c, .cmdSz=sizeof(c), .evt=e, .evtSz=sizeof(e), .str=s}
@@ -100,6 +169,7 @@ typedef enum _ENUM_WMT_HIF_T
     WMT_HIF_MAX
 } ENUM_WMT_HIF_T, *P_ENUM_WMT_HIF_T;
 
+
 #if 0 /* [George] moved to wmt_exp.h for hif_sdio's use */
 typedef enum {
     WMT_SDIO_SLOT_INVALID = 0,
@@ -114,6 +184,17 @@ typedef enum {
     WMT_SDIO_FUNC_MAX
 } WMT_SDIO_FUNC_TYPE;
 #endif
+
+#if 0/*move to core_exp.h*/
+
+typedef enum _ENUM_WMT_UART_FC_T
+{
+    WMT_UART_NO_FC = 0,
+    WMT_UART_MTK_SW_FC = 1,
+    WMT_UART_LUX_SW_FC = 2,
+    WMT_UART_HW_FC = 3,
+    WMT_UART_MAX
+} ENUM_WMT_UART_FC_T, *P_ENUM_UART_FC_T;
 
 typedef enum _ENUM_WMT_OPID_T {
     WMT_OPID_HIF_CONF = 0,
@@ -135,22 +216,11 @@ typedef enum _ENUM_WMT_OPID_T {
     WMT_OPID_EFUSE_RW = 16,
     WMT_OPID_GPIO_CTRL = 17,
     WMT_OPID_SDIO_CTRL = 18,
-    WMT_OPID_FW_COREDMP = 19,
-    WMT_OPID_GPIO_STATE = 20,
     WMT_OPID_MAX
 } ENUM_WMT_OPID_T, *P_ENUM_WMT_OPID_T;
 
 typedef OSAL_OP_DAT WMT_OP;
 typedef P_OSAL_OP_DAT P_WMT_OP;
-
-typedef enum _ENUM_WMT_UART_FC_T
-{
-    WMT_UART_NO_FC = 0,
-    WMT_UART_MTK_SW_FC = 1,
-    WMT_UART_LUX_SW_FC = 2,
-    WMT_UART_HW_FC = 3,
-    WMT_UART_MAX
-} ENUM_WMT_UART_FC_T, *P_ENUM_UART_FC_T;
 
 
 typedef struct _WMT_HIF_CONF {
@@ -159,6 +229,8 @@ typedef struct _WMT_HIF_CONF {
     UINT32 au4HifConf[DWCNT_HIF_CONF]; // HIF Config
     UINT32 au4StrapConf[DWCNT_STRAP_CONF]; // Strap Config
 } WMT_HIF_CONF, *P_WMT_HIF_CONF;
+
+#endif
 
 typedef INT32 (*WMT_OPID_FUNC)(P_WMT_OP);
 
@@ -202,11 +274,6 @@ typedef struct _WMT_GEN_CONF {
     UCHAR pwr_on_rst_slot;
     UCHAR pwr_on_off_slot;
     UCHAR pwr_on_on_slot;
-	UCHAR co_clock_flag;
-
-    /* Combo chip side SDIO driving setting */
-    UINT32 sdio_driving_cfg;
-    
 } WMT_GEN_CONF, *P_WMT_GEN_CONF;
 
 typedef enum _ENUM_DRV_STS_ {
@@ -238,29 +305,13 @@ typedef enum _WMT_IC_PIN_STATE_
     WMT_IC_AIF_1 = 3, // = CMB_STUB_AIF_1,
     WMT_IC_AIF_2 = 4, // = CMB_STUB_AIF_2,
     WMT_IC_AIF_3 = 5, // = CMB_STUB_AIF_3,
-    WMT_IC_PIN_MUX = 6,
-    WMT_IC_PIN_GPIO = 7,
-    WMT_IC_PIN_GPIO_HIGH = 8,
-    WMT_IC_PIN_GPIO_LOW = 8,
     WMT_IC_PIN_STATE_MAX
 } WMT_IC_PIN_STATE, *P_WMT_IC_PIN_STATE;
-
-typedef enum _WMT_CO_CLOCK_
-{
-    WMT_CO_CLOCK_DIS = 0,
-    WMT_CO_CLOCK_EN = 1,
-    WMT_CO_CLOCK_MAX
-} WMT_CO_CLOCK, *P_WMT_CO_CLOCK;
-
 
 typedef INT32 (*SW_INIT)(P_WMT_HIF_CONF pWmtHifConf);
 typedef INT32 (*SW_DEINIT)(P_WMT_HIF_CONF pWmtHifConf);
 typedef INT32 (*IC_PIN_CTRL)(WMT_IC_PIN_ID id, WMT_IC_PIN_STATE state, UINT32 flag);
 typedef INT32 (*IC_VER_CHECK)(VOID);
-typedef INT32 (*CO_CLOCK_CTRL)(WMT_CO_CLOCK on);
-typedef MTK_WCN_BOOL(*IS_QUICK_SLEEP_SUPPORT)(VOID);
-typedef MTK_WCN_BOOL(*IS_AEE_DUMP_SUPPORT)(VOID);
-
 
 typedef struct _WMT_IC_OPS_ {
     UINT32 icId;
@@ -268,9 +319,6 @@ typedef struct _WMT_IC_OPS_ {
     SW_DEINIT sw_deinit;
     IC_PIN_CTRL ic_pin_ctrl;
     IC_VER_CHECK ic_ver_check;
-	CO_CLOCK_CTRL co_clock_ctrl;
-	IS_QUICK_SLEEP_SUPPORT is_quick_sleep;
-	IS_AEE_DUMP_SUPPORT is_aee_dump_support;
 } WMT_IC_OPS, *P_WMT_IC_OPS;
 
 typedef struct _WMT_CTX_
@@ -427,34 +475,12 @@ wmt_core_tx (
     UINT32 *writtenSize,
     MTK_WCN_BOOL bRawFlag
     );
-extern MTK_WCN_BOOL wmt_core_is_quick_ps_support (void);
-
-extern MTK_WCN_BOOL wmt_core_get_aee_dump_flag(void);
 
 
 /*******************************************************************************
 *                              F U N C T I O N S
 ********************************************************************************
 */
-
-static _osal_inline_ MTK_WCN_BOOL
-wmt_core_ic_ops_check (
-    P_WMT_IC_OPS p_ops
-    )
-{
-    if (!p_ops) {
-        return MTK_WCN_BOOL_FALSE;
-    }
-    if ( (NULL == p_ops->sw_init)
-        || (NULL == p_ops->sw_deinit)
-        || (NULL == p_ops->ic_ver_check)
-        || (NULL == p_ops->ic_pin_ctrl) ) {
-        return MTK_WCN_BOOL_FALSE;
-    }
-    else {
-        return MTK_WCN_BOOL_TRUE;
-    }
-}
 
 #endif /* _WMT_CORE_H_ */
 

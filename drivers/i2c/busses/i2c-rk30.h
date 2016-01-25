@@ -22,7 +22,6 @@
 #include <linux/miscdevice.h>
 #include <mach/board.h>
 #include <mach/iomux.h>
-#include <mach/gpio.h>
 #include <asm/irq.h>
 
 #if 0
@@ -47,10 +46,10 @@
 
 #define rk30_ceil(x, y) \
 	({ unsigned long __x = (x), __y = (y); (__x + __y - 1) / __y; })
-#if defined(CONFIG_ARCH_RK30) || defined(CONFIG_ARCH_RK3188)
+#if defined(CONFIG_ARCH_RK30)
 #define GRF_I2C_CON_BASE            (RK30_GRF_BASE + GRF_SOC_CON1)
 #endif
-#if defined(CONFIG_ARCH_RK2928) || defined(CONFIG_ARCH_RK3026)
+#ifdef CONFIG_ARCH_RK2928
 #define GRF_I2C_CON_BASE            (RK2928_GRF_BASE + GRF_SOC_CON1)
 #endif
 #define I2C_ADAP_SEL_BIT(nr)        ((nr) + 11)
@@ -98,8 +97,6 @@ struct rk30_i2c {
         unsigned int        addr;
         unsigned int        mode;
         unsigned int        count;
-
-	int sda_mode, scl_mode;
 
         struct wake_lock    idlelock[5];
         int is_div_from_arm[5];

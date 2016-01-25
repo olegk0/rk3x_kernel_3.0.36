@@ -48,7 +48,8 @@
 
 
 #ifdef CONFIG_IAM_CHANGES
-    #define MMEDIA_BUF_SIZE	5*FB_MAXPGSIZE + SZ_1M
+//    #define MMEDIA_BUF_SIZE	5*FB_MAXPGSIZE + SZ_1M
+    #define MMEDIA_BUF_SIZE	64 * SZ_1M
     #define FB0_SIZE	FB_MAXPGSIZE
 #else
     #define FB0_SIZE	get_fb_size()
@@ -172,8 +173,28 @@ static struct spi_board_info board_spi_devices[] = {
 #include <linux/leds_pwm.h>
 
 #ifdef BLUE_LED_PIN_POWER_MNG
+
+static void led_blue_set(struct led_classdev *led_cdev,
+	           enum led_brightness value)
+{
+    if (value)
+		gpio_direction_output(PWM_GPIO, GPIO_HIGH);
+    else
+		gpio_direction_input(PWM_GPIO);
+}
+
+static struct led_classdev led_power_blue = {
+    .name			= "mk808:blue:power",
+    .default_trigger	= "heartbeat",
+    .brightness_set		= led_blue_set,
+    .flags			= LED_CORE_SUSPENDRESUME,
+};
+
+//**********************
 void my_power_off(void)
 {
+	led_classdev_unregister(&led_power_blue);
+//	udelay(200);
 	gpio_free(PWM_GPIO);
 	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);	
 	gpio_request(PWM_GPIO, NULL);
@@ -188,66 +209,7 @@ void my_power_on(void)
 	gpio_request(PWM_GPIO, NULL);
 	gpio_direction_output(PWM_GPIO, GPIO_HIGH);
 };
-
-static DEFINE_MUTEX(power_key_mutex);
-
-static int power_led_state;
-
-static void _led_blue_set(int value)
-{
-    if (value)
-		gpio_direction_output(PWM_GPIO, GPIO_HIGH);
-    else
-		gpio_direction_input(PWM_GPIO);
-    power_led_state = value;
-}
-
-static void led_blue_set(struct led_classdev *led_cdev,
-	           enum led_brightness value)
-{
-    mutex_lock(&power_key_mutex);
-    _led_blue_set(value);
-    mutex_unlock(&power_key_mutex);
-}
-
-static struct led_classdev led_power_blue = {
-    .name			= "mk808:blue:power",
-    .default_trigger	= "heartbeat",
-    .brightness_set		= led_blue_set,
-    .flags			= LED_CORE_SUSPENDRESUME,
-};
-
-#define POWER_KEY_SCAN_TIME_MS	100
-static struct input_dev *power_keydev;
-static struct timer_list powerkey_timer;
-static int power_key_state;
-
-static void powerkey_btimer_cb(unsigned long data)
-{
-    int res;
-
-    mutex_lock(&power_key_mutex);
-    gpio_direction_input(PWM_GPIO);
-    udelay(100);
-    res = !gpio_get_value(PWM_GPIO);
-    _led_blue_set(power_led_state);
-    mutex_unlock(&power_key_mutex);
-
-    if(res){//pressed
-		if(!power_key_state){//and was not pressed
-			input_report_key(power_keydev, KEY_POWER, 1);
-			input_sync(power_keydev);
-		}
-    }else{//not pressed
-		if(power_key_state){//and was pressed
-			input_report_key(power_keydev, KEY_POWER, 0);
-			input_sync(power_keydev);
-		}
-    }
-
-    power_key_state = res;
-    mod_timer( &powerkey_timer, jiffies + msecs_to_jiffies(POWER_KEY_SCAN_TIME_MS));
-}
+//**************************
 
 static int __init power_led_init(void)
 {
@@ -257,41 +219,7 @@ static int __init power_led_init(void)
 //    rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);
     led_classdev_register(NULL, &led_power_blue);
 
-    power_key_state = 0;
-    power_keydev = input_allocate_device();
-
-    if(!power_keydev){
-		printk(KERN_ERR "Could not allocate PowerLed input device\n");
-		goto err0;
-    }else{
-		power_keydev->name = "mk808LedPinInput";
-		power_keydev->phys = "mk808/input1";
-		power_keydev->id.bustype = BUS_HOST;
-//	power_keydev->dev.parent = dev;
-		set_bit(EV_KEY, power_keydev->evbit);
-		set_bit(EV_REL, power_keydev->evbit);
-		set_bit(KEY_POWER, power_keydev->keybit);
-
-		if(input_register_device(power_keydev) < 0){
-			printk(KERN_ERR "Could not register PowerLed input device\n");
-			goto err1;
-		}else{
-			setup_timer( &powerkey_timer, powerkey_btimer_cb, 0 );
-			if(mod_timer( &powerkey_timer, jiffies + msecs_to_jiffies(POWER_KEY_SCAN_TIME_MS))){
-				printk(KERN_ERR "Could not setup timer for PowerLed\n");
-				goto err2;
-			}
-		}
-		mutex_init(&power_key_mutex);
-		printk("PowerLed input initialized\n");
-		return 0;
-    }
-err2:
-    del_timer(&powerkey_timer);
-    input_unregister_device(power_keydev);
-err1:
-    input_free_device(power_keydev);
-err0:
+//	printk("PowerLed initialized\n");
 	return 0;
 }
 
@@ -392,10 +320,10 @@ struct platform_device rk30_device_pwm3 = {
          },
  };
  
- struct platform_device rk30_device_mmedia = {
+ struct platform_device rk_device_mmedia = {
          .name           = "rk-ump",
          .id             = -1,
-         .resource       = rk30_resource_mmedia,
+         .resource       = rk_resource_mmedia,
          .num_resources  = ARRAY_SIZE(rk_resource_mmedia),
  };
 //**********************************************************************************
@@ -1192,7 +1120,6 @@ void __init board_clock_init(void)
 	dvfs_set_arm_logic_volt(dvfs_cpu_logic_table, cpu_dvfs_table, dep_cpu2core_table);
 	dvfs_set_freq_volt_table(clk_get(NULL, "gpu"), dvfs_gpu_table);
 	dvfs_set_freq_volt_table(clk_get(NULL, "ddr"), dvfs_ddr_table);
-
 }
 
 MACHINE_START(RK30, "RK30board")

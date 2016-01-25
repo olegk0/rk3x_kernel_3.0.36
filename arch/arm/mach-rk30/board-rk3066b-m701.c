@@ -74,37 +74,14 @@
 #include "../../../drivers/staging/android/timed_gpio.h"
 #endif
 
+#ifdef  CONFIG_THREE_FB_BUFFER
+#define RK30_FB0_MEM_SIZE 12*SZ_1M
+#else
+#define RK30_FB0_MEM_SIZE 8*SZ_1M
+#endif
+
 #include "board-rk3066b-m701-camera.c"
-
-#include <plat/key.h>
-static struct rk29_keys_button key_button[] = {
-	{
-		.desc	= "vol-",
-		.code	= KEY_VOLUMEDOWN,
-		.gpio = RK30_PIN0_PB5,
-		.active_low = PRESS_LEV_LOW,
-	},
-	{
-		.desc	= "play",
-		.code	= KEY_POWER,
-		.gpio	= RK30_PIN0_PA4,
-		.active_low = PRESS_LEV_LOW,
-		.wakeup	= 1,
-	},
-	{
-		.desc	= "vol+",
-		.code	= KEY_VOLUMEUP,
-		.adc_value	= 1,
-		.gpio = INVALID_GPIO,
-		.active_low = PRESS_LEV_LOW,
-	},
-};
-
-struct rk29_keys_platform_data rk29_keys_pdata = {
-	.buttons	= key_button,
-	.nbuttons	= ARRAY_SIZE(key_button),
-	.chn	= 1,  //chn: 0-7, if do not use ADC,set 'chn' -1
-};
+#include "board-rk3066b-m701-key.c"
 
 #if defined(CONFIG_TOUCHSCREEN_GT8XX)
 #define TOUCH_RESET_PIN  RK30_PIN2_PC0
@@ -113,6 +90,10 @@ static int goodix_init_platform_hw(void)
 {
 	int ret;
 	
+	rk30_mux_api_set(GPIO2C0_LCDC1DATA16_SMCADDR0_TRACECLK_NAME, GPIO2C_GPIO2C0);
+	rk30_mux_api_set(GPIO2B4_LCDC1DATA12_SMCDATA12_TRACEDATA12_NAME, GPIO2B_GPIO2B4);
+	printk("%s:0x%x,0x%x\n",__func__,rk30_mux_api_get(GPIO2C0_LCDC1DATA16_SMCADDR0_TRACECLK_NAME),rk30_mux_api_get(GPIO2B4_LCDC1DATA12_SMCDATA12_TRACEDATA12_NAME));
+
 	if (TOUCH_PWR_PIN != INVALID_GPIO) {
 		ret = gpio_request(TOUCH_PWR_PIN, "goodix power pin");
 		if (ret != 0) {
@@ -154,9 +135,16 @@ struct goodix_platform_data goodix_info = {
 
 #define TOUCH_RESET_PIN  RK30_PIN2_PC0
 #define TOUCH_INT_PIN	 RK30_PIN0_PD4
+#define TOUCH_PWR_PIN    RK30_PIN2_PB4
 
 static int ft5306_init_platform_hw(void)
 {
+
+	rk30_mux_api_set(GPIO2C0_LCDC1DATA16_SMCADDR0_TRACECLK_NAME, GPIO2C_GPIO2C0);
+	rk30_mux_api_set(GPIO0D4_SPI1RXD_NAME, GPIO0D_GPIO0D4);
+        rk30_mux_api_set(GPIO2B4_LCDC1DATA12_SMCDATA12_TRACEDATA12_NAME, GPIO2B_GPIO2B4);
+       //printk("%s:0x%x,0x%x\n",__func__,rk30_mux_api_get(GPIO2C0_LCDC1DATA16_SMCADDR0_TRACECLK_NAME),rk30_mux_api_get(GPIO2B4_LCDC1DATA12_SMCDATA12_TRACEDATA12_NAME));
+
 	printk("ft5306_init_platform_hw \n");
 	if(gpio_request(TOUCH_RESET_PIN,NULL) != 0){
 	  gpio_free(TOUCH_RESET_PIN);
@@ -170,9 +158,7 @@ static int ft5306_init_platform_hw(void)
 	  return -EIO;
 	}
 
-	gpio_direction_output(TOUCH_RESET_PIN, 1);
-	gpio_set_value(TOUCH_RESET_PIN,GPIO_HIGH);
-	mdelay(50);
+	gpio_direction_output(TOUCH_RESET_PIN, 0);
 	gpio_set_value(TOUCH_RESET_PIN,GPIO_LOW);
 	mdelay(50);
 	gpio_direction_input(TOUCH_INT_PIN);
@@ -222,7 +208,10 @@ static struct spi_board_info board_spi_devices[] = {
 ************************************************************/
 #ifdef CONFIG_BACKLIGHT_RK29_BL
 #define PWM_ID            2
-#define PWM_MODE          PWM2
+#define PWM_MUX_NAME      GPIO3D5_PWM2_JTAGTCK_OTGDRVVBUS_NAME
+#define PWM_MUX_MODE      GPIO3D_PWM2
+#define PWM_MUX_MODE_GPIO GPIO3D_GPIO3D5
+#define PWM_GPIO 	  RK30_PIN3_PD5
 #define PWM_EFFECT_VALUE  0
 
 #define LCD_DISP_ON_PIN
@@ -234,56 +223,59 @@ static struct spi_board_info board_spi_devices[] = {
 static int rk29_backlight_io_init(void)
 {
 	int ret = 0;
-
-	iomux_set(PWM_MODE);
+	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE);
 #ifdef  LCD_DISP_ON_PIN
-	ret = gpio_request(BL_EN_PIN, "bl_en");
-	if (ret == 0) {
-		gpio_direction_output(BL_EN_PIN, BL_EN_VALUE);
+	// rk30_mux_api_set(BL_EN_MUX_NAME, BL_EN_MUX_MODE);
+
+	ret = gpio_request(BL_EN_PIN, NULL);
+	if (ret != 0) {
+		gpio_free(BL_EN_PIN);
 	}
+
+	gpio_direction_output(BL_EN_PIN, 0);
+	gpio_set_value(BL_EN_PIN, BL_EN_VALUE);
 #endif
 	return ret;
 }
 
 static int rk29_backlight_io_deinit(void)
 {
-	int ret = 0, pwm_gpio;
+	int ret = 0;
 #ifdef  LCD_DISP_ON_PIN
 	gpio_direction_output(BL_EN_PIN, 0);
 	gpio_set_value(BL_EN_PIN, !BL_EN_VALUE);
 	gpio_free(BL_EN_PIN);
 #endif
-	pwm_gpio = iomux_mode_to_gpio(PWM_MODE);
-	gpio_request(pwm_gpio, "bl_pwm");
-	gpio_direction_input(pwm_gpio);
+	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);
+	gpio_request(PWM_GPIO, NULL);
+	gpio_direction_output(PWM_GPIO, GPIO_LOW);
 	return ret;
 }
 
 static int rk29_backlight_pwm_suspend(void)
 {
-	int ret, pwm_gpio = iomux_mode_to_gpio(PWM_MODE);
-
-	ret = gpio_request(pwm_gpio, "bl_pwm");
-	if (ret) {
+	int ret = 0;
+	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE_GPIO);
+	if (gpio_request(PWM_GPIO, NULL)) {
 		printk("func %s, line %d: request gpio fail\n", __FUNCTION__, __LINE__);
-		return ret;
+		return -1;
 	}
-	gpio_direction_input(pwm_gpio);
+	gpio_direction_output(PWM_GPIO, GPIO_LOW);
 #ifdef  LCD_DISP_ON_PIN
-	gpio_direction_output(BL_EN_PIN, !BL_EN_VALUE);
+	gpio_direction_output(BL_EN_PIN, 0);
+	gpio_set_value(BL_EN_PIN, !BL_EN_VALUE);
 #endif
 	return ret;
 }
 
 static int rk29_backlight_pwm_resume(void)
 {
-	int pwm_gpio = iomux_mode_to_gpio(PWM_MODE);
-
-	gpio_free(pwm_gpio);
-	iomux_set(PWM_MODE);
+	gpio_free(PWM_GPIO);
+	rk30_mux_api_set(PWM_MUX_NAME, PWM_MUX_MODE);
 #ifdef  LCD_DISP_ON_PIN
 	msleep(30);
-	gpio_direction_output(BL_EN_PIN, BL_EN_VALUE);
+	gpio_direction_output(BL_EN_PIN, 1);
+	gpio_set_value(BL_EN_PIN, BL_EN_VALUE);
 #endif
 	return 0;
 }
@@ -293,8 +285,7 @@ static struct rk29_bl_info rk29_bl_info = {
 	.bl_ref = PWM_EFFECT_VALUE,
 	.io_init = rk29_backlight_io_init,
 	.io_deinit = rk29_backlight_io_deinit,
-	.min_brightness = 40,
-	.delay_ms = 0,
+	.min_brightness = 48,
 	.pwm_suspend = rk29_backlight_pwm_suspend,
 	.pwm_resume = rk29_backlight_pwm_resume,
 };
@@ -668,7 +659,7 @@ static int rk_fb_io_disable(void)
 	{
 		gpio_set_value(LCD_STB_PIN, !LCD_STB_VALUE);
 	}
-	msleep(100);
+	msleep(50);
 	if(LCD_CS_PIN !=INVALID_GPIO)
 	{
 		gpio_set_value(LCD_CS_PIN, !LCD_CS_VALUE);
@@ -810,6 +801,7 @@ static int rk610_power_on_init(void)
 	int ret;
 	if(RK610_RST_PIN != INVALID_GPIO)
 	{
+		rk30_mux_api_set(RK610_RST_PIN_MUX_NAME,RK610_RST_PIN_MUX_MODE);
 		ret = gpio_request(RK610_RST_PIN, "rk610 reset");
 		if (ret)
 		{
@@ -832,20 +824,6 @@ static int rk610_power_on_init(void)
 
 static struct rk610_ctl_platform_data rk610_ctl_pdata = {
 	.rk610_power_on_init = rk610_power_on_init,
-};
-#endif
-
-#ifdef CONFIG_SND_SOC_RK610
-static int rk610_codec_io_init(void)
-{
-//if need iomux.
-//Must not gpio_request
-	return 0;
-}
-
-static struct rk610_codec_platform_data rk610_codec_pdata = {
-	.spk_ctl_io = RK30_PIN2_PA0,
-	.io_init = rk610_codec_io_init,
 };
 #endif
 
@@ -970,11 +948,22 @@ static struct platform_device device_ion = {
 #endif
 
 /**************************************************************************************************
- * SDMMC devices,  include the module of SD,MMC,and SDIO.noted by xbw at 2012-03-05
+ * SDMMC devices,  include the module of SD,MMC,and sdio.noted by xbw at 2012-03-05
 **************************************************************************************************/
 #ifdef CONFIG_SDMMC_RK29
-#include "board-rk30-sdk-sdmmc.c"
+#include "board-rk3066b-sdk-sdmmc.c"
+
+#if defined(CONFIG_SDMMC0_RK29_WRITE_PROTECT)
+#define SDMMC0_WRITE_PROTECT_PIN	RK30_PIN3_PB7	//According to your own project to set the value of write-protect-pin.
 #endif
+
+#if defined(CONFIG_SDMMC1_RK29_WRITE_PROTECT)
+#define SDMMC1_WRITE_PROTECT_PIN	RK30_PIN3_PC7	//According to your own project to set the value of write-protect-pin.
+#endif
+
+#define RK29SDK_WIFI_SDIO_CARD_DETECT_N    RK30_PIN6_PB2
+
+#endif //endif ---#ifdef CONFIG_SDMMC_RK29
 
 #ifdef CONFIG_SDMMC0_RK29
 static int rk29_sdmmc0_cfg_gpio(void)
@@ -994,18 +983,14 @@ static int rk29_sdmmc0_cfg_gpio(void)
 	gpio_direction_output(RK30_PIN3_PA7, GPIO_LOW);
 
 #else
-	    rk29_sdmmc_set_iomux(0, 0xFFFF);
+	rk29_sdmmc_set_iomux(0, 0xFFFF);
 
-    #if defined(CONFIG_SDMMC0_RK29_SDCARD_DET_FROM_GPIO)
-        rk30_mux_api_set(RK29SDK_SD_CARD_DETECT_PIN_NAME, RK29SDK_SD_CARD_DETECT_IOMUX_FGPIO);
-    #else
-	    rk30_mux_api_set(RK29SDK_SD_CARD_DETECT_PIN_NAME, RK29SDK_SD_CARD_DETECT_IOMUX_FMUX);
-    #endif	
+	rk30_mux_api_set(GPIO3B0_SDMMC0DETECTN_NAME, GPIO3B_SDMMC0DETECTN);
 
-    #if defined(CONFIG_SDMMC0_RK29_WRITE_PROTECT)
-	    gpio_request(SDMMC0_WRITE_PROTECT_PIN, "sdmmc-wp");
-	    gpio_direction_input(SDMMC0_WRITE_PROTECT_PIN);
-    #endif
+#if defined(CONFIG_SDMMC0_RK29_WRITE_PROTECT)
+	gpio_request(SDMMC0_WRITE_PROTECT_PIN, "sdmmc-wp");
+	gpio_direction_input(SDMMC0_WRITE_PROTECT_PIN);
+#endif
 
 #endif
 
@@ -1032,49 +1017,14 @@ struct rk29_sdmmc_platform_data default_sdmmc0_data = {
 #else
 	.use_dma = 0,
 #endif
-
-#if defined(CONFIG_WIFI_COMBO_MODULE_CONTROL_FUNC) && defined(CONFIG_USE_SDMMC0_FOR_WIFI_DEVELOP_BOARD)
-    .status = rk29sdk_wifi_mmc0_status,
-    .register_status_notify = rk29sdk_wifi_mmc0_status_register,
-#endif
-
-#if defined(RK29SDK_SD_CARD_PWR_EN) || (INVALID_GPIO != RK29SDK_SD_CARD_PWR_EN)
-    .power_en = RK29SDK_SD_CARD_PWR_EN,
-    .power_en_level = RK29SDK_SD_CARD_PWR_EN_LEVEL,
-#else
-    .power_en = INVALID_GPIO,
-    .power_en_level = GPIO_LOW,
-#endif    
+	.detect_irq = RK30_PIN3_PB6,	// INVALID_GPIO
 	.enable_sd_wakeup = 0,
 
 #if defined(CONFIG_SDMMC0_RK29_WRITE_PROTECT)
 	.write_prt = SDMMC0_WRITE_PROTECT_PIN,
-	.write_prt_enalbe_level = SDMMC0_WRITE_PROTECT_ENABLE_VALUE;
 #else
 	.write_prt = INVALID_GPIO,
 #endif
-
-    .det_pin_info = {    
-    #if defined(RK29SDK_SD_CARD_DETECT_N) || (INVALID_GPIO != RK29SDK_SD_CARD_DETECT_N)  
-        .io             = RK29SDK_SD_CARD_DETECT_N, //INVALID_GPIO,
-        .enable         = RK29SDK_SD_CARD_INSERT_LEVEL,
-        #ifdef RK29SDK_SD_CARD_DETECT_PIN_NAME
-        .iomux          = {
-            .name       = RK29SDK_SD_CARD_DETECT_PIN_NAME,
-            #ifdef RK29SDK_SD_CARD_DETECT_IOMUX_FGPIO
-            .fgpio      = RK29SDK_SD_CARD_DETECT_IOMUX_FGPIO,
-            #endif
-            #ifdef RK29SDK_SD_CARD_DETECT_IOMUX_FMUX
-            .fmux       = RK29SDK_SD_CARD_DETECT_IOMUX_FMUX,
-            #endif
-        },
-        #endif
-    #else
-        .io             = INVALID_GPIO,
-        .enable         = GPIO_LOW,
-    #endif    
-    }, 
-
 };
 #endif // CONFIG_SDMMC0_RK29
 
@@ -1089,6 +1039,8 @@ static int rk29_sdmmc1_cfg_gpio(void)
 	rk30_mux_api_set(GPIO3C2_SDMMC1DATA1_NAME, GPIO3C_SDMMC1_DATA1);
 	rk30_mux_api_set(GPIO3C3_SDMMC1DATA2_NAME, GPIO3C_SDMMC1_DATA2);
 	rk30_mux_api_set(GPIO3C4_SDMMC1DATA3_NAME, GPIO3C_SDMMC1_DATA3);
+	//rk30_mux_api_set(GPIO3C6_SDMMC1DETECTN_NAME, GPIO3C_SDMMC1_DETECT_N);
+
 #else
 
 #if defined(CONFIG_SDMMC1_RK29_WRITE_PROTECT)
@@ -1128,49 +1080,26 @@ struct rk29_sdmmc_platform_data default_sdmmc1_data = {
 	.use_dma = 0,
 #endif
 
-#if defined(CONFIG_WIFI_CONTROL_FUNC) || defined(CONFIG_WIFI_COMBO_MODULE_CONTROL_FUNC)
-    .status = rk29sdk_wifi_status,
-    .register_status_notify = rk29sdk_wifi_status_register,
+#if !defined(CONFIG_USE_SDMMC1_FOR_WIFI_DEVELOP_BOARD)
+#ifdef CONFIG_WIFI_CONTROL_FUNC
+	.status = rk29sdk_wifi_status,
+	.register_status_notify = rk29sdk_wifi_status_register,
+#endif
+#if 0
+	.detect_irq = RK29SDK_WIFI_SDIO_CARD_DETECT_N,
 #endif
 
-    #if defined(CONFIG_SDMMC1_RK29_WRITE_PROTECT)
-    	.write_prt = SDMMC1_WRITE_PROTECT_PIN,    	
-	    .write_prt_enalbe_level = SDMMC1_WRITE_PROTECT_ENABLE_VALUE;
-    #else
-    	.write_prt = INVALID_GPIO,
-    #endif
-
-    #if defined(CONFIG_RK29_SDIO_IRQ_FROM_GPIO)
-        .sdio_INT_gpio = RK29SDK_WIFI_SDIO_CARD_INT,
-    #endif
-
-    .det_pin_info = {    
-#if defined(CONFIG_USE_SDMMC1_FOR_WIFI_DEVELOP_BOARD)
-     #if defined(RK29SDK_SD_CARD_DETECT_N) || (INVALID_GPIO != RK29SDK_SD_CARD_DETECT_N)  
-        .io             = RK29SDK_SD_CARD_DETECT_N,
-     #else
-         .io             = INVALID_GPIO,
-     #endif   
-
-        .enable         = RK29SDK_SD_CARD_INSERT_LEVEL,
-        #ifdef RK29SDK_SD_CARD_DETECT_PIN_NAME
-        .iomux          = {
-            .name       = RK29SDK_SD_CARD_DETECT_PIN_NAME,
-            #ifdef RK29SDK_SD_CARD_DETECT_IOMUX_FGPIO
-            .fgpio      = RK29SDK_SD_CARD_DETECT_IOMUX_FGPIO,
-            #endif
-            #ifdef RK29SDK_SD_CARD_DETECT_IOMUX_FMUX
-            .fmux       = RK29SDK_SD_CARD_DETECT_IOMUX_FMUX,
-            #endif
-        },
-        #endif
- #else
-        .io             = INVALID_GPIO,
-        .enable         = GPIO_LOW,
+#if defined(CONFIG_SDMMC1_RK29_WRITE_PROTECT)
+	.write_prt = SDMMC1_WRITE_PROTECT_PIN,
+#else
+	.write_prt = INVALID_GPIO,
 #endif
-    },
-   
+
+#else
+	.detect_irq = INVALID_GPIO,
 	.enable_sd_wakeup = 0,
+#endif
+
 };
 #endif //endif--#ifdef CONFIG_SDMMC1_RK29
 
@@ -1178,7 +1107,7 @@ struct rk29_sdmmc_platform_data default_sdmmc1_data = {
  * the end of setting for SDMMC devices
 **************************************************************************************************/
 
-#if defined(CONFIG_BATTERY_RK30_ADC)
+#ifdef CONFIG_BATTERY_RK30_ADC
 static struct rk30_adc_battery_platform_data rk30_adc_battery_platdata = {
         .dc_det_pin      = RK30_PIN0_PB2,
         .batt_low_pin    = RK30_PIN0_PB1, 
@@ -1197,55 +1126,10 @@ static struct platform_device rk30_device_adc_battery = {
                 .platform_data = &rk30_adc_battery_platdata,
         },
 };
-
-#elif defined(CONFIG_BATTERY_RK30_ADC_FAC)
-
-#define BOARD_BAT_DEFINE_VALUE          (1800)	/* bat_zx: the same with BAT_DEFINE_VALUE in RK3066B */
-#define BOARD_BATT_NUM                  (11) 	/* bat_zx: the same with BATT_NUM */
-#define BOARD_BATT_PULLUP_RES           (200)	/* bat_zx: the same with batt_table[4] */
-#define BOARD_BATT_PULLDOWN_RES         (100)	/* bat_zx: the same with batt_table[5] */
-#define BOARD_BATT_DISCHG_OFFSET        (6)
-#define BOARD_BATT_CHG_OFFSET           (BOARD_BATT_DISCHG_OFFSET + BOARD_BATT_NUM)
-
-static const int batt_table[2*BOARD_BATT_NUM+6] =
-{
-	0x4B434F52, 0x7461625F, 0x79726574, 0, 200, 100,
-	3400, 3469, 3566, 3642, 3660, 3680, 3728, 3815, 3878, 3957, 4082,  //discharge
-	3703, 3848, 3931, 3956, 3993, 4074, 4145, 4154, 4159, 4160, 4166   //charge
-};
-
-static struct rk30_adc_battery_platform_data rk30_adc_battery_platdata = {
-        .dc_det_pin      = RK30_PIN0_PB2,
-        .batt_low_pin    = RK30_PIN0_PB1,
-        .charge_set_pin  = RK30_PIN2_PA7,
-        .charge_ok_pin   = RK30_PIN0_PA6,
-        .dc_det_level    = GPIO_LOW,
-        .charge_ok_level = GPIO_HIGH,
-		.charge_set_level = GPIO_HIGH,
-
-		.is_reboot_charging = 1,
-		.save_capacity   = 1,
-		.use_board_table = 1,
-		.table_size = BOARD_BATT_NUM,
-		.board_batt_table = batt_table,
-		.discharge_table = &batt_table[BOARD_BATT_DISCHG_OFFSET],
-		.charge_table = &batt_table[BOARD_BATT_CHG_OFFSET],
-		.reference_voltage = BOARD_BAT_DEFINE_VALUE,
-		.pull_up_res = BOARD_BATT_PULLUP_RES,
-		.pull_down_res = BOARD_BATT_PULLDOWN_RES,
-};
-
-static struct platform_device rk30_device_adc_battery = {
-        .name   = "rk30-battery",
-        .id     = -1,
-        .dev = {
-                .platform_data = &rk30_adc_battery_platdata,
-        },
-};
 #endif
 #ifdef CONFIG_RK30_PWM_REGULATOR
 const static int pwm_voltage_map[] = {
-	950000, 975000,1000000, 1025000, 1050000, 1075000, 1100000, 1125000, 1150000, 1175000, 1200000, 1225000, 1250000, 1275000, 1300000, 1325000, 1350000, 1375000, 1400000
+	1000000, 1025000, 1050000, 1075000, 1100000, 1125000, 1150000, 1175000, 1200000, 1225000, 1250000, 1275000, 1300000, 1325000, 1350000, 1375000, 1400000
 };
 
 static struct regulator_consumer_supply pwm_dcdc1_consumers[] = {
@@ -1273,11 +1157,12 @@ static struct pwm_platform_data pwm_regulator_info[1] = {
 	{
 		.pwm_id = 3,
 		.pwm_gpio = RK30_PIN3_PD6,
-		.pwm_iomux_pwm = PWM3,
-		.pwm_iomux_gpio = GPIO3_D6,
+		.pwm_iomux_name = GPIO3D6_PWM3_JTAGTMS_HOSTDRVVBUS_NAME,
+		.pwm_iomux_pwm = GPIO3D_PWM3,
+		.pwm_iomux_gpio = GPIO3D_GPIO3D6,
 		.pwm_voltage = 1000000,
 		.suspend_voltage = 1050000,
-		.min_uV = 950000,
+		.min_uV = 1000000,
 		.max_uV	= 1400000,
 		.coefficient = 455,	//45.5%
 		.pwm_voltage_map = pwm_voltage_map,
@@ -1310,8 +1195,8 @@ static struct rfkill_rk_platform_data rfkill_rk_platdata = {
         .io             = RK30_PIN3_PC7,
         .enable         = GPIO_HIGH,
         .iomux          = {
-            .name       = "bt_poweron",
-            .fgpio      = GPIO3_C7,
+            .name       = GPIO3C7_SDMMC1WRITEPRT_RMIICRS_NAME,
+            .fgpio      = GPIO3C_GPIO3C7,
         },
     },
 
@@ -1319,8 +1204,8 @@ static struct rfkill_rk_platform_data rfkill_rk_platdata = {
         .io             = RK30_PIN3_PD1, // set io to INVALID_GPIO for disable it
         .enable         = GPIO_LOW,
         .iomux          = {
-            .name       = "bt_reset",
-            .fgpio      = GPIO3_D1,
+            .name       = GPIO3D1_SDMMC1BACKENDPWR_MIIMDCLK_NAME,
+            .fgpio      = GPIO3D_GPIO3D1,
        },
    }, 
 
@@ -1328,8 +1213,8 @@ static struct rfkill_rk_platform_data rfkill_rk_platdata = {
         .io             = RK30_PIN3_PC6, // set io to INVALID_GPIO for disable it
         .enable         = GPIO_HIGH,
         .iomux          = {
-            .name       = "bt_wake",
-            .fgpio      = GPIO3_C6,
+            .name       = GPIO3C6_SDMMC1DETECTN_RMIIRXERR_NAME,
+            .fgpio      = GPIO3C_GPIO3C6,
         },
     },
 
@@ -1347,9 +1232,9 @@ static struct rfkill_rk_platform_data rfkill_rk_platdata = {
         .io             = RK30_PIN1_PA3, // set io to INVALID_GPIO for disable it
         .enable         = GPIO_LOW,
         .iomux          = {
-            .name       = "bt_rts",
-            .fgpio      = GPIO1_A3,
-            .fmux       = UART0_RTSN,
+            .name       = GPIO1A3_UART0RTSN_NAME,
+            .fgpio      = GPIO1A_GPIO1A3,
+            .fmux       = GPIO1A_UART0RTSN,
         },
     },
 };
@@ -1408,7 +1293,7 @@ static struct platform_device *devices[] __initdata = {
 #if defined(CONFIG_SEW868)
 	&rk30_device_sew868,
 #endif
-#if defined(CONFIG_BATTERY_RK30_ADC) || defined(CONFIG_BATTERY_RK30_ADC_FAC)
+#ifdef CONFIG_BATTERY_RK30_ADC
  	&rk30_device_adc_battery,
 #endif
 #ifdef CONFIG_RFKILL_RK
@@ -1517,7 +1402,6 @@ static struct i2c_board_info __initdata i2c0_info[] = {
 			.type			= "rk610_i2c_codec",
 			.addr			= 0x60,
 			.flags			= 0,
-			.platform_data		= &rk610_codec_pdata,					
 		},
 #endif
 #endif
@@ -1525,185 +1409,16 @@ static struct i2c_board_info __initdata i2c0_info[] = {
 };
 #endif
 
+#define PMIC_TYPE_WM8326	1
+#define PMIC_TYPE_TPS65910	2
 int __sramdata g_pmic_type =  0;
 #ifdef CONFIG_I2C1_RK30
 #ifdef CONFIG_MFD_WM831X_I2C
-
-#define PMU_POWER_SLEEP 		RK30_PIN0_PA1 
-
-static struct pmu_info  wm8326_dcdc_info[] = {
-	{
-		.name          = "vdd_core",   //logic
-		.min_uv          = 1000000,
-		.max_uv         = 1000000,
-		.suspend_vol  =  950000,
-	},
-	{
-		.name          = "vdd_cpu",    //arm
-		.min_uv          = 1000000,
-		.max_uv         = 1000000,
-		.suspend_vol  =  950000,
-	},
-	{
-		.name          = "dcdc3",   //ddr
-		.min_uv          = 1150000,
-		.max_uv         = 1150000,
-		.suspend_vol  =  1150000,
-	},
-	#ifdef CONFIG_MACH_RK3066_SDK
-	{
-		.name          = "dcdc4",   //vcc_io
-		.min_uv          = 3300000,
-		.max_uv         = 3300000,
-		.suspend_vol  =  3000000,
-	},
-	#else
-	{
-		.name          = "dcdc4",   //vcc_io
-		.min_uv          = 3000000,
-		.max_uv         = 3000000,
-		.suspend_vol  =  2800000,
-	},
-	#endif
-};
-
-static struct pmu_info  wm8326_ldo_info[] = {
-	{
-		.name          = "ldo1",   //vcc18_cif
-		.min_uv          = 1800000,
-		.max_uv         = 1800000,
-		.suspend_vol  =  1800000,
-	},
-	{
-		.name          = "ldo2",    //vccio_wl
-		.min_uv          = 1800000,
-		.max_uv         = 1800000,
-		.suspend_vol  =  1800000,
-	},
-	{
-		.name          = "ldo3",   //
-		.min_uv          = 1100000,
-		.max_uv         = 1100000,
-		.suspend_vol  =  1100000,
-	},
-	{
-		.name          = "ldo4",   //vdd11
-		.min_uv          = 1000000,
-		.max_uv         = 1000000,
-		.suspend_vol  =  1000000,
-	},
-	{
-		.name          = "ldo5",   //vcc25
-		.min_uv          = 1800000,
-		.max_uv         = 1800000,
-		.suspend_vol  =  1800000,
-	},
-	{
-		.name          = "ldo6",   //vcc33
-		.min_uv          = 3300000,
-		.max_uv         = 3300000,
-		.suspend_vol  =  3300000,
-	},
-	{
-		.name          = "ldo7",   //vcc28_cif
-		.min_uv          = 2800000,
-		.max_uv         = 2800000,
-		.suspend_vol  =  2800000,
-	},
-	{
-		.name          = "ldo8",   //vcca33
-		.min_uv          = 3300000,
-		.max_uv         = 3300000,
-		.suspend_vol  =  3300000,
-	},
-	{
-		.name          = "ldo9",   //vcc_tp
-		.min_uv          = 3300000,
-		.max_uv         = 3300000,
-		.suspend_vol  =  3300000,
-	},
-	{
-		.name          = "ldo10",   //flash_io
-		.min_uv          = 1800000,
-		.max_uv         = 1800000,
-		.suspend_vol  =  1800000,
-	},
-};
-
-#include "board-pmu-wm8326.c"
+#include "board-rk3066b-sdk-wm8326.c"
 #endif
-
 #ifdef CONFIG_MFD_TPS65910
-#ifdef CONFIG_ARCH_RK3066B
 #define TPS65910_HOST_IRQ        RK30_PIN0_PB3
-#else
-#define TPS65910_HOST_IRQ        RK30_PIN6_PA4
-#endif
-
-#define PMU_POWER_SLEEP RK30_PIN0_PA1
-
-static struct pmu_info  tps65910_dcdc_info[] = {
-	{
-		.name          = "vdd_cpu",   //arm
-		.min_uv          = 1000000,
-		.max_uv         = 1000000,
-	},
-	{
-		.name          = "vdd2",    //ddr
-		.min_uv          = 1200000,
-		.max_uv         = 1200000,
-	},
-	{
-		.name          = "vio",   //vcc_io
-		.min_uv          = 3000000,
-		.max_uv         = 3000000,
-	},
-	
-};
-static  struct pmu_info  tps65910_ldo_info[] = {
-	{
-		.name          = "vpll",   //vcc25
-		.min_uv          = 2500000,
-		.max_uv         = 2500000,
-	},
-	{
-		.name          = "vdig1",    //vcc18_cif
-		.min_uv          = 1800000,
-		.max_uv         = 1800000,
-	},
-	{
-		.name          = "vdig2",   //vdd11
-		.min_uv          = 1000000,
-		.max_uv         = 1000000,
-	},
-	{
-		.name          = "vaux1",   //vcc25_hdmi
-		.min_uv          = 2500000,
-		.max_uv         = 2500000,
-	},
-	{
-		.name          = "vaux2",   //vcca33
-		.min_uv          = 3300000,
-		.max_uv         = 3300000,
-	},
-	{
-		.name          = "vaux33",   //vcc_tp
-		.min_uv          = 3300000,
-		.max_uv         = 3300000,
-	},
-	{
-		.name          = "vmmc",   //vcc28_cif
-		.min_uv          = 2800000,
-		.max_uv         = 2800000,
-	},
-	{
-		.name          = "vdac",   //vccio_wl
-		.min_uv          = 1800000,
-		.max_uv         = 1800000,
-	},
- };
-
-#include "board-pmu-tps65910.c"
+#include "board-rk3066b-sdk-tps65910.c"
 #endif
 
 static struct i2c_board_info __initdata i2c1_info[] = {
@@ -1731,11 +1446,11 @@ static struct i2c_board_info __initdata i2c1_info[] = {
 void __sramfunc board_pmu_suspend(void)
 {      
 	#if defined (CONFIG_MFD_WM831X_I2C)
-       if(pmic_is_wm8326())
+       if(g_pmic_type == PMIC_TYPE_WM8326)
        board_pmu_wm8326_suspend();
 	#endif
 	#if defined (CONFIG_MFD_TPS65910)
-       if(pmic_is_tps65910())
+       if(g_pmic_type == PMIC_TYPE_TPS65910)
        board_pmu_tps65910_suspend(); 
     #endif   
 }
@@ -1743,19 +1458,16 @@ void __sramfunc board_pmu_suspend(void)
 void __sramfunc board_pmu_resume(void)
 {      
 	#if defined (CONFIG_MFD_WM831X_I2C)
-       if(pmic_is_wm8326())
+       if(g_pmic_type == PMIC_TYPE_WM8326)
        board_pmu_wm8326_resume();
 	#endif
 	#if defined (CONFIG_MFD_TPS65910)
-       if(pmic_is_tps65910())
+       if(g_pmic_type == PMIC_TYPE_TPS65910)
        board_pmu_tps65910_resume(); 
 	#endif
 }
 
  int __sramdata gpio0d7_iomux,gpio0d7_do,gpio0d7_dir,gpio0d7_en;
-
-#define grf_readl(offset)	readl_relaxed(RK30_GRF_BASE + offset)
-#define grf_writel(v, offset)	do { writel_relaxed(v, RK30_GRF_BASE + offset); dsb(); } while (0)
 
 void __sramfunc rk30_pwm_logic_suspend_voltage(void)
 {
@@ -1763,12 +1475,12 @@ void __sramfunc rk30_pwm_logic_suspend_voltage(void)
 
 //	int gpio0d7_iomux,gpio0d7_do,gpio0d7_dir,gpio0d7_en;
 	sram_udelay(10000);
-	gpio0d7_iomux = grf_readl(GRF_GPIO0D_IOMUX);
+	gpio0d7_iomux = readl_relaxed(GRF_GPIO0D_IOMUX);
 	gpio0d7_do = grf_readl(GRF_GPIO0H_DO);
 	gpio0d7_dir = grf_readl(GRF_GPIO0H_DIR);
 	gpio0d7_en = grf_readl(GRF_GPIO0H_EN);
 
-	grf_writel((1<<30), GRF_GPIO0D_IOMUX);
+	writel_relaxed((1<<30), GRF_GPIO0D_IOMUX);
 	grf_writel((1<<31)|(1<<15), GRF_GPIO0H_DIR);
 	grf_writel((1<<31)|(1<<15), GRF_GPIO0H_DO);
 	grf_writel((1<<31)|(1<<15), GRF_GPIO0H_EN);
@@ -1777,7 +1489,7 @@ void __sramfunc rk30_pwm_logic_suspend_voltage(void)
 void __sramfunc rk30_pwm_logic_resume_voltage(void)
 {
 #ifdef CONFIG_RK30_PWM_REGULATOR
-	grf_writel((1<<30)|gpio0d7_iomux, GRF_GPIO0D_IOMUX);
+	writel_relaxed((1<<30)|gpio0d7_iomux, GRF_GPIO0D_IOMUX);
 	grf_writel((1<<31)|gpio0d7_en, GRF_GPIO0H_EN);
 	grf_writel((1<<31)|gpio0d7_dir, GRF_GPIO0H_DIR);
 	grf_writel((1<<31)|gpio0d7_do, GRF_GPIO0H_DO);
@@ -1889,19 +1601,30 @@ static void __init rk30_i2c_register_board_info(void)
 }
 //end of i2c
 
-#define POWER_ON_PIN    RK30_PIN0_PA0   //power_hold
-#define DC_DET_PIN      RK30_PIN0_PB2
-#define DC_DET_LEVEL    GPIO_LOW
-
-extern void machine_restart(char *cmd);
-
+#define POWEROFF_CHARGING_ANIMATION		(1)
+#define POWER_ON_PIN RK30_PIN0_PA0   //power_hold
 static void rk30_pm_power_off(void)
 {
-#if !(defined(CONFIG_MFD_TPS65910))
-	if (gpio_get_value(DC_DET_PIN) == DC_DET_LEVEL) {
+#if POWEROFF_CHARGING_ANIMATION
+	int pwr_cnt = 0;
+	struct rk30_adc_battery_platform_data *batt_plat_data = &rk30_adc_battery_platdata;
+	if (gpio_get_value (batt_plat_data->dc_det_pin)  ==
+		batt_plat_data->dc_det_level) {
 		printk("AC Charging, try to restart...\n");
-		machine_restart(NULL);
-		return ;
+		while (1) {
+			 if (gpio_get_value (batt_plat_data->dc_det_pin) !=
+				batt_plat_data->dc_det_level ) {
+				pwr_cnt = 0;
+				break;
+			 }
+			 if (pwr_cnt++ > 40)
+				break;
+			 mdelay(50);
+		}
+		if (pwr_cnt > 40)  {
+			printk("AC Charging, will restart system...\n");
+			arm_pm_restart(0, NULL);
+		}
 	}
 #endif
 
@@ -1948,8 +1671,14 @@ static void __init rk30_reserve(void)
 	rk30_ion_pdata.heaps[0].base = board_mem_reserve_add("ion", ION_RESERVE_SIZE);
 #endif
 #ifdef CONFIG_FB_ROCKCHIP
-	resource_fb[0].start = board_mem_reserve_add("fb0",get_fb_size());
-	resource_fb[0].end = resource_fb[0].start + get_fb_size() - 1;
+	resource_fb[0].start = board_mem_reserve_add("fb0", RK30_FB0_MEM_SIZE);
+	resource_fb[0].end = resource_fb[0].start + RK30_FB0_MEM_SIZE - 1;
+	#if 0
+	resource_fb[1].start = board_mem_reserve_add("ipp buf", RK30_FB0_MEM_SIZE);
+	resource_fb[1].end = resource_fb[1].start + RK30_FB0_MEM_SIZE - 1;
+	resource_fb[2].start = board_mem_reserve_add("fb2", RK30_FB0_MEM_SIZE);
+	resource_fb[2].end = resource_fb[2].start + RK30_FB0_MEM_SIZE - 1;
+	#endif
 #endif
 #ifdef CONFIG_VIDEO_RK29
 	rk30_camera_request_reserve_mem();

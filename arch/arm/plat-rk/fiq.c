@@ -27,7 +27,6 @@
 #include <asm/fiq.h>
 #include <mach/io.h>
 #include <mach/fiq.h>
-#include <mach/debug_uart.h>
 
 
 // GIC ICDISR

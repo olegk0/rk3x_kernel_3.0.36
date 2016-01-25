@@ -285,8 +285,6 @@ extern int wl_control_wl_start(struct net_device *dev);
 extern int net_os_send_hang_message(struct net_device *dev);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 struct semaphore dhd_registration_sem;
-int dhd_registration_check = FALSE;
-
 #define DHD_REGISTRATION_TIMEOUT  12000  /* msec : allowed time to finished dhd registration */
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) */
 
@@ -424,7 +422,7 @@ module_param(dhd_pktgen_len, uint, 0);
 /* Version string to report */
 #ifdef DHD_DEBUG
 #ifndef SRCBASE
-#define SRCBASE        "drivers/net/wireless/bcm40181"
+#define SRCBASE        "drivers/net/wireless/bcmdhd"
 #endif
 #define DHD_COMPILED "\nCompiled in " SRCBASE
 #else
@@ -943,8 +941,6 @@ dhd_op_if(dhd_if_t *ifp)
 	unsigned long flags;
 #endif
 
-	if (!ifp || !ifp->info || !ifp->idx)
-		return;
 	ASSERT(ifp && ifp->info && ifp->idx);	/* Virtual interfaces only */
 
 	dhd = ifp->info;
@@ -981,7 +977,7 @@ dhd_op_if(dhd_if_t *ifp)
 #ifdef WL_CFG80211
 			if (dhd->dhd_state & DHD_ATTACH_STATE_CFG80211)
 				if (!wl_cfg80211_notify_ifadd(ifp->net, ifp->idx, ifp->bssidx,
-					(void*)dhd_net_attach)) {
+					dhd_net_attach)) {
 					ifp->state = 0;
 					return;
 				}
@@ -1023,7 +1019,6 @@ dhd_op_if(dhd_if_t *ifp)
 			netif_stop_queue(ifp->net);
 			unregister_netdev(ifp->net);
 			ret = DHD_DEL_IF;	/* Make sure the free_netdev() is called */
-
 		}
 		break;
 	case WLC_E_IF_DELETING:
@@ -1038,7 +1033,6 @@ dhd_op_if(dhd_if_t *ifp)
 		ifp->set_multicast = FALSE;
 		if (ifp->net) {
 			free_netdev(ifp->net);
-			ifp->net = NULL;
 		}
 		dhd->iflist[ifp->idx] = NULL;
 #ifdef SOFTAP
@@ -2423,8 +2417,7 @@ dhd_osl_detach(osl_t *osh)
 		DHD_ERROR(("%s: MEMORY LEAK %d bytes\n", __FUNCTION__, MALLOCED(osh)));
 	}
 	osl_detach(osh);
-#if 1 && (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
-	dhd_registration_check = FALSE;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 	up(&dhd_registration_sem);
 #endif
 }
@@ -3327,7 +3320,7 @@ dhd_net_attach(dhd_pub_t *dhdp, int ifidx)
 
 	net = dhd->iflist[ifidx]->net;
 	ASSERT(net);
- //   memcpy(temp_addr, dhdp->mac.octet, ETHER_ADDR_LEN);//IAM
+    memcpy(temp_addr, dhdp->mac.octet, ETHER_ADDR_LEN);//IAM
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31))
 	ASSERT(!net->open);
 	net->get_stats = dhd_get_stats;
@@ -3351,9 +3344,7 @@ dhd_net_attach(dhd_pub_t *dhdp, int ifidx)
 		net->stop = dhd_stop;
 #else
 		net->netdev_ops = &dhd_ops_pri;
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) */
-		if (!ETHER_ISNULLADDR(dhd->pub.mac.octet))
-			memcpy(temp_addr, dhd->pub.mac.octet, ETHER_ADDR_LEN);
+#endif
 	} else {
 		/*
 		 * We have to use the primary MAC for virtual interfaces
@@ -3364,8 +3355,7 @@ dhd_net_attach(dhd_pub_t *dhdp, int ifidx)
 		 * portable hotspot.  This will not work in simultaneous AP/STA mode,
 		 * nor with P2P.  Need to set the Donlge's MAC address, and then use that.
 		 */
-		if (!memcmp(temp_addr, dhd->iflist[0]->mac_addr,
-			ETHER_ADDR_LEN)) {
+		if (ifidx > 0) {
 			DHD_ERROR(("%s interface [%s]: set locally administered bit in MAC\n",
 			__func__, net->name));
 			temp_addr[0] |= 0x02;
@@ -3390,7 +3380,6 @@ dhd_net_attach(dhd_pub_t *dhdp, int ifidx)
 
 	memcpy(net->dev_addr, temp_addr, ETHER_ADDR_LEN);
 
-	net->ifindex = 0;
 	if ((err = register_netdev(net)) != 0) {
 		DHD_ERROR(("couldn't register the net device, err %d\n", err));
 		goto fail;
@@ -3410,7 +3399,6 @@ dhd_net_attach(dhd_pub_t *dhdp, int ifidx)
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 	if (ifidx == 0) {
-		dhd_registration_check = TRUE;
 		up(&dhd_registration_sem);
 	}
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) */
@@ -3471,7 +3459,6 @@ void dhd_detach(dhd_pub_t *dhdp)
 
 	DHD_TRACE(("%s: Enter state 0x%x\n", __FUNCTION__, dhd->dhd_state));
 
-	dhd->pub.up = 0;
 	if (!(dhd->dhd_state & DHD_ATTACH_STATE_DONE)) {
 		/* Give sufficient time for threads to start running in case
 		 * dhd_attach() has failed
@@ -3633,11 +3620,9 @@ dhd_module_init(void)
 			break;
 
 		DHD_ERROR(("Invalid module parameters.\n"));
-		error = -EINVAL;
+		return -EINVAL;
 	} while (0);
-#endif 
-	if (error)
-		goto fail_0;
+#endif /* DHDTHREAD */
 
 	/* Call customer gpio to turn on power with WL_REG_ON signal */
 	dhd_customer_gpio_wlan_ctrl(WLAN_POWER_ON);
@@ -3659,32 +3644,28 @@ dhd_module_init(void)
 		goto fail_1;
 	}
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(BCMLXSDMMC)
-	/*
-	 * Wait till MMC sdio_register_driver callback called and made driver attach.
-	 * It's needed to make sync up exit from dhd insmod  and
-	 * Kernel MMC sdio device callback registration
-	 */
-	if ((down_timeout(&dhd_registration_sem,  msecs_to_jiffies(DHD_REGISTRATION_TIMEOUT)) != 0) ||
-		(dhd_registration_check != TRUE)) {
-		error = -ENODEV;
-		DHD_ERROR(("%s: sdio_register_driver timeout or error \n", __FUNCTION__));
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
+		/*
+		 * Wait till MMC sdio_register_driver callback called and made driver attach.
+		 * It's needed to make sync up exit from dhd insmod  and
+		 * Kernel MMC sdio device callback registration
+		 */
+	if (down_timeout(&dhd_registration_sem,  msecs_to_jiffies(DHD_REGISTRATION_TIMEOUT)) != 0) {
+		error = -EINVAL;
+		DHD_ERROR(("%s: sdio_register_driver timeout\n", __FUNCTION__));
 		goto fail_2;
-	}
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) */
+		}
+#endif
 #if defined(WL_CFG80211)
 	error = wl_android_post_init();
 #endif
 
 	return error;
-
-#if 1 && (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(BCMLXSDMMC)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && 1
 fail_2:
 	dhd_bus_unregister();
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) */
-
 fail_1:
-
 #if defined(CONFIG_WIFI_CONTROL_FUNC)
 	wl_android_wifictrl_func_del();
 #endif 
@@ -3692,23 +3673,10 @@ fail_1:
 	/* Call customer gpio to turn off power with WL_REG_ON signal */
 	dhd_customer_gpio_wlan_ctrl(WLAN_POWER_OFF);
 
-fail_0:
-
-	wl_android_exit();
-
 	return error;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
-#ifdef USE_LATE_INITCALL_SYNC
-late_initcall_sync(dhd_module_init);
-#else
 late_initcall(dhd_module_init);
-#endif // USE_LATE_INITCALL_SYNC
-#else
-module_init(dhd_module_init);
-#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
-
 module_exit(dhd_module_cleanup);
 
 /*
@@ -3756,16 +3724,36 @@ int
 dhd_os_ioctl_resp_wait(dhd_pub_t *pub, uint *condition, bool *pending)
 {
 	dhd_info_t * dhd = (dhd_info_t *)(pub->info);
-	int timeout;
+	DECLARE_WAITQUEUE(wait, current);
+	int timeout = dhd_ioctl_timeout_msec;
 
 	/* Convert timeout in millsecond to jiffies */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
-	timeout = msecs_to_jiffies(dhd_ioctl_timeout_msec);
+	timeout = msecs_to_jiffies(timeout);
 #else
-	timeout = dhd_ioctl_timeout_msec * HZ / 1000;
+	timeout = timeout * HZ / 1000;
 #endif
 
-	timeout = wait_event_timeout(dhd->ioctl_resp_wait, (*condition), timeout);
+	/* Wait until control frame is available */
+	add_wait_queue(&dhd->ioctl_resp_wait, &wait);
+	set_current_state(TASK_INTERRUPTIBLE);
+
+	/* Memory barrier to support multi-processing
+	 * As the variable "condition", which points to dhd->rxlen (dhd_bus_rxctl[dhd_sdio.c])
+	 * Can be changed by another processor.
+	 */
+	smp_mb();
+	while (!(*condition) && (!signal_pending(current) && timeout)) {
+		timeout = schedule_timeout(timeout);
+		smp_mb();
+	}
+
+	if (signal_pending(current))
+		*pending = TRUE;
+
+	set_current_state(TASK_RUNNING);
+	remove_wait_queue(&dhd->ioctl_resp_wait, &wait);
+
 	return timeout;
 }
 
@@ -3775,7 +3763,7 @@ dhd_os_ioctl_resp_wake(dhd_pub_t *pub)
 	dhd_info_t *dhd = (dhd_info_t *)(pub->info);
 
 	if (waitqueue_active(&dhd->ioctl_resp_wait)) {
-		wake_up(&dhd->ioctl_resp_wait);
+		wake_up_interruptible(&dhd->ioctl_resp_wait);
 	}
 
 	return 0;

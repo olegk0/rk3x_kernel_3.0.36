@@ -15,7 +15,6 @@
 #include "i2c-rk30.h"
 #define TX_SETUP                        1
 
-static int i2c_max_adap = 0;
 void i2c_adap_sel(struct rk30_i2c *i2c, int nr, int adap_type)
 {
         i2c_writel((1 << I2C_ADAP_SEL_BIT(nr)) | (1 << I2C_ADAP_SEL_MASK(nr)) ,
@@ -101,9 +100,9 @@ static int rk30_i2c_probe(struct platform_device *pdev)
 
         if(pdata->io_init)
 		pdata->io_init();
-
-	i2c->sda_mode = pdata->sda_mode;
-	i2c->scl_mode = pdata->scl_mode;
+        if(pdata->check_idle){
+                i2c->check_idle = pdata->check_idle;
+        }
 
 	strlcpy(i2c->adap.name, "rk30_i2c", sizeof(i2c->adap.name));
 	i2c->adap.owner   = THIS_MODULE;
@@ -203,7 +202,6 @@ static int rk30_i2c_probe(struct platform_device *pdev)
         i2c->is_div_from_arm[i2c->adap.nr] = pdata->is_div_from_arm;
 
         i2c->i2c_init_hw(i2c, 100 * 1000);
-        i2c_max_adap++;
 	dev_info(&pdev->dev, "%s: RK30 I2C adapter\n", dev_name(&i2c->adap.dev));
 	return 0;
 //err_none:
@@ -385,16 +383,7 @@ static void __exit i2c_detect_exit(void)
 module_init(i2c_detect_init);
 module_exit(i2c_detect_exit);
 
-static int __init i2c_detect_rk610(void)
-{
-        int i;
 
-        for(i = 0; i < i2c_max_adap; i++){
-                i2c_check_rk610_ex(i);
-        }
-        return 0;
-}
-late_initcall(i2c_detect_rk610);
 
 
 

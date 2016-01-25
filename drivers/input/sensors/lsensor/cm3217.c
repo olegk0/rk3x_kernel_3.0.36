@@ -32,6 +32,12 @@
 #endif
 #include <linux/sensor-dev.h>
 
+#if 0
+#define SENSOR_DEBUG_TYPE SENSOR_TYPE_LIGHT
+#define DBG(x...) if(sensor->pdata->type == SENSOR_DEBUG_TYPE) printk(x)
+#else
+#define DBG(x...)
+#endif
 
 #define CM3217_ADDR_COM1	0x10
 #define CM3217_ADDR_COM2	0x11
@@ -115,10 +121,9 @@ static int sensor_init(struct i2c_client *client)
 }
 
 
-static int light_report_value(struct input_dev *input, int data)
+static void light_report_value(struct input_dev *input, int data)
 {
 	unsigned char index = 0;
-	
 	if(data <= 10){
 		index = 0;goto report;
 	}
@@ -145,10 +150,9 @@ static int light_report_value(struct input_dev *input, int data)
 	}
 
 report:
+	DBG("cm3217 report data=%d,index = %d\n",data,index);
 	input_report_abs(input, ABS_MISC, index);
 	input_sync(input);
-
-	return index;
 }
 
 
@@ -158,7 +162,6 @@ static int sensor_report_value(struct i2c_client *client)
 	    (struct sensor_private_data *) i2c_get_clientdata(client);	
 	int result = 0;
 	char msb = 0, lsb = 0;
-	int index = 0;
 	
 	sensor->client->addr = CM3217_ADDR_DATA_LSB;
 	sensor_rx_data_normal(sensor->client, &lsb, 1);
@@ -166,9 +169,9 @@ static int sensor_report_value(struct i2c_client *client)
 	sensor_rx_data_normal(sensor->client, &msb, 1);
 	result = ((msb << 8) | lsb) & 0xffff;
 	
-	index = light_report_value(sensor->input_dev, result);
-	DBG("%s:%s result=0x%x,index=%d\n",__func__,sensor->ops->name, result,index);
-	
+	DBG("%s:result=%d\n",__func__,result);
+	light_report_value(sensor->input_dev, result);
+
 	if((sensor->pdata->irq_enable)&& (sensor->ops->int_status_reg >= 0))	//read sensor intterupt status register
 	{
 		
@@ -217,6 +220,7 @@ static int __init light_cm3217_init(void)
 	int result = 0;
 	int type = ops->type;
 	result = sensor_register_slave(type, NULL, NULL, light_get_ops);
+	printk("%s\n",__func__);
 	return result;
 }
 

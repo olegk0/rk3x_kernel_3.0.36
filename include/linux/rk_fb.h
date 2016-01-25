@@ -66,10 +66,9 @@
 #define RK_FBIOGET_DSP_ADDR     	0x4630
 #define RK_FBIOGET_LIST_STAT   		0X4631
 
-#define FBIOSET_COLORKEY		0x5010 //IAM
-#define FBIOSET_DISP_PSET		0x5011 //IAM
-
+#ifdef CONFIG_IAM_CHANGES
 #define FB_MAXPGSIZE 1920*1080*4
+#endif
 
 /**rk fb events**/
 #define RK_LF_STATUS_FC                  0xef
@@ -251,9 +250,9 @@ struct layer_par {
 	u8 fmt_cfg;
 	u8 swap_rb;
 	u32 reserved;
-	u16 scale_x;
-	u16 scale_y;
-	u32 color_key;
+#ifdef CONFIG_IAM_CHANGES
+	bool vsync;
+#endif
 };
 
 struct rk_fb_win_config_data {
@@ -298,8 +297,10 @@ struct rk_lcdc_device_driver{
 	struct completion  frame_done;		  //sync for pan_display,whe we set a new frame address to lcdc register,we must make sure the frame begain to display
 	spinlock_t  cpl_lock; 			 //lock for completion  frame done
 	int first_frame ;
+#ifndef CONFIG_IAM_CHANGES
 	struct rk_fb_vsync	 vsync_info;
 	int wait_fs;				//wait for new frame start in kernel
+#endif
 	struct rk_fb_win_config_data win_data;
 	struct sw_sync_timeline *timeline;
 	int			timeline_max;
@@ -338,7 +339,6 @@ struct rk_lcdc_device_driver{
 	int (*dpi_status)(struct rk_lcdc_device_driver *dev_drv);
 	int (*get_dsp_addr)(struct rk_lcdc_device_driver * dev_drv,unsigned int *dsp_addr);
 	int (*set_layer_state)(struct rk_lcdc_device_driver *dev_drv,int layer_id,bool on);
-//	int (*wait_end_paint)(struct rk_lcdc_device_driver *dev_drv);
 };
 
 struct rk_fb_inf {

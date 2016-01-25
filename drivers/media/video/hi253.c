@@ -48,19 +48,8 @@ module_param(debug, int, S_IRUGO|S_IWUSR);
 #define SENSOR_ID 0x92
 #define SENSOR_MIN_WIDTH    176
 #define SENSOR_MIN_HEIGHT   144
-#define SENSOR_MAX_WIDTH_REAL   1600
-#define SENSOR_MAX_HEIGHT_REAL  1200
-#if defined(CONFIG_SOC_CAMERA_HI253_INTERPOLATION_5M)
-	#define SENSOR_MAX_WIDTH    2592
-	#define SENSOR_MAX_HEIGHT   1944
-#elif defined(CONFIG_SOC_CAMERA_HI253_INTERPOLATION_3M)
-	#define SENSOR_MAX_WIDTH    2048
-	#define SENSOR_MAX_HEIGHT   1536
-#else
-	#define SENSOR_MAX_WIDTH    SENSOR_MAX_WIDTH_REAL
-	#define SENSOR_MAX_HEIGHT   SENSOR_MAX_HEIGHT_REAL
-#endif
-
+#define SENSOR_MAX_WIDTH    1600
+#define SENSOR_MAX_HEIGHT   1200
 #define SENSOR_INIT_WIDTH	1600			/* Sensor pixel size for sensor_init_data array */
 #define SENSOR_INIT_HEIGHT  1200
 #define SENSOR_INIT_WINSEQADR sensor_uxga
@@ -71,10 +60,10 @@ module_param(debug, int, S_IRUGO|S_IWUSR);
 #define CONFIG_SENSOR_Contrast      0
 #define CONFIG_SENSOR_Saturation    0
 #define CONFIG_SENSOR_Effect        1
-#define CONFIG_SENSOR_Scene         1
+#define CONFIG_SENSOR_Scene         0
 #define CONFIG_SENSOR_DigitalZoom   0
 #define CONFIG_SENSOR_Focus         0
-#define CONFIG_SENSOR_Exposure      0
+#define CONFIG_SENSOR_Exposure      1
 #define CONFIG_SENSOR_Flash         0
 #define CONFIG_SENSOR_Mirror        0
 #define CONFIG_SENSOR_Flip          0
@@ -117,9 +106,8 @@ struct  flash_timer{
     struct soc_camera_device *icd;
 	struct hrtimer timer;
 };
-#if CONFIG_SENSOR_Flash
 static enum hrtimer_restart flash_off_func(struct hrtimer *timer);
-#endif
+
 static struct  flash_timer flash_off_timer;
 //for user defined if user want to customize the series , zyc
 #ifdef CONFIG_HI253_USER_DEFINED_SERIES
@@ -380,8 +368,8 @@ static struct reginfo sensor_init_data[] =
 
 	//Saturation
 	{0x60, 0x6f},
-	{0x61, 0x95},// 74
-	{0x62, 0x95},// 76
+	{0x61, 0xa8},// 74   95
+	{0x62, 0xa8},// 76    95
 	{0x63, 0x30},
 	{0x64, 0x41},
 
@@ -788,7 +776,7 @@ static struct reginfo sensor_init_data[] =
 	{0x1b, 0x01},
 	{0x1c, 0xdc},
 	{0x1d, 0xfe},
-/* original
+// original
 	{0x30, 0x00}, 
 	{0x31, 0x06}, 
 	{0x32, 0x1d}, 
@@ -848,7 +836,8 @@ static struct reginfo sensor_init_data[] =
 	{0x80, 0xf4}, 
 	{0x81, 0xfa}, 
 	{0x82, 0xff}, 
-*/    
+  
+/*
 	{0x30, 0x00}, 
 	{0x31, 0x08}, 
 	{0x32, 0x1f}, 
@@ -908,7 +897,7 @@ static struct reginfo sensor_init_data[] =
 	{0x80, 0xf6}, 
 	{0x81, 0xfc}, 
 	{0x82, 0xff}, 
-
+*/
 	
 	{0x03, 0x17}, 
 	{0xc4, 0x6e}, 
@@ -968,7 +957,7 @@ static struct reginfo sensor_init_data[] =
 	{0x6d, 0xa9}, 
 	{0x6e, 0x55}, 
 	{0x6f, 0x55}, 
-	{0x70, 0x42}, 
+	{0x70, 0x3a},             //42
 	{0x71, 0xBb},
 
 	// haunting control
@@ -984,7 +973,7 @@ static struct reginfo sensor_init_data[] =
 	{0x7d, 0x23},
 	{0x83, 0x01},
 	{0x84, 0x5f},
-	{0x85, 0x6c},
+	{0x85, 0x00},
 	{0x86, 0x02},
 	{0x87, 0x00},
 	{0x88, 0x05},
@@ -999,9 +988,10 @@ static struct reginfo sensor_init_data[] =
 	{0x99, 0x45},
 	{0x9a, 0x0d},
 	{0x9b, 0xde},
-	{0x9c, 0x08},
+	{0x9c, 0x0e},
 	{0x9d, 0x0a},
-	{0x9e, 0x01},
+	{0x9e, 0x02},
+	{0x9f, 0x00},
     {0x10, 0x9c},
     {0x18, 0x30},
     {0x90, 0x0c},
@@ -1203,7 +1193,7 @@ static struct reginfo sensor_sxga[] =
 };
 static struct reginfo sensor_xga[] =
 {
-	//{0x01, 0xf8},
+	{0x01, 0xf8},
 	{END_REG, END_REG},
 };
 /* 800X600 SVGA,30fps*/
@@ -1237,10 +1227,10 @@ static struct reginfo sensor_svga[] =
 	{0x27, 0x40},
 	
 	{0x03, 0x20},
-	{0x8b, 0x1d},
-	{0x8c, 0x4c},
-	{0x8d, 0x18},
-	{0x8e, 0x6a},
+	{0x8b, 0x75},
+	{0x8c, 0x00},
+	{0x8d, 0x61},
+	{0x8e, 0x00},
 	
 	{0x03, 0x20},
 	{0x03, 0x20}, 
@@ -1502,45 +1492,57 @@ static struct reginfo *sensor_EffectSeqe[] = {sensor_Effect_Normal, sensor_Effec
 static  struct reginfo sensor_Exposure0[]=
 {
     //-3
+    	{0x03,0x20},
+    {0x70, 0x20},
+    {END_REG, END_REG},
 
 };
 
 static  struct reginfo sensor_Exposure1[]=
 {
     //-2
-
+{0x03,0x20},
+    {0x70, 0x28},
   	{END_REG, END_REG},
 };
 
 static  struct reginfo sensor_Exposure2[]=
 {
     //-0.3EV
+    {0x03,0x20},
+    {0x70, 0x30},
 	{END_REG, END_REG},
 };
 
 static  struct reginfo sensor_Exposure3[]=
 {
     //default
+    {0x03,0x20},
+    {0x70, 0x3a},
 	{END_REG, END_REG},
 };
 
 static  struct reginfo sensor_Exposure4[]=
 {
     // 1
-
+	{0x03,0x20},
+    {0x70, 0x40},
 	{END_REG, END_REG},
 };
 
 static  struct reginfo sensor_Exposure5[]=
 {
     // 2
+    {0x03,0x20},
+    {0x70, 0x48},
 	{END_REG, END_REG},
 };
 
 static  struct reginfo sensor_Exposure6[]=
 {
     // 3
-
+	{0x03,0x20},
+    {0x70, 0x52},
 	{END_REG, END_REG},
 };
 
@@ -1690,7 +1692,7 @@ static struct reginfo sensor_Zoom3[] =
 };
 static struct reginfo *sensor_ZoomSeqe[] = {sensor_Zoom0, sensor_Zoom1, sensor_Zoom2, sensor_Zoom3, NULL,};
 #endif
-static  struct v4l2_querymenu sensor_menus[] =
+static const struct v4l2_querymenu sensor_menus[] =
 {
 	#if CONFIG_SENSOR_WhiteBalance
     { .id = V4L2_CID_DO_WHITE_BALANCE,  .index = 0,  .name = "auto",  .reserved = 0, }, {  .id = V4L2_CID_DO_WHITE_BALANCE,  .index = 1, .name = "incandescent",  .reserved = 0,},
@@ -2192,7 +2194,7 @@ static int sensor_ioctrl(struct soc_camera_device *icd,enum rk29sensor_power_cmd
 sensor_power_end:
 	return ret;
 }
-#if CONFIG_SENSOR_Flash
+
 static enum hrtimer_restart flash_off_func(struct hrtimer *timer){
 	struct flash_timer *fps_timer = container_of(timer, struct flash_timer, timer);
     sensor_ioctrl(fps_timer->icd,Sensor_Flash,0);
@@ -2200,7 +2202,6 @@ static enum hrtimer_restart flash_off_func(struct hrtimer *timer){
     return 0;
     
 }
-#endif
 static int sensor_init(struct v4l2_subdev *sd, u32 val)
 {
     struct i2c_client *client = v4l2_get_subdevdata(sd);
@@ -2545,14 +2546,6 @@ static int sensor_s_fmt(struct v4l2_subdev *sd, struct v4l2_mbus_framefmt *mf)
         set_w = 1600;
         set_h = 1200;
     }
-#if defined(CONFIG_SOC_CAMERA_HI253_INTERPOLATION) 
-    else if (((set_w <= SENSOR_MAX_WIDTH) && (set_h <= SENSOR_MAX_HEIGHT)) )
-    {
-        winseqe_set_addr = sensor_uxga;
-        set_w = SENSOR_MAX_WIDTH_REAL;
-	    set_h = SENSOR_MAX_HEIGHT_REAL;
-    }
-#endif
     else
     {
         winseqe_set_addr = SENSOR_INIT_WINSEQADR;               /* ddl@rock-chips.com : Sensor output smallest size if  isn't support app  */
@@ -2646,7 +2639,7 @@ static int sensor_try_fmt(struct v4l2_subdev *sd, struct v4l2_mbus_framefmt *mf)
     struct i2c_client *client = v4l2_get_subdevdata(sd);
     struct sensor *sensor = to_sensor(client);
     const struct sensor_datafmt *fmt;
-    int ret = 0,set_w,set_h;;
+    int ret = 0;
    
 	fmt = sensor_find_datafmt(mf->code, sensor_colour_fmts,
 				   ARRAY_SIZE(sensor_colour_fmts));
@@ -2654,14 +2647,6 @@ static int sensor_try_fmt(struct v4l2_subdev *sd, struct v4l2_mbus_framefmt *mf)
 		fmt = &sensor->info_priv.fmt;
         mf->code = fmt->code;
 	} 
-
-    /* ddl@rock-chips.com : It is query max resolution only. */
-    if (mf->reserved[6] == 0xfefe5a5a) {
-        mf->height = SENSOR_MAX_HEIGHT;
-        mf->width = SENSOR_MAX_WIDTH;
-        ret = 0;
-        goto sensor_try_fmt_end;
-    }
 
     if (mf->height > SENSOR_MAX_HEIGHT)
         mf->height = SENSOR_MAX_HEIGHT;
@@ -2672,59 +2657,9 @@ static int sensor_try_fmt(struct v4l2_subdev *sd, struct v4l2_mbus_framefmt *mf)
         mf->width = SENSOR_MAX_WIDTH;
     else if (mf->width < SENSOR_MIN_WIDTH)
         mf->width = SENSOR_MIN_WIDTH;
-    
-    set_w = mf->width;
-    set_h = mf->height;
 
-	if (((set_w <= 176) && (set_h <= 144)) && sensor_qcif[0].reg)
-	{
-        set_w = 176;
-        set_h = 144;
-	}
-	else if (((set_w <= 320) && (set_h <= 240)) && sensor_qvga[0].reg)
-    {
-        set_w = 320;
-        set_h = 240;
-    }
-    else if (((set_w <= 352) && (set_h<= 288)) && sensor_cif[0].reg)
-    {
-        set_w = 352;
-        set_h = 288;
-    }
-    else if (((set_w <= 640) && (set_h <= 480)) && sensor_vga[0].reg)
-    {
-        set_w = 640;
-        set_h = 480;
-    }
-    else if (((set_w <= 800) && (set_h <= 600)) && sensor_svga[0].reg)
-    {
-        set_w = 800;
-        set_h = 600;
-    }
-    else if (((set_w <= 1280) && (set_h <= 1024)) && sensor_sxga[0].reg)
-    {
-        set_w = 1280;
-        set_h = 1024;
-    }
-#if defined(CONFIG_SOC_CAMERA_HI253_INTERPOLATION)
-    else if (((set_w <= SENSOR_MAX_WIDTH) && (set_h <= SENSOR_MAX_HEIGHT)) )
-	{
-	    set_w = SENSOR_MAX_WIDTH_REAL;
-	    set_h = SENSOR_MAX_HEIGHT_REAL;
-	}
-#endif
-
-    else
-    {
-        set_w = SENSOR_INIT_WIDTH;
-        set_h = SENSOR_INIT_HEIGHT;		
-    }
-
-    mf->width = set_w;
-    mf->height = set_h; 
-    
     mf->colorspace = fmt->colorspace;
-sensor_try_fmt_end:    
+    
     return ret;
 }
 
@@ -2999,7 +2934,7 @@ static int sensor_set_flash(struct soc_camera_device *icd, const struct v4l2_que
 {    
     if ((value >= qctrl->minimum) && (value <= qctrl->maximum)) {
         if (value == 3) {       /* ddl@rock-chips.com: torch */
-            sensor_ioctrl(icd, Sensor_Flash, Flash_Torch);   /* Flash On */
+            sensor_ioctrl(icd, Sensor_Flash, Flash_Torch_On);   /* Flash On */
         } else {
             sensor_ioctrl(icd, Sensor_Flash, Flash_Off);
         }
@@ -3661,6 +3596,7 @@ module_exit(sensor_mod_exit);
 MODULE_DESCRIPTION(SENSOR_NAME_STRING(Camera sensor driver));
 MODULE_AUTHOR("lxh@wisky.com.cn");
 MODULE_LICENSE("GPL");
+
 
 
 

@@ -84,6 +84,13 @@ choice
 		select SND_SOC_HDMI_SPDIF
 		tristate  "HDMI use SPDIF"
 endchoice
+
+config SND_SOC_HDMI_I2S
+	tristate
+
+config SND_SOC_HDMI_SPDIF
+	tristate
+
 endif
 
 config SND_RK29_SOC_ES8323

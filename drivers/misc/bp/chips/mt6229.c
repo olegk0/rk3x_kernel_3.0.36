@@ -53,8 +53,6 @@ static int bp_active(struct bp_private_data *bp, int enable)
 	int result = 0;
 	if(enable)
 	{
-		gpio_direction_output(bp->ops->bp_power, GPIO_HIGH);
-		msleep(1000);
 		gpio_direction_output(bp->ops->bp_en, GPIO_LOW);
 		gpio_direction_output(bp->ops->bp_usb_en, GPIO_HIGH);
 		gpio_direction_output(bp->ops->bp_uart_en, GPIO_LOW);
@@ -63,8 +61,6 @@ static int bp_active(struct bp_private_data *bp, int enable)
 	}
 	else
 	{
-		gpio_direction_output(bp->ops->bp_power, GPIO_LOW);	
-		msleep(10);
 		gpio_direction_output(bp->ops->bp_en, GPIO_HIGH);
 		gpio_direction_output(bp->ops->bp_usb_en, GPIO_LOW);
 		gpio_direction_output(bp->ops->bp_uart_en, GPIO_HIGH);
@@ -116,10 +112,11 @@ static void  ap_wake_bp_work(struct work_struct *work)
 static int bp_init(struct bp_private_data *bp)
 {
 	int result = 0;
-	//gpio_direction_output(bp->ops->bp_power, GPIO_HIGH);
-	//msleep(1000);
-	//if(bp->ops->active)
-	//	bp->ops->active(bp, 1);	
+	gpio_direction_output(bp->ops->bp_power, GPIO_HIGH);
+	msleep(1000);
+	if(bp->ops->active)
+		bp->ops->active(bp, 1);
+
 	INIT_DELAYED_WORK(&bp->wakeup_work, ap_wake_bp_work);
 	return result;
 }
@@ -128,8 +125,11 @@ static int bp_wake_ap(struct bp_private_data *bp)
 {
 	int result = 0;
 	
-	bp->suspend_status = 0;
-	wake_lock_timeout(&bp->bp_wakelock, 10 * HZ);
+	//if(bp->suspend_status)
+	{
+		//bp->suspend_status = 0;
+		wake_lock_timeout(&bp->bp_wakelock, 10 * HZ);
+	}
 	
 	return result;
 }
@@ -148,6 +148,35 @@ static int bp_shutdown(struct bp_private_data *bp)
 }
 
 
+static int read_status(struct bp_private_data *bp)
+{
+	int result = 0;
+	
+	return result;
+}
+
+
+static int write_status(struct bp_private_data *bp)
+{
+	int result = 0;
+
+	if (bp->status == BP_ON)
+	{
+		gpio_direction_output(bp->ops->bp_usb_en, GPIO_HIGH);
+		gpio_direction_output(bp->ops->bp_uart_en,GPIO_LOW);
+	}
+	else if(bp->status == BP_OFF)
+	{
+		gpio_direction_output(bp->ops->bp_usb_en, GPIO_LOW);
+		gpio_direction_output(bp->ops->bp_uart_en,GPIO_HIGH);
+	}
+	else
+	{
+		printk("%s, invalid parameter \n", __FUNCTION__);
+	}
+	
+	return result;
+}
 
 
 static int bp_suspend(struct bp_private_data *bp)
@@ -163,32 +192,38 @@ static int bp_suspend(struct bp_private_data *bp)
 	
 	return result;
 }
+
+
+
+
 static int bp_resume(struct bp_private_data *bp)
 {
-	bp->suspend_status = 0;
-	PREPARE_DELAYED_WORK(&bp->wakeup_work, ap_wake_bp_work);
-	schedule_delayed_work(&bp->wakeup_work, 0);
-		
+	if(bp->suspend_status)
+	{
+		bp->suspend_status = 0;
+		PREPARE_DELAYED_WORK(&bp->wakeup_work, ap_wake_bp_work);
+		schedule_delayed_work(&bp->wakeup_work, 0);
+	}
+	
 	return 0;
 }
 
 
 struct bp_operate bp_mt6229_ops = {
-#if defined(CONFIG_ARCH_RK2928)
 	.name			= "mt6229",
 	.bp_id			= BP_ID_MT6229,
 	.bp_bus			= BP_BUS_TYPE_USB_UART,		
 	.bp_pid			= 0,	
 	.bp_vid			= 0,	
-	.bp_power		= BP_UNKNOW_DATA, 	// 3g_power
-	.bp_en			= BP_UNKNOW_DATA,	// 3g_en
-	.bp_reset			= BP_UNKNOW_DATA,
-	.ap_ready		= BP_UNKNOW_DATA,	//
+	.bp_power		= RK30_PIN6_PB2, 	// 3g_power
+	.bp_en			= RK30_PIN2_PB6,	// 3g_en
+	.bp_reset		= BP_UNKNOW_DATA,
+	.ap_ready		= RK30_PIN2_PB7,	//
 	.bp_ready		= BP_UNKNOW_DATA,
 	.ap_wakeup_bp		= BP_UNKNOW_DATA,
-	.bp_wakeup_ap		= BP_UNKNOW_DATA,	//
-	.bp_uart_en		= BP_UNKNOW_DATA, 	//EINT9
-	.bp_usb_en		= BP_UNKNOW_DATA, 	//W_disable
+	.bp_wakeup_ap		= RK30_PIN6_PA1,	//
+	.bp_uart_en		= RK30_PIN2_PC1, 	//EINT9
+	.bp_usb_en		= RK30_PIN2_PC0, 	//W_disable
 	.trig			= IRQF_TRIGGER_RISING,
 
 	.active			= bp_active,
@@ -196,69 +231,12 @@ struct bp_operate bp_mt6229_ops = {
 	.ap_wake_bp		= ap_wake_bp,
 	.bp_wake_ap		= bp_wake_ap,
 	.shutdown		= bp_shutdown,
-	.read_status		= NULL,
-	.write_status		= NULL,
+	.read_status		= read_status,
+	.write_status		= write_status,
 	.suspend 		= bp_suspend,
 	.resume			= bp_resume,
-	.misc_name		= NULL,
+	.misc_name		= "mt6229",
 	.private_miscdev	= NULL,
-#elif defined(CONFIG_ARCH_RK30)
-	.name			= "mt6229",
-	.bp_id			= BP_ID_MT6229,
-	.bp_bus			= BP_BUS_TYPE_USB_UART,		
-	.bp_pid			= 0,	
-	.bp_vid			= 0,	
-	.bp_power		= BP_UNKNOW_DATA, 	// 3g_power
-	.bp_en			= BP_UNKNOW_DATA,	// 3g_en
-	.bp_reset			= BP_UNKNOW_DATA,
-	.ap_ready		= BP_UNKNOW_DATA,	//
-	.bp_ready		= BP_UNKNOW_DATA,
-	.ap_wakeup_bp		= BP_UNKNOW_DATA,
-	.bp_wakeup_ap		= BP_UNKNOW_DATA,	//
-	.bp_uart_en		= BP_UNKNOW_DATA, 	//EINT9
-	.bp_usb_en		= BP_UNKNOW_DATA, 	//W_disable
-	.trig			= IRQF_TRIGGER_RISING,
-
-	.active			= bp_active,
-	.init			= bp_init,
-	.ap_wake_bp		= ap_wake_bp,
-	.bp_wake_ap		= bp_wake_ap,
-	.shutdown		= bp_shutdown,
-	.read_status		= NULL,
-	.write_status		= NULL,
-	.suspend 		= bp_suspend,
-	.resume			= bp_resume,
-	.misc_name		= NULL,
-	.private_miscdev	= NULL,
-#else
-	.name			= "mt6229",
-	.bp_id			= BP_ID_MT6229,
-	.bp_bus			= BP_BUS_TYPE_USB_UART,		
-	.bp_pid			= 0,	
-	.bp_vid			= 0,	
-	.bp_power		= BP_UNKNOW_DATA, 	// 3g_power
-	.bp_en			= BP_UNKNOW_DATA,	// 3g_en
-	.bp_reset			= BP_UNKNOW_DATA,
-	.ap_ready		= BP_UNKNOW_DATA,	//
-	.bp_ready		= BP_UNKNOW_DATA,
-	.ap_wakeup_bp		= BP_UNKNOW_DATA,
-	.bp_wakeup_ap		= BP_UNKNOW_DATA,	//
-	.bp_uart_en		= BP_UNKNOW_DATA, 	//EINT9
-	.bp_usb_en		= BP_UNKNOW_DATA, 	//W_disable
-	.trig			= IRQF_TRIGGER_RISING,
-
-	.active			= bp_active,
-	.init			= bp_init,
-	.ap_wake_bp		= ap_wake_bp,
-	.bp_wake_ap		= bp_wake_ap,
-	.shutdown		= bp_shutdown,
-	.read_status		= NULL,
-	.write_status		= NULL,
-	.suspend 		= bp_suspend,
-	.resume			= bp_resume,
-	.misc_name		= NULL,
-	.private_miscdev	= NULL,
-#endif
 };
 
 /****************operate according to bp chip:end************/

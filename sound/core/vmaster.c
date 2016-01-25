@@ -10,6 +10,7 @@
  */
 
 #include <linux/slab.h>
+//#include <linux/export.h>
 #include <sound/core.h>
 #include <sound/control.h>
 #include <sound/tlv.h>
@@ -51,6 +52,7 @@ struct link_slave {
 	struct link_ctl_info info;
 	int vals[2];		/* current values */
 	unsigned int flags;
+	struct snd_kcontrol *kctl; /* original kcontrol pointer */
 	struct snd_kcontrol slave; /* the copy of original control entry */
 };
 
@@ -207,7 +209,10 @@ static int slave_put(struct snd_kcontrol *kcontrol,
 	}
 	if (!changed)
 		return 0;
-	return slave_put_val(slave, ucontrol);
+	err = slave_put_val(slave, ucontrol);
+	if (err < 0)
+		return err;
+	return 1;
 }
 
 static int slave_tlv_cmd(struct snd_kcontrol *kcontrol,
@@ -251,6 +256,7 @@ int _snd_ctl_add_slave(struct snd_kcontrol *master, struct snd_kcontrol *slave,
 		       slave->count * sizeof(*slave->vd), GFP_KERNEL);
 	if (!srec)
 		return -ENOMEM;
+	srec->kctl = slave;
 	srec->slave = *slave;
 	memcpy(srec->slave.vd, slave->vd, slave->count * sizeof(*slave->vd));
 	srec->master = master_link;
@@ -332,10 +338,18 @@ static int master_put(struct snd_kcontrol *kcontrol,
 static void master_free(struct snd_kcontrol *kcontrol)
 {
 	struct link_master *master = snd_kcontrol_chip(kcontrol);
-	struct link_slave *slave;
+	struct link_slave *slave, *n;
 
-	list_for_each_entry(slave, &master->slaves, list)
-		slave->master = NULL;
+	/* free all slave links and retore the original slave kctls */
+	list_for_each_entry_safe(slave, n, &master->slaves, list) {
+		struct snd_kcontrol *sctl = slave->kctl;
+		struct list_head olist = sctl->list;
+		memcpy(sctl, &slave->slave, sizeof(*sctl));
+		memcpy(sctl->vd, slave->slave.vd,
+		       sctl->count * sizeof(*sctl->vd));
+		sctl->list = olist; /* keep the current linked-list */
+		kfree(slave);
+	}
 	kfree(master);
 }
 

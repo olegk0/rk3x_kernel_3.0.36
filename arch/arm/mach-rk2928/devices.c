@@ -27,36 +27,9 @@
 #include <mach/dma-pl330.h>
 #include <mach/gpio.h>
 #include <mach/iomux.h>
-#include <mach/dvfs.h>
-#include <mach/debug_uart.h>
 #include <plat/rk_fiq_debugger.h>
-#include <linux/regulator/consumer.h>
 
 #ifdef CONFIG_ADC_RK30
-static int rk30_get_base_volt(void)
-{
-        int volt;
-        struct regulator *logic = dvfs_get_regulator("vdd_core");
-
-        if(unlikely(IS_ERR_OR_NULL(logic))){
-                printk("%s: fail to get logic voltage\n", __func__);
-                return -EINVAL;
-        }
-        volt =  regulator_get_voltage(logic)/1000;
-
-        return volt;
-}
-
-static struct adc_platform_data rk30_adc_pdata = {
-        .ref_volt = 3300, //3300mV
-#if  defined(CONFIG_ARCH_RK3026)  
-	.base_chn = 6,
-#else
-	.base_chn = 3,
-#endif
-        .get_base_volt = &rk30_get_base_volt,
-};
-
 static struct resource rk30_adc_resource[] = {
 	{
 		.start	= IRQ_SARADC,
@@ -75,9 +48,6 @@ struct platform_device device_adc = {
 	.id		= -1,
 	.num_resources	= ARRAY_SIZE(rk30_adc_resource),
 	.resource	= rk30_adc_resource,
-        .dev            = {
-		.platform_data = &rk30_adc_pdata,
-        },
 };
 #endif
 
@@ -279,14 +249,107 @@ static void __init rk2928_init_uart(void)
 #define I2C3_END        RK2928_RKI2C3_PHYS + RK2928_RKI2C3_SIZE - 1
 #endif
 
-#ifdef CONFIG_I2C0_RK30
+struct i2c_iomux{
+        int scl_pin;
+        char *scl_name;
+        unsigned int scl_i2c_mode;
+        unsigned int scl_gpio_mode;
+
+        int sda_pin;
+        char *sda_name;
+        unsigned int sda_i2c_mode;
+        unsigned int sda_gpio_mode;
+
+        char *req_name;
+};
+static struct i2c_iomux iomux[] = {
+        {
+                .scl_pin = RK2928_PIN0_PA0,
+                .scl_name = GPIO0A0_I2C0_SCL_NAME,
+                .scl_i2c_mode = GPIO0A_I2C0_SCL,
+                .scl_gpio_mode = 0,
+                .sda_pin = RK2928_PIN0_PA1,
+                .sda_name = GPIO0A1_I2C0_SDA_NAME,
+                .sda_i2c_mode = GPIO0A_I2C0_SDA,
+                .sda_gpio_mode = 0,
+                .req_name = "i2c.0",
+        },
+        {
+                .scl_pin = RK2928_PIN0_PA2,
+                .scl_name = GPIO0A2_I2C1_SCL_NAME,
+                .scl_i2c_mode = GPIO0A_I2C1_SCL,
+                .scl_gpio_mode = 0,
+                .sda_pin = RK2928_PIN0_PA3,
+                .sda_name = GPIO0A3_I2C1_SDA_NAME,
+                .sda_i2c_mode = GPIO0A_I2C1_SDA,
+                .sda_gpio_mode = 0,
+                .req_name = "i2c.1",
+        },
+        {
+                .scl_pin = RK2928_PIN2_PC5,
+                .scl_name = GPIO2C5_LCDC0_D19_LCDC1_D19_I2C2_SCL_NAME,
+                .scl_i2c_mode = GPIO2C_I2C2_SCL,
+                .scl_gpio_mode = 0,
+                .sda_pin = RK2928_PIN2_PC4,
+                .sda_name = GPIO2C4_LCDC0_D18_LCDC1_D18_I2C2_SDA_NAME,
+                .sda_i2c_mode = GPIO2C_I2C2_SDA,
+                .sda_gpio_mode = 0,
+                .req_name = "i2c.2",
+        },
+        {
+                .scl_pin = RK2928_PIN0_PA6,
+                .scl_name = GPIO0A6_I2C3_SCL_HDMI_DDCSCL_NAME,
+                .scl_i2c_mode = GPIO0A_I2C3_SCL,
+                .scl_gpio_mode = 0,
+                .sda_pin = RK2928_PIN0_PA7,
+                .sda_name = GPIO0A7_I2C3_SDA_HDMI_DDCSDA_NAME,
+                .sda_i2c_mode = GPIO0A_I2C3_SDA,
+                .sda_gpio_mode = 0,
+                .req_name = "i2c.3",
+        },
+};
+static int i2c_check_idle(int id)
+{
+        int sda_level, scl_level;
+        
+        if(id < 0 || id > 3){
+                printk("Error: id: %d\n", id);
+        }
+
+        rk30_mux_api_set(iomux[id].scl_name, iomux[id].scl_gpio_mode);	
+        rk30_mux_api_set(iomux[id].sda_name, iomux[id].sda_gpio_mode);	
+
+        gpio_request(iomux[id].scl_pin, iomux[id].req_name);
+        gpio_request(iomux[id].sda_pin, iomux[id].req_name);
+        
+        gpio_direction_input(iomux[id].scl_pin);
+        gpio_direction_input(iomux[id].sda_pin);
+
+        scl_level = gpio_get_value(iomux[id].scl_pin);
+        sda_level = gpio_get_value(iomux[id].sda_pin);
+
+        gpio_free(iomux[id].scl_pin);
+        gpio_free(iomux[id].sda_pin);
+
+        rk30_mux_api_set(iomux[id].scl_name, iomux[id].scl_i2c_mode);	
+        rk30_mux_api_set(iomux[id].sda_name, iomux[id].sda_i2c_mode);	
+        
+        if(sda_level == 1 && scl_level == 1)
+                return I2C_IDLE;
+        else if(sda_level == 0 && scl_level == 1)
+                return I2C_SDA_LOW;
+        else if(sda_level == 1 && scl_level == 0)
+                return I2C_SCL_LOW;
+        else
+                return BOTH_LOW;
+}
+
+#ifdef CONFIG_I2C2_RK30
 static struct rk30_i2c_platform_data default_i2c0_data = {
 	.bus_num = 0,
 	.is_div_from_arm = 1,
 	.adap_type = I2C0_ADAP_TYPE,
-	.sda_mode = I2C0_SDA,
-	.scl_mode = I2C0_SCL,
-
+	.check_idle = &i2c_check_idle,
 };
 
 static struct resource resources_i2c0[] = {
@@ -318,8 +381,7 @@ static struct rk30_i2c_platform_data default_i2c1_data = {
 	.bus_num = 1,
 	.is_div_from_arm = 1,
 	.adap_type = I2C1_ADAP_TYPE,
-	.sda_mode = I2C1_SDA,
-	.scl_mode = I2C1_SCL,
+	.check_idle = &i2c_check_idle,
 };
 
 static struct resource resources_i2c1[] = {
@@ -351,8 +413,7 @@ static struct rk30_i2c_platform_data default_i2c2_data = {
 	.bus_num = 2,
 	.is_div_from_arm = 0,
 	.adap_type = I2C2_ADAP_TYPE,
-	.sda_mode = I2C2_SDA,
-	.scl_mode = I2C2_SCL,
+	.check_idle = &i2c_check_idle,
 };
 
 static struct resource resources_i2c2[] = {
@@ -384,8 +445,7 @@ static struct rk30_i2c_platform_data default_i2c3_data = {
 	.bus_num = 3,
 	.is_div_from_arm = 0,
 	.adap_type = I2C3_ADAP_TYPE,
-	.sda_mode = I2C3_SDA,
-	.scl_mode = I2C3_SCL,
+	.check_idle = &i2c_check_idle,
 };
 
 static struct resource resources_i2c3[] = {
@@ -487,7 +547,6 @@ static int spi_io_resume_leakage_bug(void)
  */
 #ifdef CONFIG_SPIM0_RK29
 static struct spi_cs_gpio rk29xx_spi0_cs_gpios[SPI_CHIPSELECT_NUM] = {
-#if 0
 	{
 		.name = "spi0 cs0",
 		.cs_gpio = RK2928_PIN1_PB3,
@@ -500,7 +559,6 @@ static struct spi_cs_gpio rk29xx_spi0_cs_gpios[SPI_CHIPSELECT_NUM] = {
 		.cs_iomux_name = GPIO1B4_SPI_CSN1_UART1_CTSN_NAME,//if no iomux,set it NULL
 		.cs_iomux_mode = GPIO1B_SPI_CSN1,
 	},
-#endif
 };
 
 static struct rk29xx_spi_platform_data rk29xx_spi0_platdata = {
@@ -571,7 +629,7 @@ static struct platform_device device_nand = {
 	.num_resources	= ARRAY_SIZE(resources_nand),
 };
 #endif
-#if defined(CONFIG_HDMI_RK2928) || defined(CONFIG_HDMI_RK616)
+#ifdef CONFIG_HDMI_RK2928
 static struct resource resource_hdmi[] = {
 	[0] = {
 		.start = RK2928_HDMI_PHYS,
@@ -586,17 +644,12 @@ static struct resource resource_hdmi[] = {
 };
 
 static struct platform_device device_hdmi = {
-#ifdef CONFIG_HDMI_RK616
-        .name                           = "rk3026-hdmi",
-#else
 	.name				= "rk2928-hdmi",
-#endif
 	.id					= -1,
 	.num_resources		= ARRAY_SIZE(resource_hdmi),
 	.resource			= resource_hdmi,
 };
 #endif
-
 #ifdef CONFIG_RGA_RK30
 static struct resource resource_rga[] = {
 	[0] = {
@@ -674,57 +727,6 @@ static struct platform_device device_keys = {
 };
 #endif
 
-#ifdef CONFIG_EMMC_RK
-static struct resource resources_emmc[] = {
-	{
-		.start 	= IRQ_EMMC,
-		.end 	= IRQ_EMMC,
-		.flags 	= IORESOURCE_IRQ,
-	},
-	{
-		.start 	= RK2928_EMMC_PHYS,
-		.end 	= RK2928_EMMC_PHYS + RK2928_EMMC_SIZE - 1,
-		.flags 	= IORESOURCE_MEM,
-	}
-};
-
-static struct platform_device device_emmc = {
-	.name		= "emmc",
-	.id		= -1,
-	.num_resources	= ARRAY_SIZE(resources_emmc),
-	.resource	= resources_emmc,
-	.dev 		= {
-		.platform_data = NULL,
-	},
-};
-#endif
-
-#ifdef CONFIG_SDMMC2_RK29
-static struct resource resources_sdmmc2[] = {
-	{
-		.start 	= IRQ_EMMC,
-		.end 	= IRQ_EMMC,
-		.flags 	= IORESOURCE_IRQ,
-	},
-	{
-		.start 	= RK2928_EMMC_PHYS,
-		.end 	= RK2928_EMMC_PHYS + RK2928_EMMC_SIZE - 1,
-		.flags 	= IORESOURCE_MEM,
-	}
-
-};
-
-static struct platform_device device_sdmmc2 = {
-	.name		= "emmc",
-	.id		= -1,//For compatibility with old code, do not set this id-value to 2
-	.num_resources	= ARRAY_SIZE(resources_sdmmc2),
-	.resource	= resources_sdmmc2,
-	.dev 		= {
-		.platform_data = &default_sdmmc2_data,
-	},
-};
-#endif
-
 #ifdef CONFIG_SDMMC0_RK29
 static struct resource resources_sdmmc0[] = {
 	{
@@ -776,15 +778,6 @@ static struct platform_device device_sdmmc1 = {
 #endif
 static void __init rk2928_init_sdmmc(void)
 {
-#ifdef CONFIG_EMMC_RK
-	platform_device_register(&device_emmc);
-#endif
-
-#ifdef CONFIG_SDMMC2_RK29
-     //register eMMC
-	platform_device_register(&device_sdmmc2);
-#endif
-
 #ifdef CONFIG_SDMMC0_RK29
 	platform_device_register(&device_sdmmc0);
 #endif
@@ -793,93 +786,17 @@ static void __init rk2928_init_sdmmc(void)
 #endif
 }
 
-#ifdef CONFIG_RK29_WATCHDOG
-static struct resource resources_wdt[] = {
-	{
-		.start	= IRQ_WDT,
-		.end	= IRQ_WDT,
-		.flags	= IORESOURCE_IRQ,
-	},
-	{
-		.start	= RK2928_WDT_PHYS,
-		.end	= RK2928_WDT_PHYS + RK2928_WDT_SIZE - 1,
-		.flags	= IORESOURCE_MEM,
-	},
+static struct resource resource_arm_pmu = {
+	.start		= IRQ_ARM_PMU,
+	.end		= IRQ_ARM_PMU,
+	.flags		= IORESOURCE_IRQ,
 };
 
-static struct platform_device device_wdt = {
-	.name	= "rk29-wdt",
-	.id	= 0,
-	.num_resources	= ARRAY_SIZE(resources_wdt),
-	.resource	= resources_wdt,
-};
-#endif
-
-static struct resource resource_arm_pmu[] = {
-	{
-		.start	= IRQ_ARM_PMU,
-		.end	= IRQ_ARM_PMU,
-		.flags	= IORESOURCE_IRQ,
-	},
-#if defined(CONFIG_ARCH_RK3026)
-	{
-		.start	= IRQ_ARM_PMU + 1,
-		.end	= IRQ_ARM_PMU + 1,
-		.flags	= IORESOURCE_IRQ,
-	},
-#endif
-};
-
-static struct platform_device device_arm_pmu = {
+struct platform_device device_arm_pmu = {
 	.name		= "arm-pmu",
 	.id		= ARM_PMU_DEVICE_CPU,
-	.num_resources	= ARRAY_SIZE(resource_arm_pmu),
-	.resource	= resource_arm_pmu,
-};
-
-
-#ifdef CONFIG_RK3026_LVDS
-static struct resource resource_lvds[] = {
-	{
-		.start 	= RK2928_GRF_PHYS + GRF_LVDS_CON0,
-		.end 	= RK2928_GRF_PHYS + GRF_DMAC_CON0,
-		.flags 	= IORESOURCE_MEM,
-	},
-};
-
-static struct platform_device device_lvds = {
-	.name		= "rk3026-lvds",
-	.id		= -1,
-	.num_resources	= ARRAY_SIZE(resource_lvds),
-	.resource	= resource_lvds,
-};
-#endif
-
-static struct resource resource_vpu[] = {
-	{
-		.start	= IRQ_VDPU,
-		.end	= IRQ_VDPU,
-		.name	= "irq_vdpu",
-		.flags	= IORESOURCE_IRQ,
-	},
-	{
-		.start	= IRQ_VEPU,
-		.end	= IRQ_VEPU,
-		.name	= "irq_vepu",
-		.flags	= IORESOURCE_IRQ,
-	},
-	{
-		.start	= RK2928_VCODEC_PHYS,
-		.end	= RK2928_VCODEC_PHYS + RK2928_VCODEC_SIZE - 1,
-		.flags	= IORESOURCE_MEM,
-	},
-};
-
-static struct platform_device device_vpu = {
-	.name		= "vpu",
-	.id		= -1,
-	.num_resources	= ARRAY_SIZE(resource_vpu),
-	.resource	= resource_vpu,
+	.num_resources	= 1,
+	.resource	= &resource_arm_pmu,
 };
 
 static int __init rk2928_init_devices(void)
@@ -905,19 +822,10 @@ static int __init rk2928_init_devices(void)
 	rk_serial_debug_init(DEBUG_UART_BASE, IRQ_DEBUG_UART, IRQ_UART_SIGNAL, -1);
 #endif
 	rk2928_init_i2s();
-#if defined(CONFIG_HDMI_RK2928) || defined(CONFIG_HDMI_RK616)
+#ifdef CONFIG_HDMI_RK2928
 	platform_device_register(&device_hdmi);
 #endif
-#ifdef CONFIG_RK29_WATCHDOG
-	platform_device_register(&device_wdt);
-#endif
 	platform_device_register(&device_arm_pmu);
-
-#ifdef CONFIG_RK3026_LVDS
-	platform_device_register(&device_lvds);
-#endif
-	platform_device_register(&device_vpu);
-
 	return 0;
 }
 arch_initcall(rk2928_init_devices);

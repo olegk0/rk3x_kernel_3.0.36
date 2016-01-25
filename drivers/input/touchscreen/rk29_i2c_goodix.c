@@ -178,7 +178,7 @@ static int goodix_init_panel(struct rk_ts_data *ts)
 	int ret=-1, retry = 10;
 	uint8_t rd_cfg_buf[7] = {0x66,};
 
-#if (TS_MAX_X == 1024)&&(TS_MAX_Y == 768)			//for malata 10.1
+#if (TS_MAX_X == 1024)&&(TS_MAX_Y == 768)			//for BQ 10.1
 	uint8_t config_info[] = {
 		0x65,0x02,0x04,0x00,0x03,0x00,0x0A,0x22,0x1E,0xE7,0x32,0x05,0x08,0x10,0x4C,
 		0x41,0x41,0x20,0x09,0x00,0xA0,0xA0,0x3C,0x64,0x0E,0x0D,0x0C,0x0B,0x0A,0x09,
@@ -754,11 +754,7 @@ static int rk_ts_probe(struct i2c_client *client, const struct i2c_device_id *id
 {
 	int ret = 0;
 	struct rk_ts_data *ts;
-	#ifdef CONFIG_MACH_RK_FAC
-		struct tp_platform_data *pdata;  
-	#else 
-		struct goodix_platform_data *pdata ;
-	#endif
+	struct goodix_platform_data *pdata ;
 	
 	printk(KERN_INFO "Install touch driver.\n");
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) 
@@ -777,17 +773,14 @@ static int rk_ts_probe(struct i2c_client *client, const struct i2c_device_id *id
 
 	pdata = client->dev.platform_data;
 	ts->irq_pin = pdata->irq_pin;
-#ifdef CONFIG_MACH_RK_FAC
-	ts->rst_pin = pdata->reset_pin;
-#else
 	ts->rst_pin = pdata->rest_pin;
-#endif
 	ts->pendown =PEN_RELEASE;
 	ts->client = client;
 	ts->ts_init = goodix_ts_init;	
 	ts->power = goodix_ts_power;
 	ts->get_touch_info = goodix_get_touch_info;
 	ts->input_parms_init = goodix_input_params_init;
+	i2c_set_clientdata(client, ts);
 	
 
 	if (pdata->init_platform_hw)
@@ -828,7 +821,6 @@ static int rk_ts_probe(struct i2c_client *client, const struct i2c_device_id *id
 	ts->early_suspend.resume = rk_ts_late_resume;
 	register_early_suspend(&ts->early_suspend);
 #endif
-	i2c_set_clientdata(client, ts);
 
 	info_buf= kzalloc(ts->max_touch_num*sizeof(struct rk_touch_info), GFP_KERNEL);
 	if(!info_buf)
@@ -863,9 +855,6 @@ static int rk_ts_probe(struct i2c_client *client, const struct i2c_device_id *id
 
 	
 err_input_register_device_failed:
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	unregister_early_suspend(&ts->early_suspend);
-#endif
 	input_free_device(ts->input_dev);
 	i2c_set_clientdata(client, NULL);	
 	kfree(ts);
@@ -909,8 +898,7 @@ static void rk_ts_shutdown(struct i2c_client *client)
 {
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct rk_ts_data *ts = i2c_get_clientdata(client);
-	if (ts)
-		unregister_early_suspend(&ts->early_suspend);
+	unregister_early_suspend(&ts->early_suspend);
 #endif
 }
 

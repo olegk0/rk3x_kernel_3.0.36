@@ -1,6 +1,3 @@
-#include <linux/clk.h>
-#include <linux/cpufreq.h>
-#include <linux/err.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
@@ -19,27 +16,37 @@
 #include <mach/pmu.h>
 #include <mach/loader.h>
 #include <mach/ddr.h>
-#include <mach/dvfs.h>
-#include <mach/cpu_axi.h>
-#include <mach/debug_uart.h>
 
 static void __init rk30_cpu_axi_init(void)
 {
-	CPU_AXI_SET_QOS_PRIORITY(0, 0, DMAC);
-	CPU_AXI_SET_QOS_PRIORITY(0, 0, CPU0);
-	CPU_AXI_SET_QOS_PRIORITY(0, 0, CPU1R);
-	CPU_AXI_SET_QOS_PRIORITY(0, 0, CPU1W);
+	writel_relaxed(0x0, RK30_CPU_AXI_BUS_BASE + 0x0088);	// cpu0
+	writel_relaxed(0x0, RK30_CPU_AXI_BUS_BASE + 0x0108);	// dmac1
+	writel_relaxed(0x0, RK30_CPU_AXI_BUS_BASE + 0x0188);	// cpu1r
+	writel_relaxed(0x0, RK30_CPU_AXI_BUS_BASE + 0x0388);	// cpu1w
 #ifdef CONFIG_RK29_VMAC
-	CPU_AXI_SET_QOS_PRIORITY(2, 2, PERI);
+	writel_relaxed(0xa, RK30_CPU_AXI_BUS_BASE + 0x4008);	// peri
 #else
-	CPU_AXI_SET_QOS_PRIORITY(0, 0, PERI);
+	writel_relaxed(0x0, RK30_CPU_AXI_BUS_BASE + 0x4008);	// peri
 #endif
-	CPU_AXI_SET_QOS_PRIORITY(3, 3, LCDC0);
-	CPU_AXI_SET_QOS_PRIORITY(3, 3, LCDC1);
-	CPU_AXI_SET_QOS_PRIORITY(2, 1, GPU);
-
+#if 0
+	writel_relaxed(0x0, RK30_CPU_AXI_BUS_BASE + 0x5008);	// gpu
+	writel_relaxed(0x0, RK30_CPU_AXI_BUS_BASE + 0x6008);	// vpu
+	writel_relaxed(0xa, RK30_CPU_AXI_BUS_BASE + 0x7008);	// lcdc0
+	writel_relaxed(0x0, RK30_CPU_AXI_BUS_BASE + 0x7088);	// cif0
+	writel_relaxed(0x0, RK30_CPU_AXI_BUS_BASE + 0x7108);	// ipp
+	writel_relaxed(0xa, RK30_CPU_AXI_BUS_BASE + 0x7188);	// lcdc1
+	writel_relaxed(0x0, RK30_CPU_AXI_BUS_BASE + 0x7208);	// cif1
+	writel_relaxed(0x0, RK30_CPU_AXI_BUS_BASE + 0x7288);	// rga
+#endif
 	writel_relaxed(0x3f, RK30_CPU_AXI_BUS_BASE + 0x0014);	// memory scheduler read latency
 	dsb();
+}
+
+static void __init rk30_io_drive_strength_init(void)
+{
+#if defined(CONFIG_ARCH_RK3066B)
+	writel_relaxed(0x11001100, RK30_GRF_BASE + GRF_IO_CON4);
+#endif
 }
 
 #define L2_LY_SP_OFF (0)
@@ -52,47 +59,17 @@ static void __init rk30_cpu_axi_init(void)
 #define L2_LY_WR_MSK (0x7)
 #define L2_LY_SET(ly,off) (((ly)-1)<<(off))
 
-#define L2_LATENCY(setup_cycles, read_cycles, write_cycles) \
-	L2_LY_SET(setup_cycles, L2_LY_SP_OFF) | \
-	L2_LY_SET(read_cycles, L2_LY_RD_OFF) | \
-	L2_LY_SET(write_cycles, L2_LY_WR_OFF)
-
 static void __init rk30_l2_cache_init(void)
 {
 #ifdef CONFIG_CACHE_L2X0
-	u32 aux_ctrl, aux_ctrl_mask, data_latency_ctrl;
-#if defined(CONFIG_ARCH_RK3188)
-	data_latency_ctrl = L2_LATENCY(2, 3, 1);
-#else
-	unsigned int max_cpu_freq = 1608000; // kHz
-	struct cpufreq_frequency_table *table = NULL;
-	struct clk *clk_cpu;
-	int i;
+	u32 aux_ctrl, aux_ctrl_mask;
 
-	clk_cpu = clk_get(NULL, "cpu");
-	if (!IS_ERR(clk_cpu)) {
-		table = dvfs_get_freq_volt_table(clk_cpu);
-		if (!table)
-			pr_err("failed to get cpu freq volt table\n");
-	} else
-		pr_err("failed to get clk cpu\n");
-	for (i = 0; table && table[i].frequency != CPUFREQ_TABLE_END; i++) {
-		if (max_cpu_freq < table[i].frequency)
-			max_cpu_freq = table[i].frequency;
-	}
-
-	if (max_cpu_freq <= 1608000)
-		data_latency_ctrl = L2_LATENCY(4, 6, 1);
-	else if (max_cpu_freq <= 1800000)
-		data_latency_ctrl = L2_LATENCY(5, 7, 1);
-	else if (max_cpu_freq <= 1992000)
-		data_latency_ctrl = L2_LATENCY(5, 8, 1);
-	else
-		data_latency_ctrl = L2_LATENCY(6, 8, 1);
-#endif
-
-	writel_relaxed(L2_LATENCY(1, 1, 1), RK30_L2C_BASE + L2X0_TAG_LATENCY_CTRL);
-	writel_relaxed(data_latency_ctrl, RK30_L2C_BASE + L2X0_DATA_LATENCY_CTRL);
+	writel_relaxed(L2_LY_SET(1,L2_LY_SP_OFF)
+				|L2_LY_SET(1,L2_LY_RD_OFF)
+				|L2_LY_SET(1,L2_LY_WR_OFF), RK30_L2C_BASE + L2X0_TAG_LATENCY_CTRL);
+	writel_relaxed(L2_LY_SET(4,L2_LY_SP_OFF)
+				|L2_LY_SET(6,L2_LY_RD_OFF)
+				|L2_LY_SET(1,L2_LY_WR_OFF), RK30_L2C_BASE + L2X0_DATA_LATENCY_CTRL);
 
 	/* L2X0 Prefetch Control */
 	writel_relaxed(0x70000003, RK30_L2C_BASE + L2X0_PREFETCH_CTRL);
@@ -121,7 +98,6 @@ static void __init rk30_l2_cache_init(void)
 }
 
 static int boot_mode;
-
 static void __init rk30_boot_mode_init(void)
 {
 	u32 boot_flag = readl_relaxed(RK30_PMU_BASE + PMU_SYS_REG0);
@@ -130,11 +106,8 @@ static void __init rk30_boot_mode_init(void)
 	if (boot_flag == (SYS_KERNRL_REBOOT_FLAG | BOOT_RECOVER)) {
 		boot_mode = BOOT_MODE_RECOVERY;
 	}
-	if (boot_mode || ((boot_flag & 0xff) && ((boot_flag & 0xffffff00) == SYS_KERNRL_REBOOT_FLAG)))
-		printk("Boot mode: %s (%d) flag: %s (0x%08x)\n", boot_mode_name(boot_mode), boot_mode, boot_flag_name(boot_flag), boot_flag);
-#ifdef CONFIG_RK29_WATCHDOG
-	writel_relaxed(BOOT_MODE_WATCHDOG, RK30_PMU_BASE + PMU_SYS_REG1);
-#endif
+	if (boot_mode || boot_flag)
+		printk("Boot mode: %d flag: 0x%08x\n", boot_mode, boot_flag);
 }
 
 int board_boot_mode(void)
@@ -151,34 +124,14 @@ void __init rk30_init_irq(void)
 #endif
 	rk30_gpio_init();
 }
-
-static void usb_uart_init(void)
-{
-#if defined(CONFIG_ARCH_RK3188) && (CONFIG_RK_DEBUG_UART == 2)
-#ifdef CONFIG_RK_USB_UART
-	if (!(readl_relaxed(RK30_GRF_BASE + GRF_SOC_STATUS0) & (1 << 13))) { //detect id
-		writel_relaxed((0x0300 << 16), RK30_GRF_BASE + GRF_UOC0_CON0);
-	} else {
-		if (!(readl_relaxed(RK30_GRF_BASE + GRF_SOC_STATUS0) & (1 << 10))) { //detect vbus
-			writel_relaxed(((0x01 << 2) | ((0x01 << 2) << 16)), RK30_GRF_BASE + GRF_UOC0_CON2); //software control usb phy enable 
-			writel_relaxed((0x2A | (0x3F << 16)), RK30_GRF_BASE + GRF_UOC0_CON3); //usb phy enter suspend
-			writel_relaxed((0x0300 | (0x0300 << 16)), RK30_GRF_BASE + GRF_UOC0_CON0);
-		} else {
-			writel_relaxed((0x0300 << 16), RK30_GRF_BASE + GRF_UOC0_CON0);
-		}
-	}
-#else
-	writel_relaxed((0x0300 << 16), RK30_GRF_BASE + GRF_UOC0_CON0);
-#endif
-#endif
-}
+int __init clk_disable_unused(void);
 
 void __init rk30_map_io(void)
 {
 	rk30_map_common_io();
-	usb_uart_init();
 	rk29_setup_early_printk();
 	rk30_cpu_axi_init();
+	rk30_io_drive_strength_init();
 	rk29_sram_init();
 	board_clock_init();
 	rk30_l2_cache_init();
@@ -186,11 +139,9 @@ void __init rk30_map_io(void)
 	clk_disable_unused();
 	rk30_iomux_init();
 	rk30_boot_mode_init();
-#if defined(CONFIG_EMMC_IO_3_3V)
-	grf_set_io_power_domain_voltage(IO_PD_FLASH, IO_PD_VOLTAGE_3_3V);
-#endif
 }
 
+extern u32 ddr_get_cap(void);
 static __init u32 rk30_get_ddr_size(void)
 {
 	u32 size;

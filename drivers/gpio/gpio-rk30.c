@@ -29,15 +29,14 @@
 #include <mach/gpio.h>
 #include <mach/io.h>
 #include <mach/iomux.h>
-#include <mach/pmu.h>
 #include <asm/gpio.h>
 #include <asm/mach/irq.h>
 
-#if defined(CONFIG_ARCH_RK3066B) || defined(CONFIG_ARCH_RK3188)
+#if defined(CONFIG_ARCH_RK3066B)
 #define MAX_PIN	RK30_PIN3_PD7
 #elif defined(CONFIG_ARCH_RK30)
 #define MAX_PIN	RK30_PIN6_PB7
-#elif defined(CONFIG_ARCH_RK2928) || defined(CONFIG_ARCH_RK3026)
+#elif defined(CONFIG_ARCH_RK2928)
 #define MAX_PIN	RK2928_PIN3_PD7
 #define RK30_GPIO0_PHYS	RK2928_GPIO0_PHYS
 #define RK30_GPIO0_BASE	RK2928_GPIO0_BASE
@@ -90,7 +89,7 @@ static int rk30_gpiolib_request(struct gpio_chip *chip, unsigned offset);
 			.pull_updown      = rk30_gpiolib_pull_updown,	\
 			.dbg_show         = rk30_gpiolib_dbg_show,	\
 			.to_irq           = rk30_gpiolib_to_irq,	\
-			.base             = PIN_BASE + ID*NUM_GROUP,	\
+			.base             = ID < 6 ? PIN_BASE + ID*NUM_GROUP : PIN_BASE + 5*NUM_GROUP,	\
 			.ngpio            = ID < 6 ? NUM_GROUP : 16,	\
 		},							\
 		.id = ID, \
@@ -304,10 +303,14 @@ static int rk30_gpiolib_direction_input(struct gpio_chip *chip,unsigned offset)
 	spin_unlock_irqrestore(&bank->lock, flags);
 	return 0;
 }
-
 static int rk30_gpiolib_request(struct gpio_chip *chip, unsigned offset)
 {
-	iomux_set_gpio_mode(chip->base + offset);
+	struct rk30_gpio_bank *bank = to_rk30_gpio_bank(chip);
+        int gpio = offset + PIN_BASE + bank->id * 32;
+        
+#ifdef CONFIG_ARCH_RK2928
+        gpio_set_iomux(gpio); 
+#endif
         return 0;
 }
 
@@ -326,61 +329,18 @@ static void rk30_gpiolib_set(struct gpio_chip *chip, unsigned offset, int val)
 	spin_unlock_irqrestore(&bank->lock, flags);
 }
 
-static int rk30_gpiolib_pull_updown(struct gpio_chip *chip, unsigned offset, enum GPIOPullType type)
+static int rk30_gpiolib_pull_updown(struct gpio_chip *chip, unsigned offset, unsigned enable)
 {
-#if defined(CONFIG_ARCH_RK3066B)
-#else
+#if !defined(CONFIG_ARCH_RK3066B)
 	struct rk30_gpio_bank *bank = to_rk30_gpio_bank(chip);
-	void __iomem *base;
-	u32 val;
+	unsigned long flags;
 
-#if defined(CONFIG_ARCH_RK3188)
-	/*
-	 * pull setting
-	 * 2'b00: Z(Noraml operaton)
-	 * 2'b01: weak 1(pull-up)
-	 * 2'b10: weak 0(pull-down)
-	 * 2'b11: Repeater(Bus keeper)
-	 */
-	switch (type) {
-	case PullDisable:
-		val = 0;
-		break;
-	case GPIOPullUp:
-		val = 1;
-		break;
-	case GPIOPullDown:
-		val = 2;
-		break;
-	default:
-		WARN(1, "%s: unsupported pull type %d\n", __func__, type);
-		return -EINVAL;
-	}
-
-	if (bank->id == 0 && offset < 12) {
-		base = RK30_PMU_BASE + PMU_GPIO0A_PULL + ((offset / 8) * 4);
-		offset = (offset % 8) * 2;
-		__raw_writel((0x3 << (16 + offset)) | (val << offset), base);
-	} else {
-		base = RK30_GRF_BASE + GRF_GPIO0B_PULL - 4 + bank->id * 16 + ((offset / 8) * 4);
-		offset = (7 - (offset % 8)) * 2;
-		__raw_writel((0x3 << (16 + offset)) | (val << offset), base);
-	}
-#else
-	/* RK30XX && RK292X */
-	/*
-	 * Values written to this register independently
-	 * control Pullup/Pulldown or not for the
-	 * corresponding data bit in GPIO.
-	 * 0: pull up/down enable, PAD type will decide
-	 * to be up or down, not related with this value
-	 * 1: pull up/down disable
-	*/
-	val = (type == PullDisable) ? 1 : 0;
-	base = RK30_GRF_BASE + GRF_GPIO0L_PULL + bank->id * 8 + ((offset / 16) * 4);
-	offset = offset % 16;
-	__raw_writel((1 << (16 + offset)) | (val << offset), base);
-#endif
+	spin_lock_irqsave(&bank->lock, flags);
+	if(offset>=16)	
+		rk30_gpio_bit_op((void *__iomem) RK30_GRF_BASE, GRF_GPIO0H_PULL + bank->id * 8, (1<<offset) | offset_to_bit(offset-16), !enable);
+	else	
+		rk30_gpio_bit_op((void *__iomem) RK30_GRF_BASE, GRF_GPIO0L_PULL + bank->id * 8, (1<<(offset+16)) | offset_to_bit(offset), !enable);
+	spin_unlock_irqrestore(&bank->lock, flags);
 #endif
 	return 0;
 }
@@ -470,10 +430,11 @@ static struct irq_chip rk30_gpio_irq_chip = {
 
 void __init rk30_gpio_init(void)
 {
-	unsigned int i, j, pin, irqs = 0;
+	unsigned int i, j, pin;
 	struct rk30_gpio_bank *bank;
 
 	bank = rk30_gpio_banks;
+	pin = PIN_BASE;
 
 	for (i = 0; i < ARRAY_SIZE(rk30_gpio_banks); i++, bank++) {
 		spin_lock_init(&bank->lock);
@@ -482,7 +443,6 @@ void __init rk30_gpio_init(void)
 		gpiochip_add(&bank->chip);
 
 		__raw_writel(0, bank->regbase + GPIO_INTEN);
-		pin = bank->chip.base;
 		for (j = 0; j < 32; j++) {
 			unsigned int irq = gpio_to_irq(pin);
 			if (pin > MAX_PIN)
@@ -492,13 +452,12 @@ void __init rk30_gpio_init(void)
 			irq_set_chip_and_handler(irq, &rk30_gpio_irq_chip, handle_level_irq);
 			set_irq_flags(irq, IRQF_VALID);
 			pin++;
-			irqs++;
 		}
 
 		irq_set_handler_data(bank->irq, bank);
 		irq_set_chained_handler(bank->irq, rk30_gpio_irq_handler);
 	}
-	printk("%s: %d gpio irqs in %d banks\n", __func__, irqs, ARRAY_SIZE(rk30_gpio_banks));
+	printk("%s: %d gpio irqs in %d banks\n", __func__, pin - PIN_BASE, ARRAY_SIZE(rk30_gpio_banks));
 }
 
 #ifdef CONFIG_PM

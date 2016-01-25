@@ -63,7 +63,39 @@ static struct rk29_keys_button key_button[] = {
 		.gpio	= RK30_PIN6_PA2,
 		.active_low = PRESS_LEV_LOW,
 		//.code_long_press = EV_ENCALL,
+		.hall_key = 0,
 		.wakeup	= 1,
+	},
+#ifdef CONFIG_HALL_KEY
+	{
+		.desc	= "hall",
+		.code	= KEY_POWER,
+		.gpio	= RK30_PIN4_PC6,
+		.active_low = PRESS_LEV_LOW,
+		.hall_key = 1,
+		.wakeup = 1,
+	},	
+#endif
+	{
+		.desc	= "menu",
+		.code	= EV_MENU,
+		.adc_value	= 135,
+		.gpio = INVALID_GPIO,
+		.active_low = PRESS_LEV_LOW,
+	},
+	{
+		.desc	= "home",
+		.code	= KEY_HOME,
+		.adc_value	= 549,
+		.gpio = INVALID_GPIO,
+		.active_low = PRESS_LEV_LOW,
+	},
+	{
+		.desc	= "back",
+		.code	= KEY_BACK,
+		.adc_value	= 332,
+		.gpio = INVALID_GPIO,
+		.active_low = PRESS_LEV_LOW,
 	},
 #endif
 };

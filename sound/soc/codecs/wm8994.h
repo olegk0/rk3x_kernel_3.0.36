@@ -11,6 +11,7 @@
 
 #include <sound/soc.h>
 #include <linux/firmware.h>
+#include <linux/completion.h>
 
 #include "wm_hubs.h"
 
@@ -79,6 +80,10 @@ struct wm8994_priv {
 	int mclk[2];
 	int aifclk[2];
 	struct wm8994_fll_config fll[2], fll_suspend[2];
+	struct completion fll_locked[2];
+	bool fll_locked_irq;
+
+	int vmid_refcount;
 
 	int dac_rates[2];
 	int lrclk_shared[2];
@@ -140,11 +145,6 @@ struct wm8994_priv {
 	const struct firmware *mbc;
 	const struct firmware *mbc_vss;
 	const struct firmware *enh_eq;
-
-	unsigned int lineout_status:1;
 };
-
-int lineout_event(struct snd_soc_dapm_widget *w,
-			  struct snd_kcontrol *control, int event);
 
 #endif

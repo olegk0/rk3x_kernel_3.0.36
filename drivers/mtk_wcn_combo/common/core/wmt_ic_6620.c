@@ -1,26 +1,114 @@
+/* Copyright Statement:
+ *
+ * This software/firmware and related documentation ("MediaTek Software") are
+ * protected under relevant copyright laws. The information contained herein
+ * is confidential and proprietary to MediaTek Inc. and/or its licensors.
+ * Without the prior written permission of MediaTek inc. and/or its licensors,
+ * any reproduction, modification, use or disclosure of MediaTek Software,
+ * and information contained herein, in whole or in part, shall be strictly prohibited.
+ *
+ * MediaTek Inc. (C) 2010. All rights reserved.
+ *
+ * BY OPENING THIS FILE, RECEIVER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND AGREES
+ * THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK SOFTWARE")
+ * RECEIVED FROM MEDIATEK AND/OR ITS REPRESENTATIVES ARE PROVIDED TO RECEIVER ON
+ * AN "AS-IS" BASIS ONLY. MEDIATEK EXPRESSLY DISCLAIMS ANY AND ALL WARRANTIES,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NONINFRINGEMENT.
+ * NEITHER DOES MEDIATEK PROVIDE ANY WARRANTY WHATSOEVER WITH RESPECT TO THE
+ * SOFTWARE OF ANY THIRD PARTY WHICH MAY BE USED BY, INCORPORATED IN, OR
+ * SUPPLIED WITH THE MEDIATEK SOFTWARE, AND RECEIVER AGREES TO LOOK ONLY TO SUCH
+ * THIRD PARTY FOR ANY WARRANTY CLAIM RELATING THERETO. RECEIVER EXPRESSLY ACKNOWLEDGES
+ * THAT IT IS RECEIVER'S SOLE RESPONSIBILITY TO OBTAIN FROM ANY THIRD PARTY ALL PROPER LICENSES
+ * CONTAINED IN MEDIATEK SOFTWARE. MEDIATEK SHALL ALSO NOT BE RESPONSIBLE FOR ANY MEDIATEK
+ * SOFTWARE RELEASES MADE TO RECEIVER'S SPECIFICATION OR TO CONFORM TO A PARTICULAR
+ * STANDARD OR OPEN FORUM. RECEIVER'S SOLE AND EXCLUSIVE REMEDY AND MEDIATEK'S ENTIRE AND
+ * CUMULATIVE LIABILITY WITH RESPECT TO THE MEDIATEK SOFTWARE RELEASED HEREUNDER WILL BE,
+ * AT MEDIATEK'S OPTION, TO REVISE OR REPLACE THE MEDIATEK SOFTWARE AT ISSUE,
+ * OR REFUND ANY SOFTWARE LICENSE FEES OR SERVICE CHARGE PAID BY RECEIVER TO
+ * MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
+ *
+ * The following software/firmware and/or related documentation ("MediaTek Software")
+ * have been modified by MediaTek Inc. All revisions are subject to any receiver's
+ * applicable license agreements with MediaTek Inc.
+ */
+
+
 /*! \file
     \brief  Declaration of library functions
 
     Any definitions in this file will be shared among GLUE Layer and internal Driver Stack.
 */
 
+/*******************************************************************************
+* Copyright (c) 2009 MediaTek Inc.
+*
+* All rights reserved. Copying, compilation, modification, distribution
+* or any other use whatsoever of this material is strictly prohibited
+* except in accordance with a Software License Agreement with
+* MediaTek Inc.
+********************************************************************************
+*/
 
+/*******************************************************************************
+* LEGAL DISCLAIMER
+*
+* BY OPENING THIS FILE, BUYER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND
+* AGREES THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK
+* SOFTWARE") RECEIVED FROM MEDIATEK AND/OR ITS REPRESENTATIVES ARE
+* PROVIDED TO BUYER ON AN "AS-IS" BASIS ONLY. MEDIATEK EXPRESSLY
+* DISCLAIMS ANY AND ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+* LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+* PARTICULAR PURPOSE OR NONINFRINGEMENT. NEITHER DOES MEDIATEK PROVIDE
+* ANY WARRANTY WHATSOEVER WITH RESPECT TO THE SOFTWARE OF ANY THIRD PARTY
+* WHICH MAY BE USED BY, INCORPORATED IN, OR SUPPLIED WITH THE MEDIATEK
+* SOFTWARE, AND BUYER AGREES TO LOOK ONLY TO SUCH THIRD PARTY FOR ANY
+* WARRANTY CLAIM RELATING THERETO. MEDIATEK SHALL ALSO NOT BE RESPONSIBLE
+* FOR ANY MEDIATEK SOFTWARE RELEASES MADE TO BUYER'S SPECIFICATION OR TO
+* CONFORM TO A PARTICULAR STANDARD OR OPEN FORUM.
+*
+* BUYER'S SOLE AND EXCLUSIVE REMEDY AND MEDIATEK'S ENTIRE AND CUMULATIVE
+* LIABILITY WITH RESPECT TO THE MEDIATEK SOFTWARE RELEASED HEREUNDER WILL
+* BE, AT MEDIATEK'S OPTION, TO REVISE OR REPLACE THE MEDIATEK SOFTWARE AT
+* ISSUE, OR REFUND ANY SOFTWARE LICENSE FEES OR SERVICE CHARGE PAID BY
+* BUYER TO MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
+*
+* THE TRANSACTION CONTEMPLATED HEREUNDER SHALL BE CONSTRUED IN ACCORDANCE
+* WITH THE LAWS OF THE STATE OF CALIFORNIA, USA, EXCLUDING ITS CONFLICT
+* OF LAWS PRINCIPLES.  ANY DISPUTES, CONTROVERSIES OR CLAIMS ARISING
+* THEREOF AND RELATED THERETO SHALL BE SETTLED BY ARBITRATION IN SAN
+* FRANCISCO, CA, UNDER THE RULES OF THE INTERNATIONAL CHAMBER OF COMMERCE
+* (ICC).
+********************************************************************************
+*/
 
 
 /*******************************************************************************
 *                         C O M P I L E R   F L A G S
 ********************************************************************************
 */
+#define CFG_CHECK_WMT_RESULT (1)
+/* BT Port 2 Feature. this command does not need after coex command is down.
+confirmed by LC,
+*/
+#define CFG_WMT_BT_PORT2 (0)
+
+#define CFG_SET_OPT_REG (0)
+#define CFG_WMT_I2S_DBGUART_SUPPORT (0)
+#define CFG_SET_OPT_REG_SWLA (0)
+#define CFG_SET_OPT_REG_MCUCLK (0)
+#define CFG_SET_OPT_REG_MCUIRQ (0)
+
+/* For patch file download, using division or not */
+#define CFG_PATCH_DWN_DIVISION (0)
+/* disable this to avoid inserting unwanted compiler built-in division symbols,
+ * such as  __aeabi_uidiv in ARM EABI.
+ */
 
 /*******************************************************************************
 *                                 M A C R O S
 ********************************************************************************
 */
-#ifdef DFT_TAG
-#undef DFT_TAG
-#endif
-#define DFT_TAG         "[WMT-IC]"
-
 
 /*******************************************************************************
 *                    E X T E R N A L   R E F E R E N C E S
@@ -37,24 +125,18 @@
 ********************************************************************************
 */
 
+#ifdef DFT_TAG
+#undef DFT_TAG
+#endif
+#define DFT_TAG "[WMT-IC]"
+#define AML_Ver "V1.2.20121229_JB_release"
+
 #define DEFAULT_PATCH_FRAG_SIZE (1000)
 #define MT6620E2_PATCH_FRAG_SIZE (900)
 #define WMT_PATCH_FRAG_1ST (0x1)
 #define WMT_PATCH_FRAG_MID (0x2)
 #define WMT_PATCH_FRAG_LAST (0x3)
 
-#define CFG_CHECK_WMT_RESULT (1)
-#define CFG_WMT_BT_PORT2 (0) /* BT Port 2 Feature. this command does not need after coex command is downconfirmed by LC,*/
-
-#define CFG_SET_OPT_REG (0)
-#define CFG_WMT_I2S_DBGUART_SUPPORT (0)
-#define CFG_SET_OPT_REG_SWLA (0)
-#define CFG_SET_OPT_REG_MCUCLK (0)
-#define CFG_SET_OPT_REG_MCUIRQ (0)
-
-#define CFG_WMT_COREDUMP_ENABLE 0
-
-#define CFG_WMT_MULTI_PATCH (1)
 /*******************************************************************************
 *                             D A T A   T Y P E S
 ********************************************************************************
@@ -64,10 +146,9 @@
 *                           P R I V A T E   D A T A
 ********************************************************************************
 */
-#if !(CFG_WMT_MULTI_PATCH)
-static UCHAR gDefPatchName[NAME_MAX + 1];
-#endif
-static UCHAR gFullPatchName[NAME_MAX + 1];
+
+UCHAR gDefPatchName[OSAL_NAME_MAX + 1];
+UCHAR gFullPatchName[OSAL_NAME_MAX + 1];
 static const WMT_IC_INFO_S *gp_mt6620_info = NULL;
 
 static UCHAR WMT_WAKEUP_DIS_GATE_CMD[] = {0x1, 0x3, 0x01, 0x00, 0x04};
@@ -86,13 +167,6 @@ static UCHAR WMT_SET_BAUD_CMD_X[] = {0x01, 0x04, 0x05, 0x00, 0x01, 0xAA, 0xAA, 0
 static UCHAR WMT_SET_BAUD_EVT[] = {0x02, 0x04, 0x02, 0x00, 0x00, 0x01};
 static UCHAR WMT_SET_WAKEUP_WAKE_CMD_RAW[] = {0xFF};
 static UCHAR WMT_SET_WAKEUP_WAKE_EVT[] = {0x02, 0x03, 0x02, 0x00, 0x00, 0x03};
-#if CFG_WMT_MULTI_PATCH
-static UCHAR WMT_PATCH_ADDRESS_CMD[] = {0x01,0x08,0x10,0x00,0x01,0x01,0x00,0x01,0x64,0x0E,0x00,0x01,0x00,0x00,0x00,0x00,0xff,0xff,0xff,0xff};
-static UCHAR WMT_PATCH_ADDRESS_EVT[] = {0x02,0x08,0x04,0x00,0x00,0x00,0x00,0x01};
-static UCHAR WMT_PATCH_P_ADDRESS_CMD[] = {0x01,0x08,0x10,0x00,0x01,0x01,0x00,0x01,0x38,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0xff,0xff,0xff,0xff};
-static UCHAR WMT_PATCH_P_ADDRESS_EVT[] = {0x02,0x08,0x04,0x00,0x00,0x00,0x00,0x01};
-#endif
-
 static UCHAR WMT_PATCH_CMD[] = {0x01, 0x01, 0x00, 0x00, 0x00};
 static UCHAR WMT_PATCH_EVT[] = {0x02, 0x01, 0x01, 0x00, 0x00};
 static UCHAR WMT_RESET_CMD[] = {0x01, 0x07, 0x01, 0x00, 0x04};
@@ -132,9 +206,6 @@ static UCHAR WMT_STRAP_CONF_EVT[] = {0x02, 0x05, 0x02, 0x00, 0x00, 0x02};
 static UCHAR WMT_SET_OSC32K_BYPASS_CMD[]= {0x01, 0x0A, 0x01, 0x00, 0x05};
 static UCHAR WMT_SET_OSC32K_BYPASS_EVT[]= {0x02, 0x0A, 0x01, 0x00, 0x00};
 #endif
-
-static UCHAR  WMT_CORE_DUMP_LEVEL_04_CMD[] = {0x1, 0x0F, 0x07, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-static UCHAR  WMT_CORE_DUMP_LEVEL_04_EVT[] = {0x2, 0x0F, 0x01, 0x00, 0x00};
 
 /* enable all interrupt */
 static UCHAR WMT_SET_ALLINT_REG_CMD[] = {0x01, 0x08, 0x10, 0x00/*length*/
@@ -339,13 +410,12 @@ static struct init_script init_table_5_1[] = {
      INIT_CMD(WMT_STRAP_CONF_CMD_FM_COMM, WMT_STRAP_CONF_EVT, "configure FM comm"),
 };
 
+#if 0
 static struct init_script init_table_6[] =
 {
-#if 0
     INIT_CMD(WMT_SET_OSC32K_BYPASS_CMD, WMT_SET_OSC32K_BYPASS_EVT, "set OSC32k by pass mode."),
-#endif
-	INIT_CMD(WMT_CORE_DUMP_LEVEL_04_CMD,WMT_CORE_DUMP_LEVEL_04_EVT,"setup core dump level"),
 };
+#endif
 
 #if defined(CFG_SET_OPT_REG) && CFG_SET_OPT_REG
 static struct init_script set_registers[] =
@@ -481,18 +551,21 @@ mt6620_find_wmt_ic_info (
 static INT32
 wmt_stp_init_coex (VOID);
 
-#if CFG_WMT_MULTI_PATCH
-static INT32
-mt6620_patch_dwn (UINT32 index);
-static INT32 mt6620_patch_info_prepare(VOID);
-#else
 static INT32
 mt6620_update_patch_name (VOID);
 
+#if CFG_PATCH_DWN_DIVISION
+static INT32
+mt6620_patch_dwn_div(PUINT8 pBuf, UINT32 patchSize, UINT32 patchSizePerFrag);
+#else
+static INT32
+mt6620_patch_dwn_nodiv(PUINT8 pBuf, UINT32 patchSize, UINT32 patchSizePerFrag);
+#endif
+
+
 static INT32
 mt6620_patch_dwn (VOID);
-#endif
-static MTK_WCN_BOOL mt6620_quick_sleep_flag_get(VOID);
+
 
 /*******************************************************************************
 *                            P U B L I C   D A T A
@@ -506,16 +579,13 @@ const WMT_IC_OPS wmt_ic_ops_mt6620 = {
     .sw_deinit = mt6620_sw_deinit,
     .ic_pin_ctrl = mt6620_pin_ctrl,
     .ic_ver_check = mt6620_ver_check,
-    .co_clock_ctrl = NULL,
-    .is_quick_sleep  = mt6620_quick_sleep_flag_get,
-    .is_aee_dump_support = NULL,
 };
 
 /*******************************************************************************
 *                              F U N C T I O N S
 ********************************************************************************
 */
-#if 0
+
 static INT32
 mt6620_sw_init (
     P_WMT_HIF_CONF pWmtHifConf
@@ -557,274 +627,51 @@ mt6620_sw_init (
     if (WMT_HIF_UART == pWmtHifConf->hifType) {
         /* init variable fields for script execution */
         osal_memcpy(&WMT_SET_BAUD_CMD_X[5], &pWmtHifConf->au4HifConf[0], osal_sizeof(UINT32));
-        WMT_SET_BAUD_CMD_X[8] = (UCHAR)0x00;//0xC0 MTK Flow Control /* no flow control */
         osal_memcpy(&WMT_QUERY_BAUD_EVT_X[6], &pWmtHifConf->au4HifConf[0], osal_sizeof(UINT32));
-        WMT_QUERY_BAUD_EVT_X[9] = (UCHAR)0x00; //0xC0 MTK Flow Control /* no flow control */
-
-        /* 3. Query chip baud rate (TEST-ONLY) */
-        /* 4. Query chip STP options (TEST-ONLY) */
-        /* 5. Change chip baud rate: t_baud */
-        //WMT_DBG_FUNC("WMT-CORE: init_table_1_2 set chip baud:%d", pWmtHifConf->au4HifConf[0]);
-        iRet = wmt_core_init_script(init_table_1_2, osal_array_size(init_table_1_2));
-        if (iRet) {
-            WMT_ERR_FUNC("init_table_1_2 fail(%d)\n", iRet);
-            osal_assert(0);
-            return -2;
+        if (WMT_UART_MTK_SW_FC == pWmtHifConf->uartFcCtrl)
+        {
+            WMT_INFO_FUNC("enable MTK SW Flow Control\n");
+            WMT_SET_BAUD_CMD_X[8] = (UCHAR)0x80;//* MTK SW flow control */
+            WMT_QUERY_BAUD_EVT_X[9] = (UCHAR)0x80; //* MTK SW flow control */
         }
-
-        /* 6. Set host baudrate and flow control*/
-        ctrlPa1 = pWmtHifConf->au4HifConf[0]; ctrlPa2 = 0;
-        iRet = wmt_core_ctrl(WMT_CTRL_HOST_BAUDRATE_SET, &ctrlPa1, &ctrlPa2);
-        if (iRet) {
-            WMT_ERR_FUNC("change baudrate(%d) fail(%d)\n", pWmtHifConf->au4HifConf[0], iRet);
-            return -3;
+        else if (WMT_UART_LUX_SW_FC == pWmtHifConf->uartFcCtrl)
+        {
+            WMT_INFO_FUNC("enable Linux SW Flow Control\n");
+            WMT_SET_BAUD_CMD_X[8] = (UCHAR)0x80;//* Linux SW flow control */
+            WMT_QUERY_BAUD_EVT_X[9] = (UCHAR)0x80; //* Linux SW flow control */
         }
-        WMT_INFO_FUNC("WMT-CORE: change baudrate(%d) ok\n", pWmtHifConf->au4HifConf[0]);
-        
-        /* 7. Wake up chip and check event */
-//          iRet = (*kal_stp_tx_raw)(&WMT_SET_WAKEUP_WAKE_CMD_RAW[0], 1, &u4Res);
-        iRet = wmt_core_tx((PUINT8)&WMT_SET_WAKEUP_WAKE_CMD_RAW[0], 1, &u4Res, MTK_WCN_BOOL_TRUE);
-        if (iRet || (u4Res != 1)) {
-            WMT_ERR_FUNC("write raw iRet(%d) written(%d)\n", iRet, u4Res);
-            return -4;
-        }
-
-        osal_memset(evtBuf, 0, osal_sizeof(evtBuf));
-        iRet = wmt_core_rx(evtBuf, osal_sizeof(WMT_SET_WAKEUP_WAKE_EVT), &u4Res);
-#ifdef CFG_DUMP_EVT
-        WMT_DBG_FUNC("WAKEUP_WAKE_EVT read len %d [%02x,%02x,%02x,%02x,%02x,%02x]\n",
-             (INT32)u4Res, evtBuf[0], evtBuf[1], evtBuf[2], evtBuf[3], evtBuf[4], evtBuf[5]);
-#endif
-        if (iRet || (u4Res != osal_sizeof(WMT_SET_WAKEUP_WAKE_EVT))) {
-            WMT_ERR_FUNC("read WAKEUP_WAKE_EVT fail(%d)\n", iRet);
-            return -5;
-        }
-        //WMT_DBG_FUNC("WMT-CORE: read WMT_SET_WAKEUP_WAKE_EVT ok");
-
-#if CFG_CHECK_WMT_RESULT
-        if (osal_memcmp(evtBuf, WMT_SET_WAKEUP_WAKE_EVT, osal_sizeof(WMT_SET_WAKEUP_WAKE_EVT)) != 0) {
-            WMT_ERR_FUNC("WMT-CORE: write WMT_SET_WAKEUP_WAKE_CMD_RAW status fail\n");
-            return -6;
-        }
-#endif
-
-        /* 8. Query baud rate (TEST-ONLY) */
-        iRet = wmt_core_init_script(init_table_2, osal_array_size(init_table_2));
-        if (iRet) {
-            WMT_ERR_FUNC("init_table_2 fail(%d)\n", iRet);
-            return -7;
-        }
-    }
-
-    /* 9. download patch */
-    iRet = mt6620_patch_dwn();
-    
-    WMT_INFO_FUNC("Not to check the patch validity\n");
-#if 0 
-    if (iRet) {
-        WMT_ERR_FUNC("patch dwn fail (%d)\n", iRet);
-        return -8;
-    }
-    else {
-        WMT_INFO_FUNC("patch dwn ok\n");
-    }
-#endif
-    /* 10. WMT Reset command */
-    iRet = wmt_core_init_script(init_table_3, osal_array_size(init_table_3));
-    if (iRet) {
-        WMT_ERR_FUNC("init_table_3 fail(%d)\n", iRet);
-        return -9;
-    }
-    iRet = wmt_stp_init_coex();
-    if (iRet) {
-        WMT_ERR_FUNC("init_coex fail(%d)\n", iRet);
-        return -10;
-    }
-    else {
-        WMT_INFO_FUNC("init_coex ok\n");
-    }
-
-#if 0
-    /*10-2 enable 32K By Pass Mode*/
-    //if hwVer = E3/E4, please enable 32K by pass mode.
-    //does not support mt6620E1/E2, always enable 32k bypass mode
-    //if ((hwVer == 0x8a10 || hwVer == 0x8a11))
-    {
-        WMT_INFO_FUNC("WMT-CORE: init_table_6 OSC32K");
-        iRet = wmt_core_init_script(init_table_6, osal_array_size(init_table_6));
-        if (iRet == 0) {
-            WMT_DBG_FUNC("WMT-CORE: init_table_6 OSC32K, successful\n");
+        else if (WMT_UART_HW_FC == pWmtHifConf->uartFcCtrl)
+        {
+            WMT_INFO_FUNC("enable HW Flow Control\n");
+            WMT_SET_BAUD_CMD_X[8] = (UCHAR)0xC0;//* HW flow control */
+            WMT_QUERY_BAUD_EVT_X[9] = (UCHAR)0xC0; //* HW flow control */
         }
         else {
-            WMT_WARN_FUNC("init table 6 OSC32K fail, continue init...\n");
-            /*return -11;*/
+            /* WMT_UART_NO_FC and all other cases!!! */
+            WMT_INFO_FUNC("no Flow Control (uartFcCtrl:%d)\n", pWmtHifConf->uartFcCtrl);
+            WMT_SET_BAUD_CMD_X[8] = (UCHAR)0x00;//* no flow control */
+            WMT_QUERY_BAUD_EVT_X[9] = (UCHAR)0x00; //* no flow control */
         }
-    }
-#endif
-
-    if (WMT_HIF_UART == pWmtHifConf->hifType) {
-        /* 11. Set chip STP options */
-        iRet = wmt_core_init_script(init_table_4, osal_array_size(init_table_4));
-        if (iRet) {
-            WMT_ERR_FUNC("init_table_4 fail(%d)\n", iRet);
-            return -12;
-        }
-
-        /* 12. Enable host STP-UART mode */
-        ctrlPa1 = WMT_STP_CONF_MODE; ctrlPa2 = MTKSTP_UART_FULL_MODE;
-        iRet = wmt_core_ctrl(WMT_CTRL_STP_CONF, &ctrlPa1, &ctrlPa2);
-        ctrlPa1 = WMT_STP_CONF_EN; ctrlPa2 = 1;
-        iRet += wmt_core_ctrl(WMT_CTRL_STP_CONF, &ctrlPa1, &ctrlPa2);
-        if (iRet) {
-            WMT_ERR_FUNC("enable host STP-UART-FULL mode fail(%d)\n", iRet);
-            return -13;
-        }
-        WMT_INFO_FUNC("enable host STP-UART-FULL mode\n");
-        /*13. wait for 10ms, enough for chip do mechanism switch.(at least 2ms is needed)*/
-        osal_msleep(10);
-        /* 14. Query chip STP options (TEST-ONLY) */
-        /* 15. Query baud rate (stp, TEST-ONLY) */
-        iRet = wmt_core_init_script(init_table_5, osal_array_size(init_table_5));
-        if (iRet) {
-            WMT_ERR_FUNC("init_table_5 fail(%d)\n", iRet);
-            return -14;
-        }
-    }
-
-    /* 15. Set FM strap */
-    WMT_STRAP_CONF_CMD_FM_COMM[5] = (UCHAR)pWmtHifConf->au4StrapConf[0];
-    WMT_STRAP_CONF_EVT[5] = (UCHAR)pWmtHifConf->au4StrapConf[0];
-    iRet = wmt_core_init_script(init_table_5_1, osal_array_size(init_table_5_1));
-    if (iRet) {
-        WMT_ERR_FUNC("init_table_5_1 fm mode(%d) fail(%d)\n",
-            pWmtHifConf->au4StrapConf[0],
-            iRet);
-        return -15;
-    }
-    WMT_INFO_FUNC("set fm mode (%d) ok\n", pWmtHifConf->au4StrapConf[0]);
-
-#if CFG_SET_OPT_REG /*set registers*/
-        iRet = wmt_core_init_script(set_registers, osal_array_size(set_registers));
-        if (iRet) {
-            WMT_ERR_FUNC("set_registers fail(%d)", iRet);
-            return -16;
-        }
-#endif
-
-#if 0
-    /* 16. trace32 dump when fw assert*/
-    {
-        INT32 val = 0x00000001;
-        WMT_INFO_FUNC("WMT-CORE: enable assert dump");
-        wmt_reg_rw_raw(1, 0x0100092c, &val, 0xFFFFFFFF);
-    }
-#endif
-
-#if CFG_WMT_PS_SUPPORT
-    osal_assert(NULL != gp_mt6620_info);
-    if (NULL != gp_mt6620_info) {
-       if (MTK_WCN_BOOL_FALSE != gp_mt6620_info->bPsmSupport) {
-           wmt_lib_ps_enable();
-       }
-       else {
-           wmt_lib_ps_disable();
-       }
-    }
-#endif
-
-    return 0;
-}
-#endif
-
-static INT32
-mt6620_sw_init (
-    P_WMT_HIF_CONF pWmtHifConf
-    )
-{
-    INT32 iRet = -1;
-    UINT32 u4Res = 0;
-    UCHAR evtBuf[256];
-    UINT32 ctrlPa1;
-    UINT32 ctrlPa2;
-    UINT32 hw_ver;
-	UINT32 patch_num = 0;
-	UINT32 patch_index = 0;
-    WMT_DBG_FUNC(" start\n");
-
-    osal_assert(NULL != gp_mt6620_info);
-    if ( (NULL == gp_mt6620_info)
-        || (NULL == pWmtHifConf)
-        ) {
-        WMT_ERR_FUNC("null pointers: gp_mt6620_info(0x%p), pWmtHifConf(0x%p)\n",
-            gp_mt6620_info, pWmtHifConf);
-        return -1;
-    }
-
-    hw_ver = gp_mt6620_info->u4HwVer;
-
-    //4 <3.1> start init for sdio
-    if (WMT_HIF_SDIO == pWmtHifConf->hifType) {
-        /* 1. enable all INT32 */
-        /* 2. disable mcu gate (only MT6620E1/E2) */
-        iRet = wmt_core_init_script(init_table_1_1, osal_array_size(init_table_1_1));
-        if (iRet) {
-            WMT_ERR_FUNC("init_table_1_1 fail:%d\n", iRet);
-            osal_assert(0);
-            return -1;
-        }
-    }
-
-    //4 <3.2> start init for uart
-    if (WMT_HIF_UART == pWmtHifConf->hifType) {
-
-		/* init variable fields for script execution */
-		 osal_memcpy(&WMT_SET_BAUD_CMD_X[5], &pWmtHifConf->au4HifConf[0], osal_sizeof(UINT32));
-		 osal_memcpy(&WMT_QUERY_BAUD_EVT_X[6], &pWmtHifConf->au4HifConf[0], osal_sizeof(UINT32));
-		 if (WMT_UART_MTK_SW_FC == pWmtHifConf->uartFcCtrl)
-		 {
-			 WMT_INFO_FUNC("enable MTK SW Flow Control\n");
-			 WMT_SET_BAUD_CMD_X[8] = (UCHAR)0x80;//* MTK SW flow control */
-			 WMT_QUERY_BAUD_EVT_X[9] = (UCHAR)0x80; //* MTK SW flow control */
-		 }
-		 else if (WMT_UART_LUX_SW_FC == pWmtHifConf->uartFcCtrl)
-		 {
-			 WMT_INFO_FUNC("enable Linux SW Flow Control\n");
-			 WMT_SET_BAUD_CMD_X[8] = (UCHAR)0x80;//* Linux SW flow control */
-			 WMT_QUERY_BAUD_EVT_X[9] = (UCHAR)0x80; //* Linux SW flow control */
-		 }
-		 else if (WMT_UART_HW_FC == pWmtHifConf->uartFcCtrl)
-		 {
-			 WMT_INFO_FUNC("enable HW Flow Control\n");
-			 WMT_SET_BAUD_CMD_X[8] = (UCHAR)0xC0;//* HW flow control */
-			 WMT_QUERY_BAUD_EVT_X[9] = (UCHAR)0xC0; //* HW flow control */
-		 }
-		 else {
-			 /* WMT_UART_NO_FC and all other cases!!! */
-			 WMT_INFO_FUNC("no Flow Control (uartFcCtrl:%d)\n", pWmtHifConf->uartFcCtrl);
-			 WMT_SET_BAUD_CMD_X[8] = (UCHAR)0x00;//* no flow control */
-			 WMT_QUERY_BAUD_EVT_X[9] = (UCHAR)0x00; //* no flow control */
-		 }
 
         /* 3. Query chip baud rate (TEST-ONLY) */
         /* 4. Query chip STP options (TEST-ONLY) */
         /* 5. Change chip baud rate: t_baud */
-        //WMT_DBG_FUNC("WMT-CORE: init_table_1_2 set chip baud:%d", pWmtHifConf->au4HifConf[0]);
         iRet = wmt_core_init_script(init_table_1_2, osal_array_size(init_table_1_2));
         if (iRet) {
             WMT_ERR_FUNC("init_table_1_2 fail(%d)\n", iRet);
             osal_assert(0);
             return -2;
         }
+        WMT_DBG_FUNC("init_table_1_2 set chip baud rate(%d) ok\n", pWmtHifConf->au4HifConf[0]);
 
         /* 6. Set host baudrate and flow control*/
         ctrlPa1 = pWmtHifConf->au4HifConf[0]; ctrlPa2 = 0;
         iRet = wmt_core_ctrl(WMT_CTRL_HOST_BAUDRATE_SET, &ctrlPa1, &ctrlPa2);
         if (iRet) {
-            WMT_ERR_FUNC("change baudrate(%d) fail(%d)\n", pWmtHifConf->au4HifConf[0], iRet);
+            WMT_ERR_FUNC("change host baudrate(%d) fail(%d)\n", pWmtHifConf->au4HifConf[0], iRet);
             return -3;
         }
-        WMT_INFO_FUNC("WMT-CORE: change baudrate(%d) ok\n", pWmtHifConf->au4HifConf[0]);
-        
+        WMT_INFO_FUNC("change host baudrate(%d) ok\n", pWmtHifConf->au4HifConf[0]);
         /* 7. Wake up chip and check event */
 //          iRet = (*kal_stp_tx_raw)(&WMT_SET_WAKEUP_WAKE_CMD_RAW[0], 1, &u4Res);
         iRet = wmt_core_tx((PUINT8)&WMT_SET_WAKEUP_WAKE_CMD_RAW[0], 1, &u4Res, MTK_WCN_BOOL_TRUE);
@@ -843,11 +690,11 @@ mt6620_sw_init (
             WMT_ERR_FUNC("read WAKEUP_WAKE_EVT fail(%d)\n", iRet);
             return -5;
         }
-        //WMT_DBG_FUNC("WMT-CORE: read WMT_SET_WAKEUP_WAKE_EVT ok");
+        //WMT_DBG_FUNC("read WMT_SET_WAKEUP_WAKE_EVT ok");
 
 #if CFG_CHECK_WMT_RESULT
         if (osal_memcmp(evtBuf, WMT_SET_WAKEUP_WAKE_EVT, osal_sizeof(WMT_SET_WAKEUP_WAKE_EVT)) != 0) {
-            WMT_ERR_FUNC("WMT-CORE: write WMT_SET_WAKEUP_WAKE_CMD_RAW status fail\n");
+            WMT_ERR_FUNC("write WMT_SET_WAKEUP_WAKE_CMD_RAW status fail\n");
             return -6;
         }
 #endif
@@ -877,67 +724,40 @@ mt6620_sw_init (
             return -9;
         }
         WMT_INFO_FUNC("enable host STP-UART-FULL mode\n");
-        /*10. wait for 10ms, enough for chip do mechanism switch.(at least 2ms is needed)*/
+        /*11. wait for 10ms, enough for chip do mechanism switch.(at least 2ms is needed)*/
         osal_msleep(10);
-        /* 11. Query chip STP options (TEST-ONLY) */
-        /* 12. Query baud rate (stp, TEST-ONLY) */
+        /* 12. Query chip STP options (TEST-ONLY) */
+        /* 13. Query baud rate (stp, TEST-ONLY) */
         iRet = wmt_core_init_script(init_table_5, osal_array_size(init_table_5));
         if (iRet) {
             WMT_ERR_FUNC("init_table_5 fail(%d)\n", iRet);
             return -10;
         }
     }
-    /* 13. download patch */
-#if CFG_WMT_MULTI_PATCH
-	iRet = mt6620_patch_info_prepare();
-	if(iRet)
-	{
-		WMT_ERR_FUNC("patch info perpare fail(%d)\n",iRet);
-		return -11;
-	}
-	
-	ctrlPa1 = 0;ctrlPa2 = 0;
-	wmt_core_ctrl(WMT_CTRL_GET_PATCH_NUM,&ctrlPa1,&ctrlPa2);
-	patch_num = ctrlPa1;
-	WMT_INFO_FUNC("patch total num = [%d]\n",patch_num);
 
-	for(patch_index = 0;patch_index < patch_num;patch_index++)
-	{
-		iRet = mt6620_patch_dwn(patch_index);
-		if(iRet){
-			WMT_ERR_FUNC("patch dwn fail (%d),patch_index(%d)\n", iRet,patch_index);
-        	return -12;
-		}
-		iRet = wmt_core_init_script(init_table_3, osal_array_size(init_table_3));
-	    if (iRet) {
-	        WMT_ERR_FUNC("init_table_3 fail(%d)\n", iRet);
-	        return -13;
-	    }
-	}
-#else
+    /* 14. download patch */
     iRet = mt6620_patch_dwn();
-    
+
     WMT_INFO_FUNC("Not to check the patch validity\n");
-#if 0 
+#if 0
     if (iRet) {
         WMT_ERR_FUNC("patch dwn fail (%d)\n", iRet);
-        return -11;
+        return -8;
     }
     else {
         WMT_INFO_FUNC("patch dwn ok\n");
     }
 #endif
-    /* 14. WMT Reset command */
+    /* 15. WMT Reset command */
     iRet = wmt_core_init_script(init_table_3, osal_array_size(init_table_3));
     if (iRet) {
         WMT_ERR_FUNC("init_table_3 fail(%d)\n", iRet);
-        return -13;
+        return -11;
     }
-#endif
     iRet = wmt_stp_init_coex();
     if (iRet) {
         WMT_ERR_FUNC("init_coex fail(%d)\n", iRet);
-        return -14;
+        return -12;
     }
     else {
         WMT_INFO_FUNC("init_coex ok\n");
@@ -949,20 +769,19 @@ mt6620_sw_init (
     //does not support mt6620E1/E2, always enable 32k bypass mode
     //if ((hwVer == 0x8a10 || hwVer == 0x8a11))
     {
-        WMT_INFO_FUNC("WMT-CORE: init_table_6 OSC32K");
+        WMT_INFO_FUNC("init_table_6 OSC32K");
         iRet = wmt_core_init_script(init_table_6, osal_array_size(init_table_6));
         if (iRet == 0) {
-            WMT_DBG_FUNC("WMT-CORE: init_table_6 OSC32K, successful\n");
+            WMT_DBG_FUNC("init_table_6 OSC32K, successful\n");
         }
         else {
             WMT_WARN_FUNC("init table 6 OSC32K fail, continue init...\n");
-            /*return -14;*/
+            /*return -11;*/
         }
     }
 #endif
 
-
-
+    
     /* 15. Set FM strap */
     WMT_STRAP_CONF_CMD_FM_COMM[5] = (UCHAR)pWmtHifConf->au4StrapConf[0];
     WMT_STRAP_CONF_EVT[5] = (UCHAR)pWmtHifConf->au4StrapConf[0];
@@ -987,30 +806,10 @@ mt6620_sw_init (
     /* 16. trace32 dump when fw assert*/
     {
         INT32 val = 0x00000001;
-        WMT_INFO_FUNC("WMT-CORE: enable assert dump");
+        WMT_INFO_FUNC("enable assert dump");
         wmt_reg_rw_raw(1, 0x0100092c, &val, 0xFFFFFFFF);
     }
 #endif
-
-#if CFG_WMT_COREDUMP_ENABLE
-    /*Open Core Dump Function @QC begin*/
-    mtk_wcn_stp_coredump_flag_ctrl(1);
-#endif
-    if (0 != mtk_wcn_stp_coredump_flag_get())
-    {
-        iRet = wmt_core_init_script(init_table_6, osal_array_size(init_table_6));
-        if (iRet) {
-            WMT_ERR_FUNC("init_table_6 core dump setting fail(%d)\n",
-                iRet);
-            return -17;
-        } else {
-            WMT_INFO_FUNC("enable mt662x firmware coredump\n");
-        }
-    }
-    else
-    {
-        WMT_INFO_FUNC("disable mt662x firmware coredump\n");
-    }
 
 #if CFG_WMT_PS_SUPPORT
     osal_assert(NULL != gp_mt6620_info);
@@ -1026,7 +825,6 @@ mt6620_sw_init (
 
     return 0;
 }
-
 
 static INT32
 mt6620_sw_deinit (
@@ -1159,15 +957,15 @@ mt6620_pin_ctrl (
 
     case WMT_IC_PIN_EEDI:
         WMT_WARN_FUNC("TBD!!");
-        ret = -1;
+        ret = 0;
         break;
 
     case WMT_IC_PIN_EEDO:
         WMT_WARN_FUNC("TBD!!");
-        ret = -1;
+        ret = 0;
         break;
     case WMT_IC_PIN_GSYNC:
-        ret = -1;
+        ret = 0;
         WMT_WARN_FUNC("TBD!!");
         break;
     default:
@@ -1177,13 +975,6 @@ mt6620_pin_ctrl (
 
     return ret;
 }
-
-
-static MTK_WCN_BOOL mt6620_quick_sleep_flag_get(VOID)
-{
-    return MTK_WCN_BOOL_FALSE;
-}
-
 
 
 static INT32
@@ -1206,7 +997,7 @@ mt6620_ver_check (VOID)
     WMT_INFO_FUNC("MT6620: read hw_ver (hw version) (0x%x)\n", hw_ver);
 
     WMT_LOUD_FUNC("MT6620: before fw_ver (rom version) \n");
-    wmt_core_reg_rw_raw(0, GEN_FVR, &fw_ver, GEN_VER_MASK);
+    iret = wmt_core_reg_rw_raw(0, GEN_FVR, &fw_ver, GEN_VER_MASK);
     if (iret) {
         WMT_ERR_FUNC("MT6620: read fw_ver fail:%d\n", iret);
         return -2;
@@ -1403,174 +1194,37 @@ wmt_stp_init_coex (VOID)
     osal_memcpy(&coex_table[COEX_MISC].cmd[5], &pWmtGenConf->coex_misc_ext_pta_on, sizeof(pWmtGenConf->coex_misc_ext_pta_on));
     osal_memcpy(&coex_table[COEX_MISC].cmd[9], &pWmtGenConf->coex_misc_ext_feature_set, sizeof(pWmtGenConf->coex_misc_ext_feature_set));
     if (gWmtDbgLvl >= WMT_LOG_DBG) {
-        wmt_core_dump_data(& coex_table[COEX_MISC].cmd[0], coex_table[COEX_MISC].str, coex_table[COEX_MISC].cmdSz);
+        wmt_core_dump_data(& coex_table[COEX_MISC].cmd[0],
+            coex_table[COEX_MISC].str,
+            coex_table[COEX_MISC].cmdSz);
     }
     iRet = wmt_core_init_script(coex_table, sizeof(coex_table)/sizeof(coex_table[0]));
 
     return iRet;
 }
 
-#if CFG_WMT_MULTI_PATCH
-
-static INT32 mt6620_patch_info_prepare(VOID)
-{
-	INT32 iRet = -1;
-	WMT_CTRL_DATA ctrlData;
-
-	ctrlData.ctrlId = WMT_CTRL_PATCH_SEARCH;
-	iRet = wmt_ctrl(&ctrlData);
-
-	return iRet;
-}
+#if CFG_PATCH_DWN_DIVISION
 static INT32
-mt6620_patch_dwn (UINT32 index)
+mt6620_patch_dwn_div(PUINT8 pBuf, UINT32 patchSize, UINT32 patchSizePerFrag)
 {
-    INT32 iRet = -1;
-    P_WMT_PATCH patchHdr = NULL;
-    PUINT8 pbuf = NULL;
-    UINT32 patchSize = 0;
-    UINT32 fragSeq = 0;
-    UINT32 fragNum = 0;
-    UINT16 fragSize = 0;
-    UINT16 cmdLen;
+    INT32 iRet;
+    UINT32 fragSeq;
+    UINT32 fragNum;
+    UINT16 fragSize;
     UINT32 offset;
+    UINT16 cmdLen;
     UINT32 u4Res;
-    UINT8 patchevtBuf[8];
-	UINT8 addressevtBuf[12];
-	UCHAR addressByte[4];
-    PCHAR cDataTime = NULL;
-    /*PCHAR cPlat = NULL;*/
-    UINT16 u2HwVer = 0;
-    UINT16 u2SwVer = 0;
-    UINT32 u4PatchVer = 0;
-    UINT32 patchSizePerFrag = 0;
-    WMT_CTRL_DATA ctrlData;
+    UINT8 evtBuf[8];
 
-    /*1.check hardware information */
-    if (NULL == gp_mt6620_info) {
-        WMT_ERR_FUNC("null gp_mt6620_info!\n");
-        return -1;
-    }
+    iRet = 0;
 
-	osal_memset(gFullPatchName,0,osal_sizeof(gFullPatchName));
-	
-	ctrlData.ctrlId = WMT_CTRL_GET_PATCH_INFO;
-	ctrlData.au4CtrlData[0] = index + 1;
-	ctrlData.au4CtrlData[1] = (UINT32)&gFullPatchName;
-	ctrlData.au4CtrlData[2] = (UINT32)&addressByte;
-	iRet = wmt_ctrl(&ctrlData);
-	WMT_INFO_FUNC("the %d time valid patch found: (%s)\n", index+1,gFullPatchName);
-	//<2.2> read patch content
-	ctrlData.ctrlId = WMT_CTRL_GET_PATCH;
-	ctrlData.au4CtrlData[0] = (UINT32)NULL;
-	ctrlData.au4CtrlData[1] = (UINT32)&gFullPatchName;
-			
-	ctrlData.au4CtrlData[2] = (UINT32)&pbuf;
-	ctrlData.au4CtrlData[3] = (UINT32)&patchSize;
-	iRet = wmt_ctrl(&ctrlData);
-	if (iRet) {
-		WMT_ERR_FUNC("wmt_core: WMT_CTRL_GET_PATCH fail:%d \n", iRet);
-		iRet -= 1;
-		goto done;
-	}
-	
-    /* |<-BCNT_PATCH_BUF_HEADROOM(8) bytes dummy allocated->|<-patch file->| */
-    pbuf += BCNT_PATCH_BUF_HEADROOM;
-    /* patch file with header:
-     * |<-patch header: 28 Bytes->|<-patch body: X Bytes ----->|
+    /* |<-WMT_CMD: 5 Bytes->|<-patch body: X Bytes (X=patchSize)----->|
+     * pbuf points to the start of WMT_CMD.
      */
-    patchHdr = (P_WMT_PATCH)pbuf;
-    // check patch file information
-
-    cDataTime = patchHdr->ucDateTime;
-    u2HwVer = patchHdr->u2HwVer;
-    u2SwVer = patchHdr->u2SwVer;
-    u4PatchVer = patchHdr->u4PatchVer;
-    /*cPlat = &patchHdr->ucPLat[0];*/
-    cDataTime[15] = '\0';
-
-    /* remove patch header:
-    * |<-patch body: X Bytes (X=patchSize)--->|
-    */
-    patchSize -= sizeof(WMT_PATCH);
-    pbuf += sizeof(WMT_PATCH);
-
-	if(index == 0)
-	{
-	    WMT_INFO_FUNC("===========================================\n");
-	    WMT_INFO_FUNC("[Combo Patch] Built Time = %s\n", cDataTime);
-	    WMT_INFO_FUNC("[Combo Patch] Hw Ver = 0x%x\n", ((u2HwVer & 0x00ff) << 8) | ((u2HwVer & 0xff00) >> 8));
-	    WMT_INFO_FUNC("[Combo Patch] Sw Ver = 0x%x\n", ((u2SwVer & 0x00ff) << 8) | ((u2SwVer & 0xff00) >> 8));
-	    WMT_INFO_FUNC("[Combo Patch] Ph Ver = 0x%04x\n",  ((u4PatchVer & 0xff000000) >> 24) | ((u4PatchVer & 0x00ff0000) >> 16));
-	    WMT_INFO_FUNC("[Combo Patch] Platform = %c%c%c%c\n", patchHdr->ucPLat[0],
-	        patchHdr->ucPLat[1], patchHdr->ucPLat[2], patchHdr->ucPLat[3]);
-	    WMT_INFO_FUNC("[Combo Patch] Content Size = 0x%x\n", patchSize);
-	    WMT_INFO_FUNC("[Combo Patch] Content CRC = 0x%04x\n", osal_crc16(pbuf, patchSize));
-	    WMT_INFO_FUNC("===========================================\n");
-	}
-
-    patchSizePerFrag = (MAJORNUM(gp_mt6620_info->u4HwVer) != 0) ?
-        DEFAULT_PATCH_FRAG_SIZE : MT6620E2_PATCH_FRAG_SIZE;
-
-  /* reserve 1st patch cmd space before patch body
-     *        |<-WMT_CMD: 5Bytes->|<-patch body: X Bytes (X=patchSize)----->|
-     */
-    pbuf -= sizeof(WMT_PATCH_CMD);
-
     fragNum = patchSize / patchSizePerFrag;
     fragNum += ((fragNum * patchSizePerFrag) == patchSize) ? 0 : 1;
-
     WMT_DBG_FUNC("patch size(%d) fragNum(%d)\n", patchSize, fragNum);
 
-	/*send wmt part patch address command*/
-	iRet = wmt_core_tx((PUINT8)&WMT_PATCH_ADDRESS_CMD[0],sizeof(WMT_PATCH_ADDRESS_CMD),&u4Res,MTK_WCN_BOOL_FALSE);
-	if(iRet || (u4Res != sizeof(WMT_PATCH_ADDRESS_CMD)))
-	{
-		WMT_ERR_FUNC("wmt_core:wmt patch address CMD fail(%d),size(%d)\n",iRet,u4Res);
-		iRet -= 1;
-		goto done;
-	}
-	osal_memset(addressevtBuf,0,sizeof(addressevtBuf));
-	iRet = wmt_core_rx(addressevtBuf,sizeof(WMT_PATCH_ADDRESS_EVT),&u4Res);
-	if(iRet || (u4Res != sizeof(WMT_PATCH_ADDRESS_EVT)))
-	{
-		WMT_ERR_FUNC("wmt_core:wmt patch address EVT fail(%d),size(%d)\n",iRet,u4Res);
-		iRet -= 1;
-		goto done;
-	}
-#if CFG_CHECK_WMT_RESULT
-    if (osal_memcmp(addressevtBuf, WMT_PATCH_ADDRESS_EVT, osal_sizeof(WMT_PATCH_ADDRESS_EVT)) != 0) {
-        WMT_ERR_FUNC("wmt_core: write WMT_PATCH_ADDRESS_CMD status fail\n");
-        iRet -= 1;
-		goto done;
-    }
-#endif
-
-	/*send part patch address command*/
-	osal_memcpy(&WMT_PATCH_P_ADDRESS_CMD[12], addressByte,osal_sizeof(addressByte));
-	WMT_INFO_FUNC("4 bytes address command:0x%02x,0x%02x,0x%02x,0x%02x",WMT_PATCH_P_ADDRESS_CMD[12],WMT_PATCH_P_ADDRESS_CMD[13],WMT_PATCH_P_ADDRESS_CMD[14],WMT_PATCH_P_ADDRESS_CMD[15]);
-	iRet = wmt_core_tx((PUINT8)&WMT_PATCH_P_ADDRESS_CMD[0],sizeof(WMT_PATCH_P_ADDRESS_CMD),&u4Res,MTK_WCN_BOOL_FALSE);
-	if(iRet || (u4Res != sizeof(WMT_PATCH_P_ADDRESS_CMD)))
-	{
-		WMT_ERR_FUNC("wmt_core:wmt part patch address CMD fail(%d),size(%d),index(%d)\n",iRet,u4Res,index);
-		iRet -= 1;
-		goto done;
-	}
-	osal_memset(addressevtBuf,0,sizeof(addressevtBuf));
-	iRet = wmt_core_rx(addressevtBuf,sizeof(WMT_PATCH_P_ADDRESS_EVT),&u4Res);
-	if(iRet || (u4Res != sizeof(WMT_PATCH_P_ADDRESS_EVT)))
-	{
-		WMT_ERR_FUNC("wmt_core:wmt patch address EVT fail(%d),size(%d),index(%d)\n",iRet,u4Res,index);
-		iRet -= 1;
-		goto done;
-	}
-#if CFG_CHECK_WMT_RESULT
-    if (osal_memcmp(addressevtBuf, WMT_PATCH_P_ADDRESS_EVT, osal_sizeof(WMT_PATCH_ADDRESS_EVT)) != 0) {
-        WMT_ERR_FUNC("wmt_core: write WMT_PATCH_ADDRESS_CMD status fail,index(%d)\n",index);
-        iRet -= 1;
-		goto done;
-    }
-#endif
     /* send all fragments */
     offset = sizeof(WMT_PATCH_CMD);
     fragSeq = 0;
@@ -1588,11 +1242,10 @@ mt6620_patch_dwn (UINT32 index)
         /* update length field in CMD:flag+frag*/
         cmdLen = 1 + fragSize;
         osal_memcpy(&WMT_PATCH_CMD[2], &cmdLen, 2);
-        /* copy patch CMD to buf (overwrite last 5-byte in prev frag) */
-        osal_memcpy(pbuf + offset - sizeof(WMT_PATCH_CMD), WMT_PATCH_CMD, sizeof(WMT_PATCH_CMD));
+        /* copy patch CMD to buf (OVERWRITE LAST 5 BYTES IN PREV FRAG!!!) */
+        osal_memcpy(pBuf + offset - sizeof(WMT_PATCH_CMD), WMT_PATCH_CMD, sizeof(WMT_PATCH_CMD));
 
-        //iRet = (*kal_stp_tx)(pbuf + offset - sizeof(WMT_PATCH_CMD), fragSize + sizeof(WMT_PATCH_CMD), &u4Res);
-        iRet = wmt_core_tx(pbuf + offset - sizeof(WMT_PATCH_CMD), fragSize + sizeof(WMT_PATCH_CMD), &u4Res, MTK_WCN_BOOL_FALSE);
+        iRet = wmt_core_tx(pBuf + offset - sizeof(WMT_PATCH_CMD), fragSize + sizeof(WMT_PATCH_CMD), &u4Res, MTK_WCN_BOOL_FALSE);
         if (iRet || (u4Res != fragSize + sizeof(WMT_PATCH_CMD))) {
             WMT_ERR_FUNC("wmt_core: write fragSeq(%d) size(%d, %d) fail(%d)\n", fragSeq, fragSize + sizeof(WMT_PATCH_CMD), u4Res, iRet );
             iRet = -4;
@@ -1601,32 +1254,29 @@ mt6620_patch_dwn (UINT32 index)
         WMT_DBG_FUNC("wmt_core: write fragSeq(%d) size(%d, %d) ok\n",
             fragSeq, fragSize + sizeof(WMT_PATCH_CMD), u4Res);
 
-        osal_memset(patchevtBuf, 0, sizeof(patchevtBuf));
-        //iRet = (*kal_stp_rx)(evtBuf, sizeof(WMT_PATCH_EVT), &u4Res);
-        iRet = wmt_core_rx(patchevtBuf, sizeof(WMT_PATCH_EVT), &u4Res);
+        osal_memset(evtBuf, 0, sizeof(evtBuf));
+        iRet = wmt_core_rx(evtBuf, sizeof(WMT_PATCH_EVT), &u4Res);
         if (iRet || (u4Res != sizeof(WMT_PATCH_EVT))) {
             WMT_ERR_FUNC("wmt_core: read WMT_PATCH_EVT length(%d, %d) fail(%d)\n", sizeof(WMT_PATCH_EVT), u4Res, iRet);
             iRet = -5;
             break;
         }
-#if CFG_CHECK_WMT_RESULT
-        if (osal_memcmp(patchevtBuf, WMT_PATCH_EVT, sizeof(WMT_PATCH_EVT)) != 0) {
+    #if CFG_CHECK_WMT_RESULT
+        if (osal_memcmp(evtBuf, WMT_PATCH_EVT, sizeof(WMT_PATCH_EVT)) != 0) {
             WMT_ERR_FUNC("wmt_core: compare WMT_PATCH_EVT result error rx(%d):[%02X,%02X,%02X,%02X,%02X] exp(%d):[%02X,%02X,%02X,%02X,%02X]\n",
-                u4Res, patchevtBuf[0], patchevtBuf[1], patchevtBuf[2], patchevtBuf[3], patchevtBuf[4], sizeof(WMT_PATCH_EVT), WMT_PATCH_EVT[0], WMT_PATCH_EVT[1], WMT_PATCH_EVT[2], WMT_PATCH_EVT[3], WMT_PATCH_EVT[4]);
+                u4Res, evtBuf[0], evtBuf[1], evtBuf[2], evtBuf[3], evtBuf[4], sizeof(WMT_PATCH_EVT), WMT_PATCH_EVT[0], WMT_PATCH_EVT[1], WMT_PATCH_EVT[2], WMT_PATCH_EVT[3], WMT_PATCH_EVT[4]);
             iRet = -6;
             break;
         }
-#endif
+    #endif
         WMT_DBG_FUNC("wmt_core: read WMT_PATCH_EVT length(%d, %d) ok\n",
             sizeof(WMT_PATCH_EVT), u4Res);
 
-#if 0
-        WMT_DBG_FUNC("wmt_core: send patch frag(%d) [%02X,%02X,%02X,%02X,%02X] (%d) ok",
-            fragSeq, WMT_PATCH_CMD[0], WMT_PATCH_CMD[1], WMT_PATCH_CMD[2],
-            WMT_PATCH_CMD[3], WMT_PATCH_CMD[4], fragSize);
-#endif
-
-        offset += patchSizePerFrag;
+        //offset += patchSizePerFrag;
+        /* The above line wrong for last block but will not affect result for
+         * the while loop will stop after last block is sent successfully.
+         */
+        offset += fragSize;
         ++fragSeq;
     }
 
@@ -1636,44 +1286,122 @@ mt6620_patch_dwn (UINT32 index)
     if (fragSeq != fragNum) {
         iRet = -7;
     }
-done:
-    /* WMT_CTRL_FREE_PATCH always return 0 */
-	ctrlData.ctrlId = WMT_CTRL_FREE_PATCH;
-	ctrlData.au4CtrlData[0] = index + 1;
-	wmt_ctrl(&ctrlData);
-    //wmt_core_ctrl(WMT_CTRL_FREE_PATCH, NULL, NULL);
-    if ( (iRet == -2) || (iRet == -3) ) {
-        /*no patch found or patch version does not match with hw version, we check if patch is mandatory or not, if yes, return iRet, if not return 0*/
-        if (MTK_WCN_BOOL_FALSE != gp_mt6620_info->bWorkWithoutPatch) {
-            iRet = 0;
-        }
-    }
 
     return iRet;
 }
 
+#else /* no div */
 
-#else
+static INT32
+mt6620_patch_dwn_nodiv(PUINT8 pBuf, UINT32 patchSize, UINT32 patchSizePerFrag)
+{
+    INT32 iRet;
+    UINT32 fragSeq;
+    UINT16 fragSize;
+    UINT32 offset;
+    UINT16 cmdLen;
+    UINT32 u4Res;
+    UINT8 evtBuf[8];
+
+    iRet = 0;
+
+    /* |<-WMT_CMD: 5 Bytes->|<-patch body: X Bytes (X=patchSize)----->|
+     * pbuf points to the start of WMT_CMD.
+     * Total = sizeof(WMT_PATCH_CMD) + patchSize.
+     */
+    WMT_DBG_FUNC("patch size(%d)\n", patchSize);
+
+    /* send all fragments */
+    /* |<-WMT_CMD: 5 Bytes->|<-patch body: X Bytes (X=patchSize)----->|
+     *  |[0]|[1]|[2]|[3]|[4]|[5]offset starts from here.
+     */
+    offset = sizeof(WMT_PATCH_CMD);
+    fragSeq = 0;
+    while ( offset < (sizeof(WMT_PATCH_CMD) + patchSize) ) {
+        if ( (offset + patchSizePerFrag) >= (sizeof(WMT_PATCH_CMD) + patchSize) ) {
+            /* If current offset value + fragSize exceeds total length, it's now
+             * at the last fragment.
+             */
+            fragSize = patchSize - fragSeq * patchSizePerFrag;
+            WMT_PATCH_CMD[4] = WMT_PATCH_FRAG_LAST;
+        }
+        else {
+            fragSize = patchSizePerFrag;
+            WMT_PATCH_CMD[4] = (fragSeq == 0) ? WMT_PATCH_FRAG_1ST: WMT_PATCH_FRAG_MID;
+        }
+        WMT_DBG_FUNC("fragSeq(%d) fragSize(%d)\n", fragSeq, fragSize);
+
+        /* update length field in CMD:flag+frag*/
+        cmdLen = 1 + fragSize;
+        osal_memcpy(&WMT_PATCH_CMD[2], &cmdLen, 2);
+        /* copy patch CMD to buf (overwrite last 5-byte in prev frag) */
+        osal_memcpy(pBuf + offset - sizeof(WMT_PATCH_CMD), WMT_PATCH_CMD, sizeof(WMT_PATCH_CMD));
+
+        iRet = wmt_core_tx(pBuf + offset - sizeof(WMT_PATCH_CMD), fragSize + sizeof(WMT_PATCH_CMD), &u4Res, MTK_WCN_BOOL_FALSE);
+        if (iRet || (u4Res != fragSize + sizeof(WMT_PATCH_CMD))) {
+            WMT_ERR_FUNC("wmt_core: write fragSeq(%d) size(%d, %d) fail(%d)\n", fragSeq, fragSize + sizeof(WMT_PATCH_CMD), u4Res, iRet );
+            iRet = -4;
+            break;
+        }
+        WMT_DBG_FUNC("wmt_core: write fragSeq(%d) size(%d, %d) ok\n",
+            fragSeq, fragSize + sizeof(WMT_PATCH_CMD), u4Res);
+
+        osal_memset(evtBuf, 0, sizeof(evtBuf));
+        iRet = wmt_core_rx(evtBuf, sizeof(WMT_PATCH_EVT), &u4Res);
+        if (iRet || (u4Res != sizeof(WMT_PATCH_EVT))) {
+            WMT_ERR_FUNC("wmt_core: read WMT_PATCH_EVT length(%d, %d) fail(%d)\n", sizeof(WMT_PATCH_EVT), u4Res, iRet);
+            iRet = -5;
+            break;
+        }
+    #if CFG_CHECK_WMT_RESULT
+        if (osal_memcmp(evtBuf, WMT_PATCH_EVT, sizeof(WMT_PATCH_EVT)) != 0) {
+            WMT_ERR_FUNC("wmt_core: compare WMT_PATCH_EVT result error rx(%d):[%02X,%02X,%02X,%02X,%02X] exp(%d):[%02X,%02X,%02X,%02X,%02X]\n",
+                u4Res, evtBuf[0], evtBuf[1], evtBuf[2], evtBuf[3], evtBuf[4], sizeof(WMT_PATCH_EVT), WMT_PATCH_EVT[0], WMT_PATCH_EVT[1], WMT_PATCH_EVT[2], WMT_PATCH_EVT[3], WMT_PATCH_EVT[4]);
+            iRet = -6;
+            break;
+        }
+    #endif
+        WMT_DBG_FUNC("wmt_core: read WMT_PATCH_EVT length(%d, %d) ok\n",
+            sizeof(WMT_PATCH_EVT), u4Res);
+
+        offset += fragSize;
+        ++fragSeq;
+    }
+
+    if (offset != (sizeof(WMT_PATCH_CMD) + patchSize)) {
+        iRet = -7;
+    }
+
+    WMT_INFO_FUNC("wmt_core: patch dwn:%d frag(%d, %d) %s\n",
+        iRet, fragSeq, fragSize, (iRet) ? "fail" : "ok");
+
+    return iRet;
+}
+
+#endif /* end of CFG_PATCH_DWN_DIVISION */
+
 static INT32
 mt6620_patch_dwn (VOID)
 {
-    INT32 iRet = -1;
+    INT32 iRet;
     P_WMT_PATCH patchHdr;
     PUINT8 pbuf;
     UINT32 patchSize;
+#if 0 /* moved to patch_dwn_(no)div() functions */
     UINT32 fragSeq;
     UINT32 fragNum;
-    UINT16 fragSize = 0;
-    UINT16 cmdLen;
     UINT32 offset;
+    UINT16 cmdLen;
+    UINT16 fragSize;
     UINT32 u4Res;
     UINT8 evtBuf[8];
-    PCHAR cDataTime = NULL;
+#endif
+    PCHAR cDataTime;
     /*PCHAR cPlat = NULL;*/
-    UINT16 u2HwVer = 0;
-    UINT16 u2SwVer = 0;
-    UINT32 u4PatchVer = 0;
-    UINT32 patchSizePerFrag = 0;
+    UINT16 u2HwVer;
+    UINT16 u2SwVer;
+    UINT32 u4PatchVer;
+    UINT32 patchSizePerFrag;
     WMT_CTRL_DATA ctrlData;
 
     /*1.check hardware information */
@@ -1681,61 +1409,27 @@ mt6620_patch_dwn (VOID)
         WMT_ERR_FUNC("null gp_mt6620_info!\n");
         return -1;
     }
-#if 0
-		ctrlData.ctrlId = WMT_CTRL_GET_PATCH_NAME;
-		ctrlData.au4CtrlData[0] = (UINT32)&gDefPatchName;
-		iRet = wmt_ctrl(&ctrlData);
-	
-		if (mt6620_update_patch_name()) {
-			WMT_ERR_FUNC("invalid patch name, ommit patch download process.\n");
-			return -1;
-		}
-	
-		ctrlData.ctrlId = WMT_CTRL_GET_PATCH;
-		ctrlData.au4CtrlData[0] = (UINT32)&gDefPatchName;
-		ctrlData.au4CtrlData[1] = (UINT32)&gFullPatchName;
-		ctrlData.au4CtrlData[2] = (UINT32)&pbuf;
-		ctrlData.au4CtrlData[3] = (UINT32)&patchSize;
-		iRet = wmt_ctrl(&ctrlData);
-		if (iRet) {
-			WMT_ERR_FUNC("wmt_core: WMT_CTRL_GET_PATCH fail:%d \n", iRet);
-			iRet = -2;
-			goto done;
-		}
-#else
-		//<2> search patch and read patch content
-		//<2.1> search patch
-		ctrlData.ctrlId = WMT_CTRL_PATCH_SEARCH;
-		iRet = wmt_ctrl(&ctrlData);
-		if (0 == iRet)
-		{
-			//patch with correct Hw Ver Major Num found
-			ctrlData.ctrlId = WMT_CTRL_GET_PATCH_NAME;
-			ctrlData.au4CtrlData[0] = (UINT32)&gFullPatchName;
-			iRet = wmt_ctrl(&ctrlData);
-			
-			WMT_INFO_FUNC("valid patch found: (%s)\n", gFullPatchName);
-			//<2.2> read patch content
-			ctrlData.ctrlId = WMT_CTRL_GET_PATCH;
-			ctrlData.au4CtrlData[0] = (UINT32)NULL;
-			ctrlData.au4CtrlData[1] = (UINT32)&gFullPatchName;
-			
-		}
-		else
-		{
-			iRet -= 1;
-			return iRet;
-		}
-		ctrlData.au4CtrlData[2] = (UINT32)&pbuf;
-		ctrlData.au4CtrlData[3] = (UINT32)&patchSize;
-		iRet = wmt_ctrl(&ctrlData);
-		if (iRet) {
-			WMT_ERR_FUNC("wmt_core: WMT_CTRL_GET_PATCH fail:%d \n", iRet);
-			iRet -= 1;
-			goto done;
-		}
-	
-#endif
+
+    ctrlData.ctrlId = WMT_CTRL_GET_PATCH_NAME;
+    ctrlData.au4CtrlData[0] = (UINT32)&gDefPatchName;
+    iRet = wmt_ctrl(&ctrlData);
+
+    if (mt6620_update_patch_name()) {
+        WMT_ERR_FUNC("invalid patch name, ommit patch download process.\n");
+        return -1;
+    }
+
+    ctrlData.ctrlId = WMT_CTRL_GET_PATCH;
+    ctrlData.au4CtrlData[0] = (UINT32)&gDefPatchName;
+    ctrlData.au4CtrlData[1] = (UINT32)&gFullPatchName;
+    ctrlData.au4CtrlData[2] = (UINT32)&pbuf;
+    ctrlData.au4CtrlData[3] = (UINT32)&patchSize;
+    iRet = wmt_ctrl(&ctrlData);
+    if (iRet) {
+        WMT_ERR_FUNC("wmt_core: WMT_CTRL_GET_PATCH fail:%d \n", iRet);
+        iRet = -2;
+        goto done;
+    }
 
     /* |<-BCNT_PATCH_BUF_HEADROOM(8) bytes dummy allocated->|<-patch file->| */
     pbuf += BCNT_PATCH_BUF_HEADROOM;
@@ -1752,12 +1446,6 @@ mt6620_patch_dwn (VOID)
     /*cPlat = &patchHdr->ucPLat[0];*/
 
     cDataTime[15] = '\0';
-
-    /* remove patch header:
-    * |<-patch body: X Bytes (X=patchSize)--->|
-    */
-    patchSize -= sizeof(WMT_PATCH);
-    pbuf += sizeof(WMT_PATCH);
     WMT_INFO_FUNC("===========================================\n");
     WMT_INFO_FUNC("[Combo Patch] Built Time = %s\n", cDataTime);
     WMT_INFO_FUNC("[Combo Patch] Hw Ver = 0x%x\n", ((u2HwVer & 0x00ff) << 8) | ((u2HwVer & 0xff00) >> 8));
@@ -1765,17 +1453,33 @@ mt6620_patch_dwn (VOID)
     WMT_INFO_FUNC("[Combo Patch] Ph Ver = 0x%04x\n",  ((u4PatchVer & 0xff000000) >> 24) | ((u4PatchVer & 0x00ff0000) >> 16));
     WMT_INFO_FUNC("[Combo Patch] Platform = %c%c%c%c\n", patchHdr->ucPLat[0],
         patchHdr->ucPLat[1], patchHdr->ucPLat[2], patchHdr->ucPLat[3]);
-    WMT_INFO_FUNC("[Combo Patch] Content Size = 0x%x\n", patchSize);
-    WMT_INFO_FUNC("[Combo Patch] Content CRC = 0x%04x\n", osal_crc16(pbuf, patchSize));
     WMT_INFO_FUNC("===========================================\n");
-
+    WMT_INFO_FUNC("AML release Ver = %s\n",AML_Ver);
+    WMT_INFO_FUNC("===========================================\n");
+    // TODO: [FixMe][George]shall we check sw_ver against fw_ver read from chip?!
+    if (MTK_WCN_BOOL_FALSE ==
+        wmt_core_patch_check(((patchHdr->u2SwVer & 0x00ff) << 8) | ((patchHdr->u2SwVer & 0xff00) >> 8), gp_mt6620_info->u4HwVer)
+        ) {
+        iRet = -3;
+        goto done;
+    }
+    /* remove patch header:
+         * |<-patch body: X Bytes (X=patchSize)--->|
+         */
+    patchSize -= sizeof(WMT_PATCH);
+    pbuf += sizeof(WMT_PATCH);
     patchSizePerFrag = (MAJORNUM(gp_mt6620_info->u4HwVer) != 0) ?
         DEFAULT_PATCH_FRAG_SIZE : MT6620E2_PATCH_FRAG_SIZE;
 
   /* reserve 1st patch cmd space before patch body
-     *        |<-WMT_CMD: 5Bytes->|<-patch body: X Bytes (X=patchSize)----->|
+     *        |<-WMT_CMD: 5 Bytes->|<-patch body: X Bytes (X=patchSize)----->|
      */
     pbuf -= sizeof(WMT_PATCH_CMD);
+
+#if CFG_PATCH_DWN_DIVISION
+    #if 1 /* move logics to new function mt6620_patch_dwn_div() */
+    iRet = mt6620_patch_dwn_div(pbuf, patchSize, patchSizePerFrag);
+    #else /* reserve old-styled for reference */
 
     fragNum = patchSize / patchSizePerFrag;
     fragNum += ((fragNum * patchSizePerFrag) == patchSize) ? 0 : 1;
@@ -1803,7 +1507,6 @@ mt6620_patch_dwn (VOID)
         /* copy patch CMD to buf (overwrite last 5-byte in prev frag) */
         osal_memcpy(pbuf + offset - sizeof(WMT_PATCH_CMD), WMT_PATCH_CMD, sizeof(WMT_PATCH_CMD));
 
-        //iRet = (*kal_stp_tx)(pbuf + offset - sizeof(WMT_PATCH_CMD), fragSize + sizeof(WMT_PATCH_CMD), &u4Res);
         iRet = wmt_core_tx(pbuf + offset - sizeof(WMT_PATCH_CMD), fragSize + sizeof(WMT_PATCH_CMD), &u4Res, MTK_WCN_BOOL_FALSE);
         if (iRet || (u4Res != fragSize + sizeof(WMT_PATCH_CMD))) {
             WMT_ERR_FUNC("wmt_core: write fragSeq(%d) size(%d, %d) fail(%d)\n", fragSeq, fragSize + sizeof(WMT_PATCH_CMD), u4Res, iRet );
@@ -1814,29 +1517,22 @@ mt6620_patch_dwn (VOID)
             fragSeq, fragSize + sizeof(WMT_PATCH_CMD), u4Res);
 
         osal_memset(evtBuf, 0, sizeof(evtBuf));
-        //iRet = (*kal_stp_rx)(evtBuf, sizeof(WMT_PATCH_EVT), &u4Res);
         iRet = wmt_core_rx(evtBuf, sizeof(WMT_PATCH_EVT), &u4Res);
         if (iRet || (u4Res != sizeof(WMT_PATCH_EVT))) {
             WMT_ERR_FUNC("wmt_core: read WMT_PATCH_EVT length(%d, %d) fail(%d)\n", sizeof(WMT_PATCH_EVT), u4Res, iRet);
             iRet = -5;
             break;
         }
-#if CFG_CHECK_WMT_RESULT
+    #if CFG_CHECK_WMT_RESULT
         if (osal_memcmp(evtBuf, WMT_PATCH_EVT, sizeof(WMT_PATCH_EVT)) != 0) {
             WMT_ERR_FUNC("wmt_core: compare WMT_PATCH_EVT result error rx(%d):[%02X,%02X,%02X,%02X,%02X] exp(%d):[%02X,%02X,%02X,%02X,%02X]\n",
                 u4Res, evtBuf[0], evtBuf[1], evtBuf[2], evtBuf[3], evtBuf[4], sizeof(WMT_PATCH_EVT), WMT_PATCH_EVT[0], WMT_PATCH_EVT[1], WMT_PATCH_EVT[2], WMT_PATCH_EVT[3], WMT_PATCH_EVT[4]);
             iRet = -6;
             break;
         }
-#endif
+    #endif
         WMT_DBG_FUNC("wmt_core: read WMT_PATCH_EVT length(%d, %d) ok\n",
             sizeof(WMT_PATCH_EVT), u4Res);
-
-#if 0
-        WMT_DBG_FUNC("wmt_core: send patch frag(%d) [%02X,%02X,%02X,%02X,%02X] (%d) ok",
-            fragSeq, WMT_PATCH_CMD[0], WMT_PATCH_CMD[1], WMT_PATCH_CMD[2],
-            WMT_PATCH_CMD[3], WMT_PATCH_CMD[4], fragSize);
-#endif
 
         offset += patchSizePerFrag;
         ++fragSeq;
@@ -1848,6 +1544,13 @@ mt6620_patch_dwn (VOID)
     if (fragSeq != fragNum) {
         iRet = -7;
     }
+    #endif
+#else
+    /* no division version */
+    iRet = mt6620_patch_dwn_nodiv(pbuf, patchSize, patchSizePerFrag);
+
+#endif /* end of CFG_PATCH_DWN_DIVISION */
+
 done:
     /* WMT_CTRL_FREE_PATCH always return 0 */
     wmt_core_ctrl(WMT_CTRL_FREE_PATCH, NULL, NULL);
@@ -1865,7 +1568,7 @@ static INT32
 mt6620_update_patch_name (VOID)
 {
     INT32 len;
-    UCHAR cTmpPatchName[NAME_MAX + 1] = {0};
+    UCHAR cTmpPatchName[OSAL_NAME_MAX + 1];
 
     /*init.get hardware version */
     // TODO:[FixMe][GeorgeKuo]: check using memcpy or strncpy???
@@ -1879,12 +1582,13 @@ mt6620_update_patch_name (VOID)
         return -1;
     }
 
+    osal_memset(&cTmpPatchName[0], 0, sizeof(cTmpPatchName));
     /*2.make possible firmware patch name with original name and hardware version*/
     if ( (osal_strlen(gDefPatchName) > osal_strlen(WMT_IC_PATCH_TAIL))
-        && ((osal_strlen(gDefPatchName) + osal_strlen(WMT_IC_PATCH_DUMMY_EXT) <= NAME_MAX))
+        && ((osal_strlen(gDefPatchName) + osal_strlen(WMT_IC_PATCH_DUMMY_EXT) <= OSAL_NAME_MAX))
         ) {
         len = osal_strlen(gDefPatchName) - osal_strlen(WMT_IC_PATCH_TAIL);
-        osal_memcpy (cTmpPatchName, gDefPatchName, len > NAME_MAX ? NAME_MAX : len);
+        osal_memcpy (cTmpPatchName, gDefPatchName, len > OSAL_NAME_MAX ? OSAL_NAME_MAX : len);
         osal_memcpy (cTmpPatchName + osal_strlen(cTmpPatchName), gp_mt6620_info->cPatchNameExt, osal_strlen(gp_mt6620_info->cPatchNameExt));
         osal_memcpy (cTmpPatchName + osal_strlen(cTmpPatchName), WMT_IC_PATCH_TAIL, osal_strlen(WMT_IC_PATCH_TAIL));
         cTmpPatchName[osal_strlen(cTmpPatchName)] = '\0';
@@ -1902,5 +1606,4 @@ mt6620_update_patch_name (VOID)
 
     return 0;
 }
-#endif
 

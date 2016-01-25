@@ -53,34 +53,8 @@
 #include <mach/board.h>
 
 #include "rk29_vmac.h"
-#include "eth_mac/eth_mac.h"
-
-#ifdef CONFIG_RK_PHY_REG_SYS
-#include <linux/sysfs.h>
-#include <linux/uaccess.h>
-int vmac_create_sysfs(struct vmac_priv *ap);
-#endif
-
-static unsigned char mac_addr[6] = {0x00};
-static char *mac_addr_param = ":";
 
 static struct wake_lock idlelock; /* add by lyx @ 20110302 */
-
-static struct class *vmac_class = NULL;
-static CLASS_ATTR(exist, 0664, NULL, NULL);
-
-int rk29_vmac_sysif_init(void)
-{
-	int ret;
-
-	vmac_class = class_create(THIS_MODULE, "vmac");
-	ret = class_create_file(vmac_class, &class_attr_exist);
-	if(ret) {
-	    printk("%s: Fail to creat class\n",__func__);
-	    return ret;
-	}
-	return 0;
-}
 
 /* Register access macros */
 #define vmac_writel(port, value, reg)	\
@@ -740,9 +714,9 @@ static void vmac_toggle_txint(struct net_device *dev, int enable)
 	struct vmac_priv *ap = netdev_priv(dev);
 	unsigned long flags;
 
-	spin_lock_irqsave(&ap->lock_ext, flags);
+	spin_lock_irqsave(&ap->lock, flags);
 	vmac_toggle_irqmask(dev, enable, TXINT_MASK);
-	spin_unlock_irqrestore(&ap->lock_ext, flags);
+	spin_unlock_irqrestore(&ap->lock, flags);
 }
 
 static void vmac_toggle_rxint(struct net_device *dev, int enable)
@@ -1095,11 +1069,8 @@ int vmac_open(struct net_device *dev)
 	clk_enable(clk_get(NULL,"mac_ref"));
 
 	//phy power on
-	if (pdata && pdata->rmii_power_control) {
-        pdata->rmii_power_control(0);
-        msleep(100);
+	if (pdata && pdata->rmii_power_control)
 		pdata->rmii_power_control(1);
-    }
 
 	msleep(1000);
 
@@ -1549,7 +1520,6 @@ static int __devinit vmac_probe(struct platform_device *pdev)
 	dev->features |= NETIF_F_HIGHDMA;
 
 	spin_lock_init(&ap->lock);
-    spin_lock_init(&ap->lock_ext);
 
 	SET_NETDEV_DEV(dev, &pdev->dev);
 	ap->dev = dev;
@@ -1578,75 +1548,8 @@ static int __devinit vmac_probe(struct platform_device *pdev)
 	/* mac address intialize, set vmac_open  */
 	read_mac_reg(dev, dev->dev_addr);
 
-	if (!is_valid_ether_addr(dev->dev_addr)) {
-	//add by cx@rock-chips.com
-	
-	#ifdef CONFIG_ETH_MAC_FROM_EEPROM
-		ret = eeprom_read_data(0,dev->dev_addr,6);
-		if (ret != 6){
-			printk("read mac from Eeprom fail.\n");
-		}else {
-			if (is_valid_ether_addr(dev->dev_addr)){
-				printk("eth_mac_from_eeprom***********:%X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
-							dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
-							dev->dev_addr[4],dev->dev_addr[5] );
-			}
-		}
-	#endif
-	
-	#if 1//def CONFIG_ETH_MAC_FROM_IDB
-		err = eth_mac_idb(dev->dev_addr);
-		if (is_valid_ether_addr(dev->dev_addr)) {
-			printk("eth_mac_from_idb***********:%X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
-						dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
-						dev->dev_addr[4],dev->dev_addr[5] );
-		} else {
-			random_ether_addr(dev->dev_addr);
-			printk("random_ether_addr***********:%X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
-                          dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
-                          dev->dev_addr[4],dev->dev_addr[5] );
-		}
-	#endif
-	
-	/*#ifdef CONFIG_ETH_MAC_FROM_WIFI_MAC
-		err = eth_mac_wifi(dev->dev_addr);
-		if (err) {
-			printk("read mac from Wifi  fail.\n");
-		} else {
-			if (is_valid_ether_addr(dev->dev_addr)) {
-				printk("eth_mac_from_wifi_mac***********:%X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
-							dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
-							dev->dev_addr[4],dev->dev_addr[5] );
-			}
-		}
-	#endif*/
-	
-	/*#ifdef CONFIG_ETH_MAC_FROM_RANDOM
-	    random_ether_addr(dev->dev_addr);
-        printk("random_ether_addr***********:%X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
-		                  dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
-		                  dev->dev_addr[4],dev->dev_addr[5] );	
-	#endif*/
-	//add end	
-	}
-
-	/* if kernel parameter has mac address, set it */
-	if (strlen(mac_addr_param) == 17) {
-		int i;
-		char *p = mac_addr_param;
-
-		for (i = 0; i < 6; i++, p++)
-			mac_addr[i] = simple_strtoul(p, &p, 16);
-
-		if (is_valid_ether_addr(mac_addr)) {
-
-			memcpy(dev->dev_addr, mac_addr, 6);
-
-			printk("eth mac from kernel cmdline: %X:%X:%X:%X:%X:%X\n",dev->dev_addr[0],
-					dev->dev_addr[1],dev->dev_addr[2],dev->dev_addr[3],
-					dev->dev_addr[4],dev->dev_addr[5] );
-		}
-	}
+	if (!is_valid_ether_addr(dev->dev_addr))
+		random_ether_addr(dev->dev_addr);
 
 	err = register_netdev(dev);
 	if (err) {
@@ -1670,8 +1573,6 @@ static int __devinit vmac_probe(struct platform_device *pdev)
 	//power gpio init, phy power off default for power reduce
 	if (pdata && pdata->rmii_io_init)
 		pdata->rmii_io_init();
-
-	rk29_vmac_sysif_init();
 
 	return 0;
 
@@ -1717,7 +1618,6 @@ static int __devexit vmac_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#if 0
 static void rk29_vmac_power_off(struct net_device *dev)
 {
 	struct vmac_priv *ap = netdev_priv(dev);
@@ -1737,7 +1637,6 @@ static void rk29_vmac_power_off(struct net_device *dev)
 	clk_disable(clk_get(NULL,"mac_ref"));
 
 }
-#endif
 
 static int
 rk29_vmac_suspend(struct device *dev)
@@ -1751,10 +1650,8 @@ rk29_vmac_suspend(struct device *dev)
 			netif_stop_queue(ndev);
 			netif_device_detach(ndev);
 			if (ap->suspending == 0) {
-#if 0
 				vmac_shutdown(ndev);
 				rk29_vmac_power_off(ndev);
-#endif
 				ap->suspending = 1;
 			}
 		}
@@ -1773,9 +1670,6 @@ rk29_vmac_resume(struct device *dev)
 		if (ap->open_flag == 1) {
 			netif_device_attach(ndev);
 			netif_start_queue(ndev);
-      if (ap->suspending == 1) {
-         ap->suspending = 0;
-			}
 		}
 	}
 	return 0;
@@ -1813,8 +1707,3 @@ module_exit(vmac_exit);
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("RK29 VMAC Ethernet driver");
 MODULE_AUTHOR("amit.bhor@celunite.com, sameer.dhavale@celunite.com, andreas.fenkart@streamunlimited.com");
-
-#undef MODULE_PARAM_PREFIX
-#define MODULE_PARAM_PREFIX /* empty */
-module_param_named(mac_addr, mac_addr_param, charp, 0);
-MODULE_PARM_DESC(mac_addr, "MAC address");

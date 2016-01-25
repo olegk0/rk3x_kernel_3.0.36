@@ -1973,6 +1973,28 @@ struct mempolicy *__mpol_dup(struct mempolicy *old)
 	return new;
 }
 
+/*
+ * If *frompol needs [has] an extra ref, copy *frompol to *tompol ,
+ * eliminate the * MPOL_F_* flags that require conditional ref and
+ * [NOTE!!!] drop the extra ref.  Not safe to reference *frompol directly
+ * after return.  Use the returned value.
+ *
+ * Allows use of a mempolicy for, e.g., multiple allocations with a single
+ * policy lookup, even if the policy needs/has extra ref on lookup.
+ * shmem_readahead needs this.
+ */
+struct mempolicy *__mpol_cond_copy(struct mempolicy *tompol,
+						struct mempolicy *frompol)
+{
+	if (!mpol_needs_cond_ref(frompol))
+		return frompol;
+
+	*tompol = *frompol;
+	tompol->flags &= ~MPOL_F_SHARED;	/* copy doesn't need unref */
+	__mpol_put(frompol);
+	return tompol;
+}
+
 /* Slow path of a mempolicy comparison */
 int __mpol_equal(struct mempolicy *a, struct mempolicy *b)
 {
@@ -2308,7 +2330,8 @@ void numa_default_policy(void)
  */
 
 /*
- * "local" is implemented internally by MPOL_PREFERRED with MPOL_F_LOCAL flag.
+ * "local" is pseudo-policy:  MPOL_PREFERRED with MPOL_F_LOCAL flag
+ * Used only for mpol_parse_str() and mpol_to_str()
  */
 #define MPOL_LOCAL MPOL_MAX
 static const char * const policy_modes[] =
@@ -2323,21 +2346,28 @@ static const char * const policy_modes[] =
 
 #ifdef CONFIG_TMPFS
 /**
- * mpol_parse_str - parse string to mempolicy, for tmpfs mpol mount option.
+ * mpol_parse_str - parse string to mempolicy
  * @str:  string containing mempolicy to parse
  * @mpol:  pointer to struct mempolicy pointer, returned on success.
- * @unused:  redundant argument, to be removed later.
+ * @no_context:  flag whether to "contextualize" the mempolicy
  *
  * Format of input:
  *	<mode>[=<flags>][:<nodelist>]
  *
+ * if @no_context is true, save the input nodemask in w.user_nodemask in
+ * the returned mempolicy.  This will be used to "clone" the mempolicy in
+ * a specific context [cpuset] at a later time.  Used to parse tmpfs mpol
+ * mount option.  Note that if 'static' or 'relative' mode flags were
+ * specified, the input nodemask will already have been saved.  Saving
+ * it again is redundant, but safe.
+ *
  * On success, returns 0, else 1
  */
-int mpol_parse_str(char *str, struct mempolicy **mpol, int unused)
+int mpol_parse_str(char *str, struct mempolicy **mpol, int no_context)
 {
 	struct mempolicy *new = NULL;
 	unsigned short mode;
-	unsigned short mode_flags;
+	unsigned short uninitialized_var(mode_flags);
 	nodemask_t nodes;
 	char *nodelist = strchr(str, ':');
 	char *flags = strchr(str, '=');
@@ -2425,23 +2455,24 @@ int mpol_parse_str(char *str, struct mempolicy **mpol, int unused)
 	if (IS_ERR(new))
 		goto out;
 
-	/*
-	 * Save nodes for mpol_to_str() to show the tmpfs mount options
-	 * for /proc/mounts, /proc/pid/mounts and /proc/pid/mountinfo.
-	 */
-	if (mode != MPOL_PREFERRED)
-		new->v.nodes = nodes;
-	else if (nodelist)
-		new->v.preferred_node = first_node(nodes);
-	else
-		new->flags |= MPOL_F_LOCAL;
-
-	/*
-	 * Save nodes for contextualization: this will be used to "clone"
-	 * the mempolicy in a specific context [cpuset] at a later time.
-	 */
-	new->w.user_nodemask = nodes;
-
+	if (no_context) {
+		/* save for contextualization */
+		new->w.user_nodemask = nodes;
+	} else {
+		int ret;
+		NODEMASK_SCRATCH(scratch);
+		if (scratch) {
+			task_lock(current);
+			ret = mpol_set_nodemask(new, &nodes, scratch);
+			task_unlock(current);
+		} else
+			ret = -ENOMEM;
+		NODEMASK_SCRATCH_FREE(scratch);
+		if (ret) {
+			mpol_put(new);
+			goto out;
+		}
+	}
 	err = 0;
 
 out:
@@ -2461,13 +2492,13 @@ out:
  * @buffer:  to contain formatted mempolicy string
  * @maxlen:  length of @buffer
  * @pol:  pointer to mempolicy to be formatted
- * @unused:  redundant argument, to be removed later.
+ * @no_context:  "context free" mempolicy - use nodemask in w.user_nodemask
  *
  * Convert a mempolicy into a string.
  * Returns the number of characters in buffer (if positive)
  * or an error (negative)
  */
-int mpol_to_str(char *buffer, int maxlen, struct mempolicy *pol, int unused)
+int mpol_to_str(char *buffer, int maxlen, struct mempolicy *pol, int no_context)
 {
 	char *p = buffer;
 	int l;
@@ -2493,7 +2524,7 @@ int mpol_to_str(char *buffer, int maxlen, struct mempolicy *pol, int unused)
 	case MPOL_PREFERRED:
 		nodes_clear(nodes);
 		if (flags & MPOL_F_LOCAL)
-			mode = MPOL_LOCAL;
+			mode = MPOL_LOCAL;	/* pseudo-policy */
 		else
 			node_set(pol->v.preferred_node, nodes);
 		break;
@@ -2501,7 +2532,10 @@ int mpol_to_str(char *buffer, int maxlen, struct mempolicy *pol, int unused)
 	case MPOL_BIND:
 		/* Fall through */
 	case MPOL_INTERLEAVE:
-		nodes = pol->v.nodes;
+		if (no_context)
+			nodes = pol->w.user_nodemask;
+		else
+			nodes = pol->v.nodes;
 		break;
 
 	default:

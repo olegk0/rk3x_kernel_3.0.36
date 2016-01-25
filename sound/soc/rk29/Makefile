@@ -34,6 +34,7 @@ snd-soc-es8323-objs := rk29_es8323.o
 snd-soc-hdmi-i2s-objs := rk_hdmi_i2s.o
 snd-soc-hdmi-spdif-objs := rk_hdmi_spdif.o
 
+
 obj-$(CONFIG_SND_RK29_SOC_WM8994) += snd-soc-wm8994.o
 obj-$(CONFIG_SND_RK29_SOC_WM8988) += snd-soc-wm8988.o
 obj-$(CONFIG_SND_RK29_SOC_WM8900) += snd-soc-wm8900.o

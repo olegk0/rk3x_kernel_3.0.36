@@ -1,10 +1,86 @@
+/* Copyright Statement:
+ *
+ * This software/firmware and related documentation ("MediaTek Software") are
+ * protected under relevant copyright laws. The information contained herein
+ * is confidential and proprietary to MediaTek Inc. and/or its licensors.
+ * Without the prior written permission of MediaTek inc. and/or its licensors,
+ * any reproduction, modification, use or disclosure of MediaTek Software,
+ * and information contained herein, in whole or in part, shall be strictly prohibited.
+ *
+ * MediaTek Inc. (C) 2010. All rights reserved.
+ *
+ * BY OPENING THIS FILE, RECEIVER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND AGREES
+ * THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK SOFTWARE")
+ * RECEIVED FROM MEDIATEK AND/OR ITS REPRESENTATIVES ARE PROVIDED TO RECEIVER ON
+ * AN "AS-IS" BASIS ONLY. MEDIATEK EXPRESSLY DISCLAIMS ANY AND ALL WARRANTIES,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NONINFRINGEMENT.
+ * NEITHER DOES MEDIATEK PROVIDE ANY WARRANTY WHATSOEVER WITH RESPECT TO THE
+ * SOFTWARE OF ANY THIRD PARTY WHICH MAY BE USED BY, INCORPORATED IN, OR
+ * SUPPLIED WITH THE MEDIATEK SOFTWARE, AND RECEIVER AGREES TO LOOK ONLY TO SUCH
+ * THIRD PARTY FOR ANY WARRANTY CLAIM RELATING THERETO. RECEIVER EXPRESSLY ACKNOWLEDGES
+ * THAT IT IS RECEIVER'S SOLE RESPONSIBILITY TO OBTAIN FROM ANY THIRD PARTY ALL PROPER LICENSES
+ * CONTAINED IN MEDIATEK SOFTWARE. MEDIATEK SHALL ALSO NOT BE RESPONSIBLE FOR ANY MEDIATEK
+ * SOFTWARE RELEASES MADE TO RECEIVER'S SPECIFICATION OR TO CONFORM TO A PARTICULAR
+ * STANDARD OR OPEN FORUM. RECEIVER'S SOLE AND EXCLUSIVE REMEDY AND MEDIATEK'S ENTIRE AND
+ * CUMULATIVE LIABILITY WITH RESPECT TO THE MEDIATEK SOFTWARE RELEASED HEREUNDER WILL BE,
+ * AT MEDIATEK'S OPTION, TO REVISE OR REPLACE THE MEDIATEK SOFTWARE AT ISSUE,
+ * OR REFUND ANY SOFTWARE LICENSE FEES OR SERVICE CHARGE PAID BY RECEIVER TO
+ * MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
+ *
+ * The following software/firmware and/or related documentation ("MediaTek Software")
+ * have been modified by MediaTek Inc. All revisions are subject to any receiver's
+ * applicable license agreements with MediaTek Inc.
+ */
+
+
 /*! \file
     \brief  Declaration of library functions
 
     Any definitions in this file will be shared among GLUE Layer and internal Driver Stack.
 */
 
+/*******************************************************************************
+* Copyright (c) 2009 MediaTek Inc.
+*
+* All rights reserved. Copying, compilation, modification, distribution
+* or any other use whatsoever of this material is strictly prohibited
+* except in accordance with a Software License Agreement with
+* MediaTek Inc.
+********************************************************************************
+*/
 
+/*******************************************************************************
+* LEGAL DISCLAIMER
+*
+* BY OPENING THIS FILE, BUYER HEREBY UNEQUIVOCALLY ACKNOWLEDGES AND
+* AGREES THAT THE SOFTWARE/FIRMWARE AND ITS DOCUMENTATIONS ("MEDIATEK
+* SOFTWARE") RECEIVED FROM MEDIATEK AND/OR ITS REPRESENTATIVES ARE
+* PROVIDED TO BUYER ON AN "AS-IS" BASIS ONLY. MEDIATEK EXPRESSLY
+* DISCLAIMS ANY AND ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+* LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+* PARTICULAR PURPOSE OR NONINFRINGEMENT. NEITHER DOES MEDIATEK PROVIDE
+* ANY WARRANTY WHATSOEVER WITH RESPECT TO THE SOFTWARE OF ANY THIRD PARTY
+* WHICH MAY BE USED BY, INCORPORATED IN, OR SUPPLIED WITH THE MEDIATEK
+* SOFTWARE, AND BUYER AGREES TO LOOK ONLY TO SUCH THIRD PARTY FOR ANY
+* WARRANTY CLAIM RELATING THERETO. MEDIATEK SHALL ALSO NOT BE RESPONSIBLE
+* FOR ANY MEDIATEK SOFTWARE RELEASES MADE TO BUYER'S SPECIFICATION OR TO
+* CONFORM TO A PARTICULAR STANDARD OR OPEN FORUM.
+*
+* BUYER'S SOLE AND EXCLUSIVE REMEDY AND MEDIATEK'S ENTIRE AND CUMULATIVE
+* LIABILITY WITH RESPECT TO THE MEDIATEK SOFTWARE RELEASED HEREUNDER WILL
+* BE, AT MEDIATEK'S OPTION, TO REVISE OR REPLACE THE MEDIATEK SOFTWARE AT
+* ISSUE, OR REFUND ANY SOFTWARE LICENSE FEES OR SERVICE CHARGE PAID BY
+* BUYER TO MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
+*
+* THE TRANSACTION CONTEMPLATED HEREUNDER SHALL BE CONSTRUED IN ACCORDANCE
+* WITH THE LAWS OF THE STATE OF CALIFORNIA, USA, EXCLUDING ITS CONFLICT
+* OF LAWS PRINCIPLES.  ANY DISPUTES, CONTROVERSIES OR CLAIMS ARISING
+* THEREOF AND RELATED THERETO SHALL BE SETTLED BY ARBITRATION IN SAN
+* FRANCISCO, CA, UNDER THE RULES OF THE INTERNATIONAL CHAMBER OF COMMERCE
+* (ICC).
+********************************************************************************
+*/
 
 
 /*******************************************************************************
@@ -75,13 +151,10 @@ static INT32  wmt_ctrl_stp_rst(P_WMT_CTRL_DATA);
 static INT32  wmt_ctrl_get_wmt_conf(P_WMT_CTRL_DATA);
 static INT32  wmt_ctrl_others(P_WMT_CTRL_DATA);
 static INT32  wmt_ctrl_tx(P_WMT_CTRL_DATA);
-static INT32  wmt_ctrl_rx(P_WMT_CTRL_DATA);
-static INT32  wmt_ctrl_patch_search(P_WMT_CTRL_DATA);
-static INT32  wmt_ctrl_crystal_triming_put(P_WMT_CTRL_DATA pWmtCtrlData);
-static INT32  wmt_ctrl_crystal_triming_get(P_WMT_CTRL_DATA pWmtCtrlData);
-INT32  wmt_ctrl_hw_state_show(P_WMT_CTRL_DATA pWmtCtrlData);
-static INT32 wmt_ctrl_get_patch_num(P_WMT_CTRL_DATA);
-static INT32 wmt_ctrl_get_patch_info(P_WMT_CTRL_DATA);
+static VOID wmt_ctrl_rx_event_cb (VOID);
+static INT32 wmt_ctrl_rx_flag_checker(PVOID pvData);
+static INT32 wmt_ctrl_rx_timeout (P_OSAL_EVENT pEvent);
+static INT32 wmt_ctrl_rx(P_WMT_CTRL_DATA);
 static INT32
 wmt_ctrl_rx_flush (
     P_WMT_CTRL_DATA
@@ -100,9 +173,6 @@ wmt_ctrl_gps_lna_set (
 
 static INT32  wmt_ctrl_get_patch_name(P_WMT_CTRL_DATA pWmtCtrlData);
 
-// TODO: [FixMe][GeorgeKuo]: remove unused function
-/*static INT32  wmt_ctrl_hwver_get(P_WMT_CTRL_DATA);*/
-
 
 /*******************************************************************************
 *                            P U B L I C   D A T A
@@ -111,6 +181,7 @@ static INT32  wmt_ctrl_get_patch_name(P_WMT_CTRL_DATA pWmtCtrlData);
 
 // TODO:[FixMe][GeorgeKuo]: use module APIs instead of direct access to internal data
 extern DEV_WMT gDevWmt;
+
 
 /*******************************************************************************
 *                           P R I V A T E   D A T A
@@ -143,12 +214,6 @@ const static WMT_CTRL_FUNC wmt_ctrl_func[] =
     [WMT_CTRL_RX_FLUSH] = wmt_ctrl_rx_flush,
     [WMT_CTRL_GPS_SYNC_SET] = wmt_ctrl_gps_sync_set,
     [WMT_CTRL_GPS_LNA_SET] = wmt_ctrl_gps_lna_set,
-    [WMT_CTRL_PATCH_SEARCH] = wmt_ctrl_patch_search,
-    [WMT_CTRL_CRYSTAL_TRIMING_GET] = wmt_ctrl_crystal_triming_get,
-    [WMT_CTRL_CRYSTAL_TRIMING_PUT] = wmt_ctrl_crystal_triming_put,
-    [WMT_CTRL_HW_STATE_DUMP] = wmt_ctrl_hw_state_show,
-    [WMT_CTRL_GET_PATCH_NUM] = wmt_ctrl_get_patch_num,
-    [WMT_CTRL_GET_PATCH_INFO] = wmt_ctrl_get_patch_info,
     [WMT_CTRL_MAX] = wmt_ctrl_others,
 };
 
@@ -198,6 +263,44 @@ INT32 wmt_ctrl_tx (P_WMT_CTRL_DATA pWmtCtrlData/*UINT8 *pData, UINT32 size, UINT
     return wmt_ctrl_tx_ex(pData, size, writtenSize, bRawFlag);
 }
 
+/* moved from wmt_dev_rx_event_cb */
+static VOID wmt_ctrl_rx_event_cb (VOID)
+{
+    WMT_DBG_FUNC("\n");
+
+    /* George: rWmtRxWq is initialized during initialization, wmt_lib_init() */
+    gDevWmt.rWmtRxWq.waitFlag = 1;
+    /* do we need smp_mb()? */
+    //wake_up_interruptible(&gDevWmt.rWmtRxWq.waitQueue);
+    osal_trigger_event(&gDevWmt.rWmtRxWq);
+}
+
+static INT32 wmt_ctrl_rx_flag_checker(PVOID pvData)
+{
+    return (*((PINT32)(pvData)) != 0);
+}
+
+/* moved from wmt_dev_rx_timeout */
+static INT32 wmt_ctrl_rx_timeout (P_OSAL_EVENT pEvent)
+{
+    UINT32 ms;
+    INT32 iRet;
+    //LONG lRet;
+
+    ms = pEvent->timeoutValue;
+
+    WMT_DBG_FUNC("\n");
+    if (0 != ms) {
+        iRet = osal_wait_for_event_timeout(pEvent, wmt_ctrl_rx_flag_checker, &pEvent->waitFlag);
+        //lRet = wait_event_interruptible_timeout(pEvent->waitQueue,  pEvent->waitFlag != 0, msecs_to_jiffies(ms));
+    }
+    else {
+        iRet = osal_wait_for_event(pEvent, wmt_ctrl_rx_flag_checker, &pEvent->waitFlag);
+        //lRet = wait_event_interruptible(pEvent->waitQueue,  pEvent->waitFlag != 0);
+    }
+    pEvent->waitFlag = 0;
+    return iRet;
+}
 
 INT32 wmt_ctrl_rx(P_WMT_CTRL_DATA pWmtCtrlData/*UINT8 *pBuff, UINT32 buffLen, UINT32 *readSize*/)
 {
@@ -238,24 +341,22 @@ INT32 wmt_ctrl_rx(P_WMT_CTRL_DATA pWmtCtrlData/*UINT8 *pBuff, UINT32 buffLen, UI
     readLen = mtk_wcn_stp_receive_data(pBuff, buffLen, WMT_TASK_INDX);
 
     while (readLen == 0) { // got nothing, wait for STP's signal
-        WMT_LOUD_FUNC("before wmt_dev_rx_timeout\n");
-        //iRet = wait_event_interruptible(pdev->rWmtRxWq, osal_test_bit(WMT_STAT_RX, &pdev->state));
-        //waitRet = wait_event_interruptible_timeout(pDev->rWmtRxWq, osal_test_bit(WMT_STAT_RX, &pdev->state), msecs_to_jiffies(WMT_LIB_RX_TIMEOUT));
+        //WMT_LOUD_FUNC("before wmt_ctrl_rx_timeout\n");
         pDev->rWmtRxWq.timeoutValue = WMT_LIB_RX_TIMEOUT;
-        //waitRet = osal_wait_for_event_bit_timeout(&pDev->rWmtRxWq, &pDev->state, WMT_STAT_RX);
-        waitRet = wmt_dev_rx_timeout(&pDev->rWmtRxWq);
+        //waitRet = wmt_dev_rx_timeout(&pDev->rWmtRxWq);
+        waitRet = wmt_ctrl_rx_timeout(&pDev->rWmtRxWq);
 
-        WMT_LOUD_FUNC("wmt_dev_rx_timeout returned\n");
+        //WMT_LOUD_FUNC("wmt_ctrl_rx_timeout returned\n");
 
         if (0 == waitRet) {
-            WMT_ERR_FUNC("wmt_dev_rx_timeout: timeout \n");
+            WMT_ERR_FUNC("wmt_ctrl_rx_timeout: timeout \n");
             return -1;
         }
         else if (waitRet < 0) {
-            WMT_WARN_FUNC("wmt_dev_rx_timeout: interrupted by signal (%ld)\n", waitRet);
+            WMT_WARN_FUNC("wmt_ctrl_rx_timeout: interrupted by signal (%ld)\n", waitRet);
             return waitRet;
         }
-        WMT_DBG_FUNC("wmt_dev_rx_timeout, iRet(%ld)\n", waitRet);
+        //WMT_LOUD_FUNC("wmt_ctrl_rx_timeout, iRet(%ld)\n", waitRet);
         /* read_len = mtk_wcn_stp_receive_data(data, size, WMT_TASK_INDX); */
         readLen = mtk_wcn_stp_receive_data(pBuff, buffLen, WMT_TASK_INDX);
 
@@ -386,8 +487,15 @@ INT32  wmt_ctrl_ul_cmd (
     INT32 waitRet = -1;
     P_OSAL_SIGNAL pCmdSignal;
     P_OSAL_EVENT pCmdReq;
+
+    pCmdSignal = &pWmtDev->cmdResp;
+    osal_signal_init(pCmdSignal);
+    pCmdSignal->timeoutValue = 2000;
+
     if (osal_test_and_set_bit(WMT_STAT_CMD, &pWmtDev->state)) {
         WMT_WARN_FUNC("cmd buf is occupied by (%s) \n", pWmtDev->cCmd);
+        /* [FIXME][George] deinit(pCmdSignal) here or not? */
+	    osal_signal_deinit(pCmdSignal);
         return -1;
     }
 
@@ -395,16 +503,17 @@ INT32  wmt_ctrl_ul_cmd (
 #if 0
     INIT_COMPLETION(pWmtDev->cmd_comp);
     pWmtDev->cmd_result = -1;
-    strncpy(pWmtDev->cCmd, pCmdStr, NAME_MAX);
-    pWmtDev->cCmd[NAME_MAX] = '\0';
+    strncpy(pWmtDev->cCmd, pCmdStr, OSAL_NAME_MAX);
+    pWmtDev->cCmd[OSAL_NAME_MAX] = '\0';
     wake_up_interruptible(&pWmtDev->cmd_wq);
 #endif
 
-    pCmdSignal = &pWmtDev->cmdResp;
-    osal_signal_init(pCmdSignal);
-    pCmdSignal->timeoutValue = 2000;
-    osal_strncpy(pWmtDev->cCmd, pCmdStr, NAME_MAX);
-    pWmtDev->cCmd[NAME_MAX] = '\0';
+//    pCmdSignal = &pWmtDev->cmdResp;
+//    osal_signal_init(pCmdSignal);
+//    pCmdSignal->timeoutValue = 2000;
+
+    osal_strncpy(pWmtDev->cCmd, pCmdStr, OSAL_NAME_MAX);
+    pWmtDev->cCmd[OSAL_NAME_MAX] = '\0';
 
     pCmdReq = &pWmtDev->cmdReq;
 
@@ -416,10 +525,12 @@ INT32  wmt_ctrl_ul_cmd (
     WMT_LOUD_FUNC("wait signal iRet:%d\n", waitRet);
     if (0 == waitRet) {
         WMT_ERR_FUNC("wait signal timeout \n");
+        osal_signal_deinit(pCmdSignal);
         return -2;
     }
 
     WMT_INFO_FUNC("str(%s) result(%d)\n", pCmdStr, pWmtDev->cmdResult);
+    osal_signal_deinit(pCmdSignal);
 
     return pWmtDev->cmdResult;
 }
@@ -430,17 +541,11 @@ INT32  wmt_ctrl_hw_rst(P_WMT_CTRL_DATA pWmtCtrlData)
     return 0;
 }
 
-INT32  wmt_ctrl_hw_state_show(P_WMT_CTRL_DATA pWmtCtrlData)
-{
-    wmt_plat_pwr_ctrl(FUNC_STAT);
-    return 0;
-}
-
 INT32  wmt_ctrl_stp_close(P_WMT_CTRL_DATA pWmtCtrlData)
 {
     P_DEV_WMT pDev = &gDevWmt; /* single instance */
     INT32 iRet = 0;
-    UCHAR cmdStr[NAME_MAX + 1] = {0};
+    UCHAR cmdStr[OSAL_NAME_MAX + 1];
     /* un-register to STP-core for rx */
     iRet = mtk_wcn_stp_register_event_cb(WMT_TASK_INDX, NULL); /* mtk_wcn_stp_register_event_cb */
     if (iRet) {
@@ -449,8 +554,8 @@ INT32  wmt_ctrl_stp_close(P_WMT_CTRL_DATA pWmtCtrlData)
     }
 
     if (WMT_HIF_UART == pDev->rWmtHifConf.hifType) {
-
-        osal_snprintf(cmdStr, NAME_MAX, "close_stp");
+        osal_memset(&cmdStr[0], 0, sizeof(cmdStr));
+        osal_snprintf(cmdStr, OSAL_NAME_MAX, "close_stp");
 
         iRet = wmt_ctrl_ul_cmd(pDev, cmdStr);
         if (iRet) {
@@ -468,10 +573,11 @@ INT32  wmt_ctrl_stp_open(P_WMT_CTRL_DATA pWmtCtrlData)
 {
     P_DEV_WMT pDev = &gDevWmt; /* single instance */
     INT32 iRet;
-    UCHAR cmdStr[NAME_MAX + 1] = {0};
+    UCHAR cmdStr[OSAL_NAME_MAX + 1];
 
     if (WMT_HIF_UART == pDev->rWmtHifConf.hifType) {
-        osal_snprintf(cmdStr, NAME_MAX, "open_stp");
+        osal_memset(&cmdStr[0], 0, sizeof(cmdStr));
+        osal_snprintf(cmdStr, OSAL_NAME_MAX, "open_stp");
         iRet = wmt_ctrl_ul_cmd(pDev, cmdStr);
         if (iRet) {
             WMT_WARN_FUNC("wmt_ctrl_ul_cmd fail(%d)\n", iRet);
@@ -480,7 +586,7 @@ INT32  wmt_ctrl_stp_open(P_WMT_CTRL_DATA pWmtCtrlData)
     }
 
     /* register to STP-core for rx */
-    iRet = mtk_wcn_stp_register_event_cb(WMT_TASK_INDX, wmt_dev_rx_event_cb); /* mtk_wcn_stp_register_event_cb */
+    iRet = mtk_wcn_stp_register_event_cb(WMT_TASK_INDX, wmt_ctrl_rx_event_cb); /* mtk_wcn_stp_register_event_cb */
     if (iRet) {
         WMT_WARN_FUNC("stp_reg cb fail(%d)\n", iRet);
         return -2;
@@ -489,58 +595,6 @@ INT32  wmt_ctrl_stp_open(P_WMT_CTRL_DATA pWmtCtrlData)
     osal_set_bit(WMT_STAT_STP_OPEN, &pDev->state);
 
     return 0;
-}
-
-
-INT32  wmt_ctrl_patch_search(P_WMT_CTRL_DATA pWmtCtrlData)
-{
-    P_DEV_WMT pDev = &gDevWmt; /* single instance */
-    INT32 iRet;
-    UCHAR cmdStr[NAME_MAX + 1] = {0};
-    osal_snprintf(cmdStr, NAME_MAX, "srh_patch");
-    iRet = wmt_ctrl_ul_cmd(pDev, cmdStr);
-    if (iRet) {
-        WMT_WARN_FUNC("wmt_ctrl_ul_cmd fail(%d)\n", iRet);
-        return -1;
-    }
-    return 0;
-}
-
-
-INT32 wmt_ctrl_get_patch_num(P_WMT_CTRL_DATA pWmtCtrlData)
-{
-	P_DEV_WMT pDev = &gDevWmt; /* single instance */
-	pWmtCtrlData->au4CtrlData[0] = pDev->patchNum;
-	return 0;
-}
-
-
-INT32 wmt_ctrl_get_patch_info(P_WMT_CTRL_DATA pWmtCtrlData)
-{
-	P_DEV_WMT pDev = &gDevWmt; /* single instance */
-	UINT32 downLoadSeq = 0;
-	P_WMT_PATCH_INFO pPatchinfo = NULL;
-	PUCHAR pNbuf = NULL;
-	PUCHAR pAbuf =NULL;
-	
-	downLoadSeq = pWmtCtrlData->au4CtrlData[0];
-	WMT_DBG_FUNC("download seq is %d\n",downLoadSeq);
-
-	pPatchinfo = pDev->pWmtPatchInfo + downLoadSeq - 1;
-	pNbuf = (PUCHAR)pWmtCtrlData->au4CtrlData[1];
-	pAbuf = (PUCHAR)pWmtCtrlData->au4CtrlData[2];
-	if(pPatchinfo)
-	{
-		osal_memcpy(pNbuf,pPatchinfo->patchName,osal_sizeof(pPatchinfo->patchName));
-		osal_memcpy(pAbuf,pPatchinfo->addRess,osal_sizeof(pPatchinfo->addRess));
-		WMT_DBG_FUNC("get 4 address bytes is 0x%2x,0x%2x,0x%2x,0x%2x",pAbuf[0],pAbuf[1],pAbuf[2],pAbuf[3]);
-	}
-	else
-	{
-		WMT_ERR_FUNC("NULL patchinfo pointer\n");
-	}
-
-	return 0;
 }
 
 
@@ -600,21 +654,14 @@ INT32  wmt_ctrl_stp_conf(P_WMT_CTRL_DATA pWmtCtrlData)
     return iRet;
 }
 
-
 INT32  wmt_ctrl_free_patch(P_WMT_CTRL_DATA pWmtCtrlData)
 {
-	UINT32 patchSeq = pWmtCtrlData->au4CtrlData[0];
     WMT_DBG_FUNC("BF free patch, gDevWmt.pPatch(0x%08x)\n", gDevWmt.pPatch);
     if (NULL != gDevWmt.pPatch)
     {
-        wmt_dev_patch_put((osal_firmware **)&(gDevWmt.pPatch));
+        wmt_dev_patch_put((OSAL_FIRMWARE **)(&gDevWmt.pPatch));
     }
     WMT_DBG_FUNC("AF free patch, gDevWmt.pPatch(0x%08x)\n", gDevWmt.pPatch);
-	if (patchSeq == gDevWmt.patchNum)
-	{
-		WMT_DBG_FUNC("the %d patch has been download\n",patchSeq);
-		wmt_dev_patch_info_free();
-	}
     return 0;
 }
 
@@ -628,49 +675,6 @@ INT32  wmt_ctrl_get_patch_name(P_WMT_CTRL_DATA pWmtCtrlData)
 }
 
 
-
-
-
-INT32  wmt_ctrl_crystal_triming_put(P_WMT_CTRL_DATA pWmtCtrlData)
-{
-    WMT_DBG_FUNC("BF free patch, gDevWmt.pPatch(0x%08x)\n", gDevWmt.pPatch);
-    if (NULL != gDevWmt.pNvram)
-    {
-        wmt_dev_patch_put((osal_firmware **)&(gDevWmt.pNvram));
-    }
-    WMT_DBG_FUNC("AF free patch, gDevWmt.pNvram(0x%08x)\n", gDevWmt.pNvram);
-    return 0;
-}
-
-
-INT32  wmt_ctrl_crystal_triming_get(P_WMT_CTRL_DATA pWmtCtrlData)
-{
-    INT32 iRet = 0x0;
-     UCHAR *pFileName = (UCHAR *)pWmtCtrlData->au4CtrlData[0];
-	 PUINT8 *ppBuf = (PUINT8 *)pWmtCtrlData->au4CtrlData[1];
-	 PUINT32 pSize = (PUINT32)pWmtCtrlData->au4CtrlData[2];
-
-	 osal_firmware *pNvram = NULL;
-
-	 if ((NULL == pFileName) || (NULL == pSize))
-	 {
-	     WMT_ERR_FUNC("parameter error, pFileName(0x%08x), pSize(0x%08x)\n", pFileName, pSize);
-		 iRet = -1;
-		 return iRet;
-	 }
-	 if (0 == wmt_dev_patch_get(pFileName, &pNvram, 0))
-	 {
-	     *ppBuf = (PUINT8)(pNvram)->data;
-         *pSize = (pNvram)->size;
-		 gDevWmt.pNvram = pNvram;
-		 return 0;
-	 }
-	 return -1;
-
-	 
-}
-
-
 INT32  wmt_ctrl_get_patch(P_WMT_CTRL_DATA pWmtCtrlData)
 {
     UCHAR *pFullPatchName = NULL;
@@ -678,7 +682,8 @@ INT32  wmt_ctrl_get_patch(P_WMT_CTRL_DATA pWmtCtrlData)
     PUINT8 *ppBuf = (PUINT8 *)pWmtCtrlData->au4CtrlData[2];
     PUINT32 pSize = (PUINT32)pWmtCtrlData->au4CtrlData[3];
 
-    osal_firmware *pPatch = NULL;
+    //osal_firmware *pPatch = NULL;
+    OSAL_FIRMWARE *pPatch = NULL;//zhiguo
     pFullPatchName = (UCHAR *)pWmtCtrlData->au4CtrlData[1];
     WMT_DBG_FUNC("BF get patch, pPatch(0x%08x)\n", pPatch);
     if ( (NULL != pFullPatchName)
@@ -712,14 +717,15 @@ INT32  wmt_ctrl_get_patch(P_WMT_CTRL_DATA pWmtCtrlData)
 INT32  wmt_ctrl_host_baudrate_set(P_WMT_CTRL_DATA pWmtCtrlData)
 {
     INT32 iRet = -1;
-    CHAR cmdStr[NAME_MAX + 1] = {0};
+    CHAR cmdStr[OSAL_NAME_MAX + 1];
     UINT32 u4Baudrate = pWmtCtrlData->au4CtrlData[0];
     UINT32 u4FlowCtrl = pWmtCtrlData->au4CtrlData[1];
 
     WMT_DBG_FUNC("baud(%d), flowctrl(%d) \n", u4Baudrate, u4FlowCtrl);
 
     if (osal_test_bit(WMT_STAT_STP_OPEN, &gDevWmt.state)) {
-        osal_snprintf(cmdStr, NAME_MAX, "baud_%d_%d", u4Baudrate, u4FlowCtrl);
+        osal_memset(&cmdStr[0], 0, sizeof(cmdStr));
+        osal_snprintf(cmdStr, OSAL_NAME_MAX, "baud_%d_%d", u4Baudrate, u4FlowCtrl);
         iRet = wmt_ctrl_ul_cmd(&gDevWmt, cmdStr);
     if (iRet) {
         WMT_WARN_FUNC("CTRL_BAUDRATE baud(%d), flowctrl(%d) fail(%d) \n",
@@ -746,7 +752,7 @@ INT32  wmt_ctrl_sdio_hw(P_WMT_CTRL_DATA pWmtCtrlData)
     P_DEV_WMT pDev = &gDevWmt; /* single instance */
 
     WMT_SDIO_SLOT_NUM sdioSlotNum = pWmtCtrlData->au4CtrlData[0];
-    ENUM_FUNC_STATE funcState = pWmtCtrlData->au4CtrlData[1];
+    INT32 funcState = pWmtCtrlData->au4CtrlData[1];
 
     if ((WMT_SDIO_SLOT_INVALID == sdioSlotNum)
         || (WMT_SDIO_SLOT_MAX <= sdioSlotNum)) {
@@ -854,14 +860,6 @@ INT32  wmt_ctrl_sdio_func(P_WMT_CTRL_DATA pWmtCtrlData)
 
     return iRet;
 }
-
-#if 0 // TODO: [FixMe][GeorgeKuo]: remove unused function. get hwver from core is not needed.
-INT32  wmt_ctrl_hwver_get(P_WMT_CTRL_DATA pWmtCtrlData)
-{
-    P_DEV_WMT pDev = &gDevWmt; /* single instance */
-    return 0;
-}
-#endif
 
 INT32 wmt_ctrl_hwidver_set(P_WMT_CTRL_DATA pWmtCtrlData)
 {

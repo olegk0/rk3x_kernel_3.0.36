@@ -123,7 +123,6 @@ struct pll_clk_set {
 	.pllcon2 = PLL_SET_FRAC(_frac),	\
 	.clksel1 = ACLK_CORE_DIV(RATIO_##_aclk_core_div) | CLK_CORE_PERI_DIV(RATIO_##_periph_div),	\
 	.lpj	= (CLK_LOOPS_JIFFY_REF * _mhz) / CLK_LOOPS_RATE_REF,	\
-	.rst_dly = 0,\
 }
 
 static const struct apll_clk_set apll_clks[] = {
@@ -375,23 +374,6 @@ static int clksel_set_rate_shift_2(struct clk *clk, unsigned long rate)
 	return -ENOENT;
 }
 #endif
-//for div 1 2 4 2*n
-static int clksel_set_rate_even(struct clk *clk, unsigned long rate)
-{
-	u32 div;
-	for (div = 2; div < clk->div_max; div += 2) {
-		u32 new_rate = clk->parent->rate / div;
-		if (new_rate <= rate) {
-			set_cru_bits_w_msk(div - 1, clk->div_mask, clk->div_shift, clk->clksel_con);
-			clk->rate = new_rate;
-			pr_debug("%s for clock %s to rate %ld (even div = %d)\n", 
-					__func__, clk->name, rate, div);
-			return 0;
-		}
-	}
-	return -ENOENT;
-}
-
 static u32 clk_get_freediv(unsigned long rate_out, unsigned long rate ,u32 div_max)
 {
 	u32 div;
@@ -769,7 +751,7 @@ static int pll_set_con(u8 id, u32 refdiv, u32 fbdiv, u32 postdiv1, u32 postdiv2,
 		temp_clk_set.pllcon1 |= PLL_SET_DSMPD(1);
 	}
 	temp_clk_set.pllcon2 = PLL_SET_FRAC(frac);
-	temp_clk_set.rst_dly = 0;
+	temp_clk_set.rst_dly = 1500;
 	CLKDATA_DBG("setting....\n");
 	return pll_clk_set_rate(&temp_clk_set, id);
 }
@@ -813,7 +795,7 @@ static int apll_clk_set_rate(struct clk *clk, unsigned long rate)
 		cru_writel(clk_set->pllcon2, PLL_CONS(pll_id,2));
 		cru_writel(clk_set->clksel0, CRU_CLKSELS_CON(0));
 		cru_writel(clk_set->clksel1, CRU_CLKSELS_CON(1));
-		//local_irq_restore(flags);
+		local_irq_restore(flags);
 
 		CLKDATA_DBG("pllcon0 %08x\n", cru_readl(PLL_CONS(0,0)));
 		CLKDATA_DBG("pllcon1 %08x\n", cru_readl(PLL_CONS(0,1)));
@@ -828,7 +810,7 @@ static int apll_clk_set_rate(struct clk *clk, unsigned long rate)
 		pll_wait_lock(pll_id);
 
 		//return form slow
-		//local_irq_save(flags);
+		local_irq_save(flags);
 		cru_writel(PLL_MODE_NORM(pll_id), CRU_MODE_CON);
 		loops_per_jiffy = clk_set->lpj;
 		local_irq_restore(flags);
@@ -1191,8 +1173,8 @@ static struct clk aclk_vepu = {
 	.gate_idx	= CLK_GATE_ACLK_VEPU_SRC,
 	.recalc		= clksel_recalc_div,
 	.clksel_con	= CRU_CLKSELS_CON(32),
-	.set_rate	= clkset_rate_freediv_autosel_parents,
-	.round_rate	= clk_freediv_round_autosel_parents_rate,
+	//.set_rate	= clkset_rate_freediv_autosel_parents,
+	.set_rate	= clksel_set_rate_freediv,
 	CRU_DIV_SET(0x1f, 0, 32),
 	CRU_SRC_SET(0x1, 7),
 	CRU_PARENTS_SET(clk_aclk_vepu_parents),
@@ -1203,8 +1185,8 @@ static struct clk aclk_vdpu = {
 	.mode		= gate_mode,
 	.gate_idx	= CLK_GATE_ACLK_VDPU_SRC,
 	.recalc		= clksel_recalc_div,
-	.set_rate	= clkset_rate_freediv_autosel_parents,
-	.round_rate	= clk_freediv_round_autosel_parents_rate,
+	//.set_rate	= clkset_rate_freediv_autosel_parents,
+	.set_rate	= clksel_set_rate_freediv,
 	.clksel_con	= CRU_CLKSELS_CON(32),
 	CRU_DIV_SET(0x1f, 8, 32),
 	CRU_SRC_SET(0x1, 15),	
@@ -1345,7 +1327,7 @@ static struct clk clk_sdmmc0 = {
 	.mode		= gate_mode,
 	.gate_idx	= CLK_GATE_MMC0_SRC,
 	.recalc		= clksel_recalc_div,
-	.set_rate	= clksel_set_rate_even,
+	.set_rate	= clksel_set_rate_freediv,
 	.clksel_con	= CRU_CLKSELS_CON(11),
 	CRU_SRC_SET(0x1, 6),	
 	CRU_DIV_SET(0x3f,0,64),
@@ -1377,7 +1359,7 @@ static struct clk clk_sdio = {
 	.mode		= gate_mode,
 	.gate_idx	= CLK_GATE_SDIO_SRC,
 	.recalc		= clksel_recalc_div,
-	.set_rate	= clksel_set_rate_even,
+	.set_rate	= clksel_set_rate_freediv,
 	.clksel_con 	= CRU_CLKSELS_CON(12),
 	CRU_SRC_SET(0x1, 6),	
 	CRU_DIV_SET(0x3f,0,64),
@@ -1905,7 +1887,7 @@ GATE_CLK(aclk_gps,	aclk_periph_pre, ACLK_GPS);
 /*************************hclk_periph***********************/
 GATE_CLK(hclk_peri_axi_matrix,	hclk_periph_pre, HCLK_PERI_AXI_MATRIX);
 GATE_CLK(hclk_peri_ahb_arbi,	hclk_periph_pre, HCLK_PERI_ARBI);
-GATE_CLK(nandc, hclk_periph_pre, HCLK_NANDC);
+GATE_CLK(hclk_nandc, hclk_periph_pre, HCLK_NANDC);
 GATE_CLK(hclk_usb_peri, hclk_periph_pre, HCLK_USB_PERI);
 GATE_CLK(hclk_otg0, clk_hclk_usb_peri, HCLK_OTG0);	// is not parent in clk tree, but when hclk_otg0/1 open,
 GATE_CLK(hclk_otg1, clk_hclk_usb_peri, HCLK_OTG1);	// must open hclk_usb_peri
@@ -2173,14 +2155,14 @@ static struct clk_lookup clks[] = {
 
 	CLK_GATE_NODEV(hclk_peri_axi_matrix),
 	CLK_GATE_NODEV(hclk_peri_ahb_arbi),
-	CLK_GATE_NODEV(nandc),
+	CLK_GATE_NODEV(hclk_nandc),
 	CLK_GATE_NODEV(hclk_usb_peri),
 	CLK_GATE_NODEV(hclk_otg0),
 	CLK_GATE_NODEV(hclk_otg1),
 	CLK_GATE_NODEV(hclk_i2s),
 	CLK("rk29_sdmmc.0", "hclk_mmc", &clk_hclk_sdmmc0),
 	CLK("rk29_sdmmc.1", "hclk_mmc", &clk_hclk_sdio),
-	CLK(NULL, "hclk_emmc", &clk_hclk_emmc),
+	CLK("rk29_sdmmc.2", "hclk_mmc", &clk_hclk_emmc),
 
 	CLK_GATE_NODEV(pclk_peri_axi_matrix),
 	CLK(NULL, "pwm01", &clk_pclk_pwm01),
@@ -2291,7 +2273,7 @@ static void __init rk30_init_enable_clocks(void)
 	/*************************hclk_periph***********************/
 	clk_enable_nolock(&clk_hclk_peri_axi_matrix);
 	clk_enable_nolock(&clk_hclk_peri_ahb_arbi);
-	clk_enable_nolock(&clk_nandc);
+	clk_enable_nolock(&clk_hclk_nandc);
 
 	/*************************pclk_periph***********************/
 	clk_enable_nolock(&clk_pclk_peri_axi_matrix);
@@ -2299,81 +2281,8 @@ static void __init rk30_init_enable_clocks(void)
 	clk_enable_nolock(&clk_hclk_vio_bus);
 }
 
-
-static void rk_dump_clock(struct clk *clk, int deep, const struct list_head *root_clocks)
-{
-	struct clk *ck;
-	int i;
-	unsigned long rate = clk->rate;
-	for (i = 0; i < deep; i++)
-		printk("    ");
-
-	printk("%-11s ", clk->name);
-	if ((clk->mode == gate_mode) && (clk->gate_idx < CLK_GATE_MAX)) {
-		int idx = clk->gate_idx;
-		u32 v;
-		v = cru_readl(CLK_GATE_CLKID_CONS(idx)) & ((0x1) << (idx % 16));
-		printk("%s ", v ? "off" : "on ");
-	}
-
-	if (clk->pll) {
-		u32 pll_mode;
-		u32 pll_id = clk->pll->id;
-		pll_mode = cru_readl(CRU_MODE_CON)&PLL_MODE_MSK(pll_id);
-		if (pll_mode == (PLL_MODE_SLOW(pll_id) & PLL_MODE_MSK(pll_id)))
-			printk("slow   ");
-		else if (pll_mode == (PLL_MODE_NORM(pll_id) & PLL_MODE_MSK(pll_id)))
-			printk("normal ");
-		//else if (pll_mode == (PLL_MODE_DEEP(pll_id) & PLL_MODE_MSK(pll_id)))
-		//	printk("deep   ");
-
-		if(cru_readl(PLL_CONS(pll_id, 3)) & PLL_BYPASS)
-			printk("bypass ");
-	} else if(clk == &clk_ddrc) {
-		rate = clk->recalc(clk);
-	}
-
-	if (rate >= MHZ) {
-		if (rate % MHZ)
-			printk("%ld.%06ld MHz", rate / MHZ, rate % MHZ);
-		else
-			printk("%ld MHz", rate / MHZ);
-	} else if (rate >= KHZ) {
-		if (rate % KHZ)
-			printk("%ld.%03ld KHz", rate / KHZ, rate % KHZ);
-		else
-			printk("%ld KHz", rate / KHZ);
-	} else {
-		printk("%ld Hz", rate);
-	}
-
-	printk(" usecount = %d", clk->usecount);
-
-	if (clk->parent)
-		printk(" parent = %s", clk->parent->name);
-
-	printk("\n");
-
-	list_for_each_entry(ck, root_clocks, node) {
-		if (ck->parent == clk)
-			rk_dump_clock(ck, deep + 1, root_clocks);
-	}
-}
-
-#if 1
-extern struct list_head *get_rk_clocks_head(void);
-
-void rk_dump_clock_info(void)
-{
-	struct clk* clk;
-	list_for_each_entry(clk, get_rk_clocks_head(), node) {
-		if (!clk->parent)
-			rk_dump_clock(clk, 0,get_rk_clocks_head());
-	}
-}
-#endif
-
 #ifdef CONFIG_PROC_FS
+
 static void dump_clock(struct seq_file *s, struct clk *clk, int deep,const struct list_head *root_clocks)
 {
 	struct clk* ck;
@@ -2689,11 +2598,11 @@ static void __init rk2928_clock_common_init(unsigned long gpll_rate,unsigned lon
 	
 	clk_set_rate_nolock(&aclk_vio_pre, 300*MHZ);
 	//axi vepu auto sel
-	clk_set_parent_nolock(&aclk_vepu, &codec_pll_clk);
-	clk_set_parent_nolock(&aclk_vdpu, &codec_pll_clk);
+	clk_set_parent_nolock(&aclk_vepu, &general_pll_clk);
+	clk_set_parent_nolock(&aclk_vdpu, &general_pll_clk);
 
-	clk_set_rate_nolock(&aclk_vepu, 200*MHZ);
-	clk_set_rate_nolock(&aclk_vdpu, 200*MHZ);
+	clk_set_rate_nolock(&aclk_vepu, 300*MHZ);
+	clk_set_rate_nolock(&aclk_vdpu, 300*MHZ);
 	//gpu auto sel
 	//clk_set_parent_nolock(&clk_gpu_pre, &general_pll_clk);
 	clk_set_rate_nolock(&clk_gpu_pre, 133 * MHZ);
@@ -2702,9 +2611,6 @@ static void __init rk2928_clock_common_init(unsigned long gpll_rate,unsigned lon
 	clk_set_parent_nolock(&clk_sdio, &general_pll_clk);
 	clk_set_parent_nolock(&clk_emmc, &general_pll_clk);
 	clk_set_parent_nolock(&dclk_lcdc, &general_pll_clk);
-
-	clk_set_rate_nolock(&clk_sdmmc0, 24750000);
-	clk_set_rate_nolock(&clk_sdio, 24750000);
 }
 void __init _rk2928_clock_data_init(unsigned long gpll,unsigned long cpll,int flags)
 {
@@ -2724,11 +2630,7 @@ void __init _rk2928_clock_data_init(unsigned long gpll,unsigned long cpll,int fl
 
 	CLKDATA_DBG("clk_recalculate_root_clocks_nolock\n");
 	clk_recalculate_root_clocks_nolock();
-#if 0
-	// print loader config
-	rk_dump_clock_info();
-	while(1);
-#endif
+
 	loops_per_jiffy = CLK_LOOPS_RECALC(arm_pll_clk.rate);
 
 	/*
@@ -2748,11 +2650,11 @@ void __init _rk2928_clock_data_init(unsigned long gpll,unsigned long cpll,int fl
 	CLKDATA_DBG("%s clks init finish\n", __func__);
 }
 
-int rk292x_dvfs_init(void);
+
 void __init rk2928_clock_data_init(unsigned long gpll,unsigned long cpll,u32 flags)
 {
 	printk("%s version:	2012-8-14\n", __func__);
 	_rk2928_clock_data_init(gpll,cpll,flags);
-	rk292x_dvfs_init();
+	rk30_dvfs_init();
 }
 
