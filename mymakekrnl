@@ -1,2 +1,1 @@
 make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- -j3
-cp arch/arm/boot/zImage ./
