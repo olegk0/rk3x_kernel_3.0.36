@@ -22,11 +22,15 @@
 #include <linux/list.h>
 #include "rk_ump.h"
 
-#if 0
-#define DDEBUG(fmt, args...)	{printk("%s - " fmt "\n",__func__, ##args);}
+#define DBG_LVL 2
+
+#if DBG_LVL
+#define DDEBUG(lvl, fmt, args...) {if(lvl <= DBG_LVL) printk("%s - " fmt "\n",__func__, ##args);}
 #else
 #define DDEBUG(...)
 #endif
+
+#define USI_MAX_CONNECTIONS 20
 
 static DEFINE_MUTEX(usi_lock);
 static LIST_HEAD(usi_list);
@@ -41,6 +45,9 @@ struct usi_mbs {
 	struct list_head	node;
 	usi_mbstat	stat;
 	struct usi_ump_mbs	uum;
+	void    *umh;
+	void    *virt;
+	int     ref_id;
 };
 
 struct usi_private{
@@ -49,53 +56,12 @@ struct usi_private{
 	u32			end;
 	u32			full_size;
 	u32			used;
+	u8          con_ids[USI_MAX_CONNECTIONS];
 };
 
 static struct usi_private usi_priv;
 
-static int usi_ump_init_list(void)
-{
-	struct usi_mbs *umbs;
-
-	umbs = kzalloc(sizeof(*umbs), GFP_KERNEL);
-	if(! umbs){
-		DDEBUG("Don`t allocate mem for first block");
-		return -ENOMEM;
-	}
-	
-	umbs->stat = MB_FREE;
-	umbs->uum.addr = UMP_SIZE_ALIGN(usi_priv.begin);
-	umbs->uum.size = usi_priv.full_size - (umbs->uum.addr - usi_priv.begin);
-	umbs->uum.umh = NULL;
-	list_add(&umbs->node, &usi_list);
-	
-	return 0;
-}
-
-static void usi_ump_free_all(void)
-{
-	int i;
-    struct usi_mbs *umbs, *tumbs;
-
-	mutex_lock(&usi_lock);
-    list_for_each_entry_safe(umbs, tumbs, &usi_list, node) {
-//		if(!list_empty(&usi_list)){
-			if(umbs){
-				if(umbs->uum.umh){
-					i = 100;
-					while(ump_dd_reference_release(umbs->uum.umh) && i--); //WARNING  it requires change ump kernel driver (ump_dd_reference_release func)
-				}
-				list_del(&umbs->node);
-				kfree(umbs);
-				umbs = NULL;
-			}
-//		}
-    }
-	mutex_unlock(&usi_lock);
-	usi_priv.used = 0;
-}
-
-static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size)
+static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size, int ref_id)
 {
 	struct usi_mbs *umbs, *new_umbs=NULL;
 	ump_dd_physical_block upb;
@@ -103,7 +69,7 @@ static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size)
 	ump_secure_id secure_id;
 	int find=0;
 
-	DDEBUG("Request on %d bytes", size);
+	DDEBUG(3, "Request on %d bytes", size);
 	size = UMP_SIZE_ALIGN(size);
 	mutex_lock(&usi_lock);
 	list_for_each_entry(umbs, &usi_list, node) {
@@ -112,18 +78,18 @@ static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size)
 			break;
 		}
 	}
-    mutex_unlock(&usi_lock);
+//    mutex_unlock(&usi_lock);
 
     if(!find){
-		DDEBUG("Free buf Not found");
-		return NULL;
+		DDEBUG(1, "Free buf Not found");
+		goto err;
 	}
 	
 	if(umbs->uum.size > size){
 		new_umbs = kzalloc(sizeof(*new_umbs), GFP_KERNEL);
 		if(!new_umbs){
-			DDEBUG("Don`t allocate mem");
-			return NULL;
+			DDEBUG(1,"Don`t allocate mem");
+			goto err;
 		}
 	}
 
@@ -132,12 +98,12 @@ static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size)
 
 	umh = ump_dd_handle_create_from_phys_blocks(&upb, 1);
 	if(umh == UMP_DD_HANDLE_INVALID){
-	    DDEBUG("Error get ump handle");
+	    DDEBUG(1,"Error get ump handle");
 	    goto err_free;
 	}
 	secure_id = ump_dd_secure_id_get(umh);//UMP_INVALID_SECURE_ID
 
-	mutex_lock(&usi_lock);
+//	mutex_lock(&usi_lock);
 	if(new_umbs){// need resize block
 		new_umbs->uum.addr = upb.addr;
 		new_umbs->uum.size = size;
@@ -150,48 +116,56 @@ static struct usi_ump_mbs *usi_ump_alloc_mb(u32 size)
 		new_umbs = umbs;
 	}
 	new_umbs->stat = MB_ALLOC;
-	new_umbs->uum.umh = umh;
+	new_umbs->umh = umh;
 	new_umbs->uum.secure_id = secure_id;
+    new_umbs->ref_id = ref_id;
 	
 	usi_priv.used += size;
 	mutex_unlock(&usi_lock);
 	
-    DDEBUG("Secure id:%d find:%d used:%d paddr:%X",secure_id, find, usi_priv.used, new_umbs->uum.addr);
+    DDEBUG(3, "Secure id:%d ref_id:%d used:%d paddr:%X",secure_id, ref_id, usi_priv.used, new_umbs->uum.addr);
     return &new_umbs->uum;
 
 err_free:
 	if(new_umbs)
 		kfree(new_umbs);
+err:
+	mutex_unlock(&usi_lock);
 	return NULL;
 }
 
-static int usi_ump_free_mb(ump_secure_id secure_id)
+static int usi_ump_free_mb(int ref_id, ump_secure_id secure_id)
 {
     struct usi_mbs *umbs, *tumbs, *umbs_prev=NULL;
     int find=0,ret=0, i;
 
-	if(list_empty(&usi_list))
+    if(list_empty(&usi_list))
 		return -EINVAL;
 
+    DDEBUG(3,"Release mem block ref_id:%d secure_id:%d", ref_id, secure_id);
+    
     mutex_lock(&usi_lock);
     list_for_each_entry(umbs, &usi_list, node) {
-		if(umbs->uum.secure_id == secure_id){
+		if(umbs->stat == MB_ALLOC && ((secure_id && umbs->uum.secure_id == secure_id ) ||//del by secure id
+                ( ref_id && umbs->ref_id == ref_id )) ){ //del by ref id
+            i=100;
+            if(umbs->umh)
+                while(ump_dd_reference_release(umbs->umh) && i--); //WARNING  it requires change ump kernel driver (ump_dd_reference_release func)
+            umbs->umh = NULL;
+            umbs->stat = MB_FREE;
+            usi_priv.used -= umbs->uum.size;
+        
 			find = 1;
-			break;
+            if(secure_id)
+                break;
 		}
     }
-    mutex_unlock(&usi_lock);
+//    mutex_unlock(&usi_lock);
 
     if(find){
-		DDEBUG("Release mem block");
-		i=100;
-		if(umbs->uum.umh)
-			while(ump_dd_reference_release(umbs->uum.umh) && i--); //WARNING  it requires change ump kernel driver (ump_dd_reference_release func)
-		umbs->uum.umh = NULL;
-		umbs->stat = MB_FREE;
+        DDEBUG(3, "Mem block released");
 //defrag
-		mutex_lock(&usi_lock);
-		usi_priv.used -= umbs->uum.size;
+//		mutex_lock(&usi_lock);
 		list_for_each_entry_safe(umbs, tumbs, &usi_list, node) {
 			if(umbs_prev && umbs_prev->stat == MB_FREE && umbs->stat == MB_FREE){
 				umbs->uum.size += umbs_prev->uum.size;
@@ -202,12 +176,13 @@ static int usi_ump_free_mb(ump_secure_id secure_id)
 			}
 			umbs_prev = umbs;
 		}
-		mutex_unlock(&usi_lock);
-		DDEBUG("Used:%d", usi_priv.used);
+//		mutex_unlock(&usi_lock);
     }else{
-		DDEBUG("Mem block dont found");
+		DDEBUG(1, "Mem block don`t found");
 		ret = -ENODEV;
     }
+	mutex_unlock(&usi_lock);
+    DDEBUG(2, "--------used:%d", usi_priv.used);
     return ret;
 }
 
@@ -217,12 +192,13 @@ static long usi_ump_ioctl(struct file *file, unsigned int cmd, unsigned long arg
     u32 param[2];
 	struct usi_ump_mbs	*uum, luum;
 	struct usi_ump_mbs_info	uumi;
+    int cnt = (int)file->private_data;
 
     switch (cmd) {
     case USI_ALLOC_MEM_BLK:
 		if (copy_from_user(&luum, puser, sizeof(luum)))
 		    return -EFAULT;
-		uum = usi_ump_alloc_mb(luum.size);
+		uum = usi_ump_alloc_mb(luum.size, cnt);
 //	put_user((unsigned int), puser);
 		if(!uum)
 			return -EFAULT;
@@ -232,7 +208,7 @@ static long usi_ump_ioctl(struct file *file, unsigned int cmd, unsigned long arg
     case USI_FREE_MEM_BLK:
 		if (copy_from_user(param, puser, 4))
 		    return -EFAULT;
-		return usi_ump_free_mb(param[0]);
+		return usi_ump_free_mb( 0, param[0]);
     case USI_GET_INFO:
 		uumi.size_full = usi_priv.full_size;
 		uumi.size_used = usi_priv.used;
@@ -240,15 +216,48 @@ static long usi_ump_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 			return -EFAULT;
 		return 0;
 	case USI_FREE_ALL_BLKS:
-		usi_ump_free_all();
-		return usi_ump_init_list();
+		return usi_ump_free_mb( cnt, 0);
     }
     return -EFAULT;
+}
+
+int usi_ump_release(struct inode *inode, struct file *file)
+{
+    int cnt = (int)file->private_data;
+
+    BUG_ON(cnt < 1);
+    usi_ump_free_mb(cnt, 0);
+    mutex_lock(&usi_lock);    
+    usi_priv.con_ids[cnt-1] = 0;
+    mutex_unlock(&usi_lock);
+    DDEBUG(3, "id:%d", cnt);
+    return 0;
+}
+
+int usi_ump_open(struct inode *inode, struct file *file)
+{
+    int cnt, ret=0;
+    
+    mutex_lock(&usi_lock);
+    for(cnt=0;cnt<USI_MAX_CONNECTIONS;cnt++)
+        if(!usi_priv.con_ids[cnt]) break;
+    if(cnt == USI_MAX_CONNECTIONS)
+        ret = -EAGAIN;
+    else{
+        usi_priv.con_ids[cnt] = 1;
+        cnt++;
+        file->private_data = (void *)cnt;
+    }
+    mutex_unlock(&usi_lock);
+    DDEBUG(3, "id:%d", cnt);
+    return ret;
 }
 
 static const struct file_operations usi_fops = {
     .owner  = THIS_MODULE,
     .unlocked_ioctl = usi_ump_ioctl,
+    .open = usi_ump_open,
+    .release = usi_ump_release,
 };
 
 static struct miscdevice usi_dev = {
@@ -258,10 +267,53 @@ static struct miscdevice usi_dev = {
     &usi_fops
 };
 
+static int usi_ump_init_list(void)
+{
+	struct usi_mbs *umbs;
+
+	umbs = kzalloc(sizeof(*umbs), GFP_KERNEL);
+	if(! umbs){
+		DDEBUG(1, "Don`t allocate mem for first block");
+		return -ENOMEM;
+	}
+	
+	umbs->stat = MB_FREE;
+	umbs->uum.addr = UMP_SIZE_ALIGN(usi_priv.begin);
+	umbs->uum.size = usi_priv.full_size - (umbs->uum.addr - usi_priv.begin);
+	umbs->umh = NULL;
+	list_add(&umbs->node, &usi_list);
+	
+	return 0;
+}
+
+static void usi_ump_free_all(void)
+{
+	int i;
+    struct usi_mbs *umbs, *tumbs;
+
+    DDEBUG(3, "Release all mem blocks");
+	mutex_lock(&usi_lock);
+    list_for_each_entry_safe(umbs, tumbs, &usi_list, node) {
+//		if(!list_empty(&usi_list)){
+			if(umbs){
+				if(umbs->umh){
+					i = 100;
+					while(ump_dd_reference_release(umbs->umh) && i--); //WARNING  it requires change ump kernel driver (ump_dd_reference_release func)
+				}
+				list_del(&umbs->node);
+				kfree(umbs);
+				umbs = NULL;
+			}
+//		}
+    }
+    usi_priv.used = 0;
+	mutex_unlock(&usi_lock);
+}
+
 static int __devinit usi_ump_probe (struct platform_device *pdev)
 {
 	struct resource *pr, *mr;
-	int ret = 0;
+	int ret = 0, i;
 
 	usi_priv.pdev = pdev;
 
@@ -287,13 +339,17 @@ static int __devinit usi_ump_probe (struct platform_device *pdev)
 	if(usi_ump_init_list()){
 		goto err_free;
 	}
+
+	for(i=0;i<USI_MAX_CONNECTIONS;i++)
+        	usi_priv.con_ids[i] = 0;
 	
 	ret = misc_register(&usi_dev);
 	if(ret){
 		dev_err(&pdev->dev, "Unable to register usi_ump\n" );
 		goto err_free_mem2;
 	}
-	DDEBUG("Mem allocate for buffer %d Mb", usi_priv.full_size / (1024 * 1024));
+    mutex_init(&usi_lock);
+	printk("RK_UMP: Mem allocate for buffer %d Mb from:%X", usi_priv.full_size / (1024 * 1024), usi_priv.begin);
 //    platform_set_drvdata(pdev, ud);
 	return 0;
 

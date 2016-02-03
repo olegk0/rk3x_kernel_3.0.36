@@ -17,6 +17,10 @@
 #define USI_ALLOC_MEM_BLK	_IOWR('u', 3, struct usi_ump_mbs)
 #define USI_FREE_MEM_BLK	_IOW('u', 4, ump_secure_id)
 
+#define USI_GET_RES_REFS	_IO('u', 10)
+#define USI_ALLOC_RES       _IOW('u', 11, int)
+#define USI_FREE_RES        _IOW('u', 12, int)
+
 #define UMP_MINIMUM_SIZE         4096
 #define UMP_MINIMUM_SIZE_MASK    (~(UMP_MINIMUM_SIZE-1))
 #define UMP_SIZE_ALIGN(x)        (((x)+UMP_MINIMUM_SIZE-1)&UMP_MINIMUM_SIZE_MASK)

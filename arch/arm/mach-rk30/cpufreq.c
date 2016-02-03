@@ -132,11 +132,11 @@ static const struct cpufreq_frequency_table temp_limits[] = {
    {.frequency = 1008 * 1000, .index = 70},
    {.frequency =  816 * 1000, .index = 75},
    */
-	{.frequency = 1512 * 1000, .index = 60},
-	{.frequency = 1416 * 1000, .index = 65},
-	{.frequency = 1200 * 1000, .index = 70},
-	{.frequency = 1008 * 1000, .index = 75},
-	{.frequency =  816 * 1000, .index = 80},
+	{.frequency = 1512 * 1000, .index = 50},
+	{.frequency = 1416 * 1000, .index = 55},
+	{.frequency = 1200 * 1000, .index = 60},
+	{.frequency = 1008 * 1000, .index = 65},
+	{.frequency =  816 * 1000, .index = 75},
 
 #else
 	{.frequency = 1416 * 1000, .index = 50},
