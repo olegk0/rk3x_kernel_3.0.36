@@ -9,7 +9,7 @@
  * kind, whether express or implied.
  */
 
-#define DEBUG
+//#define DEBUG
 
 #include <linux/module.h>
 #include <linux/sched.h>

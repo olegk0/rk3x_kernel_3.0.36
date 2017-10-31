@@ -5,8 +5,8 @@ DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DBCMDRIVER                     \
 	-DDHD_BCMEVENTS -DSHOW_EVENTS -DDONGLEOVERLAYS -DBCMDBG               \
 	-DMMC_SDIO_ABORT -DBCMSDIO -DBCMLXSDMMC -DBCMPLATFORM_BUS -DWLP2P     \
 	-DNEW_COMPAT_WIRELESS -DWIFI_ACT_FRAME -DARP_OFFLOAD_SUPPORT          \
-	-DKEEP_ALIVE -DPKT_FILTER_SUPPORT  -DWL_IW_USE_ISCAN \
-	-DEMBEDDED_PLATFORM  -DPNO_SUPPORT -DCSCAN \
+	-DKEEP_ALIVE -DCSCAN  -DPKT_FILTER_SUPPORT     \
+	-DEMBEDDED_PLATFORM  -DPNO_SUPPORT          \
 	-Idrivers/net/wireless/bcm40181 -Idrivers/net/wireless/bcm40181/include
 
 DHDOFILES = dhd_linux.o linux_osl.o bcmutils.o bcmevent.o dhd_common.o \

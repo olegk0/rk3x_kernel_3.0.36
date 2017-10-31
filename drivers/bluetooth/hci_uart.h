@@ -64,6 +64,8 @@ struct hci_uart {
 	unsigned long		flags;
 	unsigned long		hdev_flags;
 
+	struct work_struct	write_work;
+
 	struct hci_uart_proto	*proto;
 	void			*priv;
 
@@ -102,3 +104,10 @@ int ll_deinit(void);
 int ath_init(void);
 int ath_deinit(void);
 #endif
+
+//Realtek_add_start
+#ifdef CONFIG_BT_HCIUART_RTKH5
+int h5_init(void);
+int h5_deinit(void);
+#endif
+//Realtek_add_end

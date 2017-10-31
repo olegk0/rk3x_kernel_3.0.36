@@ -44,6 +44,7 @@
 
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
+#include <net/bluetooth/smp.h>
 
 static void hci_le_connect(struct hci_conn *conn)
 {
@@ -56,15 +57,15 @@ static void hci_le_connect(struct hci_conn *conn)
 	conn->sec_level = BT_SECURITY_LOW;
 
 	memset(&cp, 0, sizeof(cp));
-	cp.scan_interval = cpu_to_le16(0x0004);
-	cp.scan_window = cpu_to_le16(0x0004);
+	cp.scan_interval = cpu_to_le16(0x0060);
+	cp.scan_window = cpu_to_le16(0x0030);
 	bacpy(&cp.peer_addr, &conn->dst);
 	cp.peer_addr_type = conn->dst_type;
-	cp.conn_interval_min = cpu_to_le16(0x0008);
-	cp.conn_interval_max = cpu_to_le16(0x0100);
-	cp.supervision_timeout = cpu_to_le16(0x0064);
-	cp.min_ce_len = cpu_to_le16(0x0001);
-	cp.max_ce_len = cpu_to_le16(0x0001);
+	cp.conn_interval_min = cpu_to_le16(0x0028);
+	cp.conn_interval_max = cpu_to_le16(0x0038);
+	cp.supervision_timeout = cpu_to_le16(0x002a);
+	cp.min_ce_len = cpu_to_le16(0x0000);
+	cp.max_ce_len = cpu_to_le16(0x0000);
 
 	hci_send_cmd(hdev, HCI_OP_LE_CREATE_CONN, sizeof(cp), &cp);
 }
@@ -218,7 +219,7 @@ void hci_le_start_enc(struct hci_conn *conn, __le16 ediv, __u8 rand[8],
 	cp.handle = cpu_to_le16(conn->handle);
 	memcpy(cp.ltk, ltk, sizeof(cp.ltk));
 	cp.ediv = ediv;
-	memcpy(cp.rand, rand, sizeof(rand));
+	memcpy(cp.rand, rand, sizeof(cp.rand));
 
 	hci_send_cmd(hdev, HCI_OP_LE_START_ENC, sizeof(cp), &cp);
 }
@@ -333,8 +334,7 @@ static void hci_conn_auto_accept(unsigned long arg)
 	hci_dev_unlock(hdev);
 }
 
-struct hci_conn *hci_conn_add(struct hci_dev *hdev, int type,
-					__u16 pkt_type, bdaddr_t *dst)
+struct hci_conn *hci_conn_add(struct hci_dev *hdev, int type, bdaddr_t *dst)
 {
 	struct hci_conn *conn;
 
@@ -362,22 +362,14 @@ struct hci_conn *hci_conn_add(struct hci_dev *hdev, int type,
 		conn->pkt_type = hdev->pkt_type & ACL_PTYPE_MASK;
 		break;
 	case SCO_LINK:
-		if (!pkt_type)
-			pkt_type = SCO_ESCO_MASK;
+		if (lmp_esco_capable(hdev))
+			conn->pkt_type = (hdev->esco_type & SCO_ESCO_MASK) |
+					(hdev->esco_type & EDR_ESCO_MASK);
+		else
+			conn->pkt_type = hdev->pkt_type & SCO_PTYPE_MASK;
+		break;
 	case ESCO_LINK:
-		if (!pkt_type)
-			pkt_type = ALL_ESCO_MASK;
-		if (lmp_esco_capable(hdev)) {
-			/* HCI Setup Synchronous Connection Command uses
-			   reverse logic on the EDR_ESCO_MASK bits */
-			conn->pkt_type = (pkt_type ^ EDR_ESCO_MASK) &
-					hdev->esco_type;
-		} else {
-			/* Legacy HCI Add Sco Connection Command uses a
-			   shifted bitmask */
-			conn->pkt_type = (pkt_type << 5) & hdev->pkt_type &
-					SCO_PTYPE_MASK;
-		}
+		conn->pkt_type = hdev->esco_type & ~EDR_ESCO_MASK;
 		break;
 	}
 
@@ -501,9 +493,7 @@ EXPORT_SYMBOL(hci_get_route);
 
 /* Create SCO, ACL or LE connection.
  * Device _must_ be locked */
-struct hci_conn *hci_connect(struct hci_dev *hdev, int type,
-					__u16 pkt_type, bdaddr_t *dst,
-					__u8 sec_level, __u8 auth_type)
+struct hci_conn *hci_connect(struct hci_dev *hdev, int type, bdaddr_t *dst, __u8 sec_level, __u8 auth_type)
 {
 	struct hci_conn *acl;
 	struct hci_conn *sco;
@@ -522,7 +512,7 @@ struct hci_conn *hci_connect(struct hci_dev *hdev, int type,
 		if (!entry)
 			return ERR_PTR(-EHOSTUNREACH);
 
-		le = hci_conn_add(hdev, LE_LINK, 0, dst);
+		le = hci_conn_add(hdev, LE_LINK, dst);
 		if (!le)
 			return ERR_PTR(-ENOMEM);
 
@@ -537,7 +527,7 @@ struct hci_conn *hci_connect(struct hci_dev *hdev, int type,
 
 	acl = hci_conn_hash_lookup_ba(hdev, ACL_LINK, dst);
 	if (!acl) {
-		acl = hci_conn_add(hdev, ACL_LINK, 0, dst);
+		acl = hci_conn_add(hdev, ACL_LINK, dst);
 		if (!acl)
 			return NULL;
 	}
@@ -556,7 +546,7 @@ struct hci_conn *hci_connect(struct hci_dev *hdev, int type,
 
 	sco = hci_conn_hash_lookup_ba(hdev, type, dst);
 	if (!sco) {
-		sco = hci_conn_add(hdev, type, pkt_type, dst);
+		sco = hci_conn_add(hdev, type, dst);
 		if (!sco) {
 			hci_conn_put(acl);
 			return NULL;
@@ -620,14 +610,17 @@ static int hci_conn_auth(struct hci_conn *conn, __u8 sec_level, __u8 auth_type)
 	if (!test_and_set_bit(HCI_CONN_AUTH_PEND, &conn->pend)) {
 		struct hci_cp_auth_requested cp;
 
-		/* encrypt must be pending if auth is also pending */
-		set_bit(HCI_CONN_ENCRYPT_PEND, &conn->pend);
-
 		cp.handle = cpu_to_le16(conn->handle);
 		hci_send_cmd(conn->hdev, HCI_OP_AUTH_REQUESTED,
 							sizeof(cp), &cp);
-		if (conn->key_type != 0xff)
+
+		/* If we're already encrypted set the REAUTH_PEND flag,
+		 * otherwise set the ENCRYPT_PEND.
+		 */
+		if (conn->link_mode & HCI_LM_ENCRYPT)
 			set_bit(HCI_CONN_REAUTH_PEND, &conn->pend);
+		else
+			set_bit(HCI_CONN_ENCRYPT_PEND, &conn->pend);
 	}
 
 	return 0;
@@ -651,6 +644,11 @@ static void hci_conn_encrypt(struct hci_conn *conn)
 int hci_conn_security(struct hci_conn *conn, __u8 sec_level, __u8 auth_type)
 {
 	BT_DBG("conn %p", conn);
+
+#ifdef CONFIG_BT_L2CAP
+	if (conn->type == LE_LINK)
+		return smp_conn_security(conn, sec_level);
+#endif
 
 	/* For sdp we don't need the link key. */
 	if (sec_level == BT_SECURITY_SDP)
@@ -907,15 +905,6 @@ int hci_get_conn_list(void __user *arg)
 		(ci + n)->out   = c->out;
 		(ci + n)->state = c->state;
 		(ci + n)->link_mode = c->link_mode;
-		if (c->type == SCO_LINK) {
-			(ci + n)->mtu = hdev->sco_mtu;
-			(ci + n)->cnt = hdev->sco_cnt;
-			(ci + n)->pkts = hdev->sco_pkts;
-		} else {
-			(ci + n)->mtu = hdev->acl_mtu;
-			(ci + n)->cnt = hdev->acl_cnt;
-			(ci + n)->pkts = hdev->acl_pkts;
-		}
 		if (++n >= req.conn_num)
 			break;
 	}
@@ -952,15 +941,6 @@ int hci_get_conn_info(struct hci_dev *hdev, void __user *arg)
 		ci.out   = conn->out;
 		ci.state = conn->state;
 		ci.link_mode = conn->link_mode;
-		if (req.type == SCO_LINK) {
-			ci.mtu = hdev->sco_mtu;
-			ci.cnt = hdev->sco_cnt;
-			ci.pkts = hdev->sco_pkts;
-		} else {
-			ci.mtu = hdev->acl_mtu;
-			ci.cnt = hdev->acl_cnt;
-			ci.pkts = hdev->acl_pkts;
-		}
 	}
 	hci_dev_unlock_bh(hdev);
 

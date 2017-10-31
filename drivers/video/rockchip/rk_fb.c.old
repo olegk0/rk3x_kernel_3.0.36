@@ -37,15 +37,12 @@
 
 #include <mach/clock.h>
 #include <linux/clk.h>
-#include <linux/hrtimer.h>
 
 void rk29_backlight_set(bool on);
 bool rk29_get_backlight_status(void);
 
 static int hdmi_switch_complete = 0;
-#ifndef CONFIG_IAM_CHANGES
 static int fence_wait_begin = 0;
-#endif
 static int hdmi_xsize = 0;
 static int hdmi_ysize = 0;
 struct list_head saved_list;
@@ -802,171 +799,6 @@ static int rk_fb_get_list_stat(struct rk_lcdc_device_driver *dev_drv)
 		return 0;
 }
 
-#ifdef CONFIG_IAM_CHANGES
-#include "out_cache_defs.h"
-
-#define CACHE_TIMER_INIT (disp_cache_s.layer_id != -1)
-#define CACHE_TIMER_START (disp_cache_s.jiffies)
-
-static struct {
-    int                 layer_id;
-    int                 jiffies;
-    u32                 cbr_offs;    
-    int                 PutFbPtr;
-    int                 DispFbPtr;
-    int                 FbFilledCnt;
-    struct rk_lcdc_device_driver *dev_drv;
-    struct layer_par    *par;
-    struct hrtimer      hrtimer;
-    wait_queue_head_t   wait;
-    cache_page_prm_t    cpagep;
-    ktime_t             ktime;
-    u32                 cache_pages_paddr[MAX_CACHE_PAGES];
-}disp_cache_s = {-1,0,0,0,0,0,NULL,NULL,{},{},{},{},{}};
-
-static DEFINE_MUTEX(disp_cache_mut);
-
-static int disp_cache_get4put(void)
-{
-    int ret;
-    int PutNext;
-    
-    if(!CACHE_TIMER_START) //timer is not init
-        return -ENODEV;
-                
-    ret = wait_event_interruptible_timeout(disp_cache_s.wait,
-        disp_cache_s.FbFilledCnt < disp_cache_s.cpagep.num_blk, disp_cache_s.jiffies);
-
-    if(ret <= 0) //timeout
-        return EBUSY;
-        
-    mutex_lock(&disp_cache_mut);
-    PutNext = disp_cache_s.PutFbPtr+1;
-    if(PutNext >= disp_cache_s.cpagep.num_blk )
-        PutNext = 0;
-        
-    if(PutNext !=  disp_cache_s.DispFbPtr){
-        disp_cache_s.PutFbPtr = PutNext;
-        disp_cache_s.FbFilledCnt++;
-    }
-    mutex_unlock(&disp_cache_mut);
-
-    return 0;
-}
-
-static enum hrtimer_restart disp_cache_hrtimer_notify(struct hrtimer *hrtimer)
-{
-    int DispNext;
-        
-    mutex_lock(&disp_cache_mut);
-
-    DispNext = disp_cache_s.DispFbPtr+1;
-    if(DispNext >= disp_cache_s.cpagep.num_blk )
-        DispNext = 0;
-
-    if(disp_cache_s.FbFilledCnt > 2 && DispNext != disp_cache_s.PutFbPtr){
-    	disp_cache_s.DispFbPtr = DispNext;
-    	disp_cache_s.FbFilledCnt--;
-    	if(disp_cache_s.FbFilledCnt == (disp_cache_s.cpagep.num_blk - 1))
-    		wake_up_interruptible_all(&disp_cache_s.wait);
-    }
-    mutex_unlock(&disp_cache_mut);
-    
-	disp_cache_s.par->smem_start = disp_cache_s.cache_pages_paddr[disp_cache_s.DispFbPtr];
-	disp_cache_s.par->cbr_start = disp_cache_s.par->smem_start + disp_cache_s.cpagep.yuv_offs;
-//    printk("FbFilledCnt:%d DispFbPtr:%d smem_start:%X layer_id:%d\n",disp_cache_s.FbFilledCnt,disp_cache_s.DispFbPtr,disp_cache_s.par->smem_start,disp_cache_s.layer_id);
-	disp_cache_s.dev_drv->pan_display(disp_cache_s.dev_drv,disp_cache_s.layer_id);
-
-    hrtimer_forward_now(hrtimer, disp_cache_s.ktime);
-    return HRTIMER_RESTART;
-}
-
-static int disp_cache_hrtimer_ctrl(int delay_us)
-{
-    
-    if(!CACHE_TIMER_INIT){
-        printk(KERN_ERR "timer has not initiated!\n");
-        return -EINVAL;
-     }
-    
-    if(delay_us){
-        disp_cache_s.par->vsync = 0;
-        disp_cache_s.jiffies = msecs_to_jiffies(delay_us / 1000) + 1;
-        hrtimer_init(&disp_cache_s.hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-        disp_cache_s.hrtimer.function = disp_cache_hrtimer_notify;
-        disp_cache_s.ktime = ktime_set( 0, delay_us * 1000 );// uS to nS
-        hrtimer_start(&disp_cache_s.hrtimer, disp_cache_s.ktime, HRTIMER_MODE_REL_PINNED);
-    }else
-        if(disp_cache_s.jiffies){
-            hrtimer_cancel(&disp_cache_s.hrtimer);
-            disp_cache_s.jiffies = 0;
-        }
-    
-    return 0;
-}
-
-static int disp_cache_hrtimer_init(struct rk_lcdc_device_driver *dev_drv, int layer_id, cache_page_prm_t *cpagep)
-{
-    int i;
-
-    if(CACHE_TIMER_INIT){
-        printk(KERN_ERR "before re-initialization should be freed\n");
-        return -EBUSY;
-    }
-    
-    if(!(cpagep->num_blk > 3 && cpagep->size_blk && cpagep->first_paddr && cpagep->num_blk < MAX_CACHE_PAGES)){
-        printk(KERN_ERR "Error in parameters!\n");
-        return -EINVAL;
-     }
-    
-    disp_cache_s.jiffies = 0;
-
-//    static struct rk_lcdc_device_driver * rk_get_prmry_lcdc_drv(void)
-
-    for(i=0; i<cpagep->num_blk; i++){
-        disp_cache_s.cache_pages_paddr[i] = cpagep->first_paddr +
-            cpagep->size_blk * i;
-    }
-
-    memcpy(&disp_cache_s.cpagep, cpagep, sizeof(cache_page_prm_t));
-
-    disp_cache_s.par = dev_drv->layer_par[layer_id];
-    disp_cache_s.dev_drv = dev_drv;    
-    
-    disp_cache_s.DispFbPtr = 0;
-    disp_cache_s.FbFilledCnt = 2;//for display (one render + one prepare)
-    disp_cache_s.PutFbPtr = disp_cache_s.DispFbPtr;
-    disp_cache_s.layer_id = layer_id;
-    init_waitqueue_head(&disp_cache_s.wait);
-
-    return 0;
-}
-
-static int disp_cache_hrtimer_free(void)
-{
-    if(!CACHE_TIMER_INIT)
-        return -EFAULT;
-
-    if(disp_cache_s.jiffies){
-        hrtimer_cancel(&disp_cache_s.hrtimer);
-        disp_cache_s.jiffies = 0;
-    }
-        
-    disp_cache_s.layer_id = -1;
-    
-    return 0;
-}
-
-static int disp_cache_stat(void)
-{
-    if(!CACHE_TIMER_INIT)
-        return STS_CACHE_NOINIT;
-    if(!CACHE_TIMER_START)
-        return STS_CACHE_STOP;
-    return disp_cache_s.FbFilledCnt;
-}
-#endif
-
 static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 {
 	struct fb_fix_screeninfo *fix = &info->fix;
@@ -982,9 +814,8 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 	int enable; // enable fb:1 enable;0 disable 
 	int ovl;	//overlay:0 win1 on the top of win0;1,win0 on the top of win1
 	int num_buf; //buffer_number
-#ifndef CONFIG_IAM_CHANGES	
 	int ret;//,i;
-
+	
 	struct rk_reg_data *regs;
 	struct sync_fence *release_fence;
 	struct sync_fence *retire_fence;
@@ -993,10 +824,7 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 
 	struct sync_fence *layer2_fence;
 	struct sync_pt *layer2_pt;
-#else
-    cache_put_prm_t cache_put_prml;
-    cache_page_prm_t cache_page_prml;
-#endif
+
 //	int fence_fd;
 	void __user *argp = (void __user *)arg;
 
@@ -1019,50 +847,16 @@ static int rk_fb_ioctl(struct fb_info *info, unsigned int cmd,unsigned long arg)
 			{
 				if (copy_from_user(yuv_phy, argp, 8))
 					return -EFAULT;
-#ifdef CONFIG_IAM_CHANGES
-				par->smem_start = yuv_phy[0];
-				par->cbr_start = yuv_phy[1];
-				return dev_drv->pan_display(dev_drv,layer_id);
-#else
 				fix->smem_start = yuv_phy[0];  //four y
 				fix->mmio_start = yuv_phy[1];  //four uv
+#ifdef CONFIG_IAM_CHANGES
+				par->smem_start = fix->smem_start;
+				par->cbr_start = fix->mmio_start;
+				return dev_drv->pan_display(dev_drv,layer_id);
 #endif
 			}
 			break;
 #ifdef CONFIG_IAM_CHANGES
-		case RK_FBIOSET_CACHE_INIT:            
-            if(copy_from_user(&cache_page_prml, argp, sizeof(cache_page_prml)))
-                return -EFAULT;
-            if(!CACHE_TIMER_INIT){ //timer is not init
-                return disp_cache_hrtimer_init(dev_drv, layer_id, &cache_page_prml);
-            }else{//timer running
-                if(cache_page_prml.num_blk){                
-                    printk(KERN_ERR "timer has been initialized!\n");
-                    return -EBUSY;
-                }else
-                    return disp_cache_hrtimer_free();
-            }
-            break;
-        case RK_FBIOSET_CACHE_CTRL:
-            if(copy_from_user(&timeout, argp, sizeof(timeout)))
-                return -EFAULT;
-            return disp_cache_hrtimer_ctrl(timeout);
-            break;
-        case RK_FBIOSET_CACHE_STAT:
-            timeout = disp_cache_stat();
-            if(copy_to_user(argp,&timeout,sizeof(timeout)))
-                return -EFAULT;
-            break;
-        case RK_FBIOSET_CACHE_GPUT:
-            timeout = disp_cache_get4put();
-            if(timeout >= 0){
-                cache_put_prml.PutFbPaddr = disp_cache_s.cache_pages_paddr[disp_cache_s.PutFbPtr];
-                cache_put_prml.NBlk = disp_cache_s.PutFbPtr;
-                if(copy_to_user(argp,&cache_put_prml,sizeof(cache_put_prm_t)))
-                    return -EFAULT;
-            }
-            return timeout;
-            break;
 		case FBIO_WAITFORVSYNC:
 //		    return dev_drv->pan_display(dev_drv,layer_id);
 //			return dev_drv->wait_end_paint(dev_drv);

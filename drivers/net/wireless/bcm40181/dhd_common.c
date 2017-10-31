@@ -1530,6 +1530,9 @@ dhd_sendup_event_common(dhd_pub_t *dhdp, wl_event_msg_t *event, void *data)
 
 #ifdef SIMPLE_ISCAN
 
+void dhd_iscan_lock() {};
+void dhd_iscan_unlock() {};
+
 uint iscan_thread_id = 0;
 iscan_buf_t * iscan_chain = 0;
 

@@ -90,7 +90,7 @@ typedef const struct si_pub  si_t;
 
 #include <linux/rtnetlink.h>
 
-//IAM#define WL_IW_USE_ISCAN  1
+#define WL_IW_USE_ISCAN  1
 #define ENABLE_ACTIVE_PASSIVE_SCAN_SUPPRESS  1
 
 #ifdef OEM_CHROMIUMOS
@@ -217,13 +217,13 @@ static int dev_wlc_bufvar_set(struct net_device *dev, char *name, char *buf, int
 #define ISCAN_STATE_IDLE   0
 #define ISCAN_STATE_SCANING 1
 
-#if !defined(SIMPLE_ISCAN)
+
 #define WLC_IW_ISCAN_MAXLEN   2048
 typedef struct iscan_buf {
 	struct iscan_buf * next;
 	char   iscan_buf[WLC_IW_ISCAN_MAXLEN];
 } iscan_buf_t;
-#endif
+
 typedef struct iscan_info {
 	struct net_device *dev;
 	struct timer_list timer;
@@ -2797,7 +2797,7 @@ wl_iw_mlme(
 }
 #endif 
 
-//#ifndef WL_IW_USE_ISCAN
+#ifndef WL_IW_USE_ISCAN
 static int
 wl_iw_get_aplist(
 	struct net_device *dev,
@@ -2875,7 +2875,7 @@ wl_iw_get_aplist(
 
 	return 0;
 }
-//#endif 
+#endif 
 
 #ifdef WL_IW_USE_ISCAN
 static int
@@ -3677,7 +3677,7 @@ wl_iw_iscan_set_scan(
 
 	
 	if ((!iscan) || (iscan->tsk_ctl.thr_pid < 0)) {
-		WL_ERROR(("%s error, iscan:%p \n",  __FUNCTION__, iscan));
+		WL_ERROR(("%s error \n",  __FUNCTION__));
 		goto set_scan_end;
 	}
 
@@ -4328,8 +4328,6 @@ wl_iw_iscan_get_scan(
 
 #define WL_JOIN_PARAMS_MAX 1600
 #ifdef CONFIG_PRESCANNED
-#define MUTEX_LOCK_WL_SCAN_SET()
-#define MUTEX_UNLOCK_WL_SCAN_SET()
 static int
 check_prescan(wl_join_params_t *join_params, int *join_params_size)
 {
@@ -7602,13 +7600,13 @@ static const iw_handler wl_iw_handler[] =
 #else
 	(iw_handler) NULL,			
 #endif
-#if defined(WL_IW_USE_ISCAN) && defined(WL_CFG80211)
+#if defined(WL_IW_USE_ISCAN)
 	(iw_handler) wl_iw_iscan_get_aplist,	
 #else
 	(iw_handler) wl_iw_get_aplist,		
 #endif 
 #if WIRELESS_EXT > 13
-#if defined(WL_IW_USE_ISCAN) && defined(WL_CFG80211)
+#if defined(WL_IW_USE_ISCAN)
 	(iw_handler) wl_iw_iscan_set_scan,	
 	(iw_handler) wl_iw_iscan_get_scan,	
 #else

@@ -120,10 +120,6 @@ static inline struct sk_buff *hci_uart_dequeue(struct hci_uart *hu)
 
 int hci_uart_tx_wakeup(struct hci_uart *hu)
 {
-	struct tty_struct *tty = hu->tty;
-	struct hci_dev *hdev = hu->hdev;
-	struct sk_buff *skb;
-
 	if (test_and_set_bit(HCI_UART_SENDING, &hu->tx_state)) {
 		set_bit(HCI_UART_TX_WAKEUP, &hu->tx_state);
 		return 0;
@@ -131,18 +127,25 @@ int hci_uart_tx_wakeup(struct hci_uart *hu)
 
 	BT_DBG("");
 
+	schedule_work(&hu->write_work);
+
+	return 0;
+}
+
+static void hci_uart_write_work(struct work_struct *work)
+{
+	struct hci_uart *hu = container_of(work, struct hci_uart, write_work);
+	struct tty_struct *tty = hu->tty;
+	struct hci_dev *hdev = hu->hdev;
+	struct sk_buff *skb;
+
+	/* REVISIT: should we cope with bad skbs or ->write() returning
+	 * and error value ?
+	 */
+
 restart:
 	clear_bit(HCI_UART_TX_WAKEUP, &hu->tx_state);
-/*added by Barry,for broadcom 4325*/
-#ifdef CONFIG_BT_AUTOSLEEP
-#ifdef CONFIG_RFKILL_RK
-    extern int rfkill_rk_sleep_bt(bool bSleep);
-    rfkill_rk_sleep_bt(false);
-#else
-    extern void bcm4325_sleep(unsigned long bSleep);
-    bcm4325_sleep(0);
-#endif
-#endif
+
 	while ((skb = hci_uart_dequeue(hu))) {
 		int len;
 
@@ -164,7 +167,6 @@ restart:
 		goto restart;
 
 	clear_bit(HCI_UART_SENDING, &hu->tx_state);
-	return 0;
 }
 
 /* ------- Interface to HCI layer ------ */
@@ -283,6 +285,8 @@ static int hci_uart_tty_open(struct tty_struct *tty)
 	hu->tty = tty;
 	tty->receive_room = 65536;
 
+	INIT_WORK(&hu->write_work, hci_uart_write_work);
+
 	spin_lock_init(&hu->rx_lock);
 
 	/* Flush any pending characters in the driver and line discipline. */
@@ -316,6 +320,8 @@ static void hci_uart_tty_close(struct tty_struct *tty)
 
 		if (hdev)
 			hci_uart_close(hdev);
+
+		cancel_work_sync(&hu->write_work);
 
 		if (test_and_clear_bit(HCI_UART_PROTO_SET, &hu->flags)) {
 			if (hdev) {
@@ -574,7 +580,12 @@ static int __init hci_uart_init(void)
 #ifdef CONFIG_BT_HCIUART_ATH3K
 	ath_init();
 #endif
-
+//Realtek_add_start	
+//add realtek h5 support	
+#ifdef CONFIG_BT_HCIUART_RTKH5
+	h5_init();
+#endif
+//Realtek_add_end	
 	return 0;
 }
 
@@ -593,6 +604,10 @@ static void __exit hci_uart_exit(void)
 #endif
 #ifdef CONFIG_BT_HCIUART_ATH3K
 	ath_deinit();
+#endif
+
+#ifdef CONFIG_BT_HCIUART_RTKH5
+	h5_deinit();
 #endif
 
 	/* Release tty registration of line discipline */

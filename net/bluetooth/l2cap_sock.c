@@ -26,6 +26,9 @@
 
 /* Bluetooth L2CAP sockets. */
 
+#include <linux/security.h>
+//#include <linux/export.h>
+
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
 #include <net/bluetooth/l2cap.h>
@@ -613,7 +616,7 @@ static int l2cap_sock_setsockopt(struct socket *sock, int level, int optname, ch
 				break;
 			}
 
-			if (smp_conn_security(conn, sec.level))
+			if (smp_conn_security(conn->hcon, sec.level))
 				break;
 
 			err = 0;
@@ -801,7 +804,8 @@ static int l2cap_sock_shutdown(struct socket *sock, int how)
 		sk->sk_shutdown = SHUTDOWN_MASK;
 		l2cap_chan_close(chan, 0);
 
-		if (sock_flag(sk, SOCK_LINGER) && sk->sk_lingertime)
+		if (sock_flag(sk, SOCK_LINGER) && sk->sk_lingertime &&
+		    !(current->flags & PF_EXITING))
 			err = bt_sock_wait_state(sk, BT_CLOSED,
 							sk->sk_lingertime);
 	}
@@ -934,6 +938,8 @@ static void l2cap_sock_init(struct sock *sk, struct sock *parent)
 		chan->force_reliable = pchan->force_reliable;
 		chan->flushable = pchan->flushable;
 		chan->force_active = pchan->force_active;
+
+		security_sk_clone(parent, sk);
 	} else {
 
 		switch (sk->sk_type) {

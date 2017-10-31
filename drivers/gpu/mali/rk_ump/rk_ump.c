@@ -32,7 +32,7 @@
 
 #define USI_MAX_CONNECTIONS 20
 
-#define USI_MAX_RES 5
+#define USI_MAX_RES 7
 
 typedef enum
 {

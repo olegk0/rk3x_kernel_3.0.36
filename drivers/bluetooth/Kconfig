@@ -13,6 +13,18 @@ config BT_HCIBTUSB
 	  Say Y here to compile support for Bluetooth USB devices into the
 	  kernel or say M to compile it as module (btusb).
 
+config BT_RTKBTUSB
+	tristate "RTK HCI USB driver"
+	depends on USB
+	help
+	  RTK Bluetooth HCI USB driver
+
+config BT_RTL8723AU
+	tristate "Realtek rtl8723au HCI USB driver"
+	depends on USB
+	help
+	  RTL8723au Bluetooth HCI USB driver
+
 config BT_HCIBTSDIO
 	tristate "HCI SDIO driver"
 	depends on MMC
@@ -69,6 +81,16 @@ config BT_HCIUART_ATH3K
 	  Enable this if you have Atheros AR300x serial Bluetooth device.
 
 	  Say Y here to compile support for HCI UART ATH3K protocol.
+
+config BT_HCIUART_RTKH5
+	bool "Realtek H5 protocol support"
+	depends on BT_HCIUART
+	help
+	  Realtek H5 is serial protocol for communication 
+	  between Realtek Bluetooth device and host. This protocol is required for 
+	  Realtek uart h5 bluetooth controller
+
+	  Say Y here to compile support for Realtek HCI H5 protocol.
 
 config BT_HCIUART_LL
 	bool "HCILL protocol support"
