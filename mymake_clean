@@ -1,3 +1,4 @@
 make clean
 
 rm -f -r ./output/lib
+rm -f -r ./output/*.zip
