@@ -1,0 +1,83 @@
+------>struct sk_buff *skb;
+
+<------><------>skb = bt_skb_alloc(sizeof(cmd), GFP_KERNEL);
+<------><------>if (skb) {
+<------><------><------>memcpy(skb_put(skb, sizeof(cmd)), cmd, sizeof(cmd));
+<------><------><------>skb_queue_tail(&hdev->driver_init, skb);
+<------><------>}
+
+
+static inline struct sk_buff *bt_skb_alloc(unsigned int len, gfp_t how)
+{
+        struct sk_buff *skb;
+
+        if ((skb = alloc_skb(len + BT_SKB_RESERVE, how))) {
+                skb_reserve(skb, BT_SKB_RESERVE);
+                bt_cb(skb)->incoming  = 0;
+        }
+        return skb;
+}
+
+
+static inline struct sk_buff *alloc_skb(unsigned int size,
+                                        gfp_t priority)
+{
+        return __alloc_skb(size, priority, 0, NUMA_NO_NODE);
+}
+
+
+struct sk_buff *__alloc_skb(unsigned int size, gfp_t gfp_mask,
+                            int fclone, int node)
+{
+
+
+               goto out;
+        prefetchw(skb);
+
+        size = SKB_DATA_ALIGN(size);
+        data = kmalloc_node_track_caller(size + sizeof(struct skb_shared_info),
+                        gfp_mask, node);
+        if (!data)
+                goto nodata;
+        prefetchw(data + size);
+
+        /*
+         * Only c
+     
+     
+     #define kmalloc_node_track_caller(size, flags, node) \
+<------>kmalloc_track_caller(size, flags)
+
+#if defined(CONFIG_DEBUG_SLAB) || defined(CONFIG_SLUB) || \
+<------>(defined(CONFIG_SLAB) && defined(CONFIG_TRACING))
+extern void *__kmalloc_track_caller(size_t, gfp_t, unsigned long);
+
+#define kmalloc_track_caller(size, flags) \
+<------>__kmalloc_track_caller(size, flags, _RET_IP_)
+
+
+void *__kmalloc_track_caller(size_t size, gfp_t gfpflags, unsigned long caller)
+{
+<------>struct kmem_cache *s;
+<------>void *ret;
+
+<------>if (unlikely(size > SLUB_MAX_SIZE))
+<------><------>return kmalloc_large(size, gfpflags);
+
+<------>s = get_slab(size, gfpflags);
+
+<------>if (unlikely(ZERO_OR_NULL_PTR(s)))
+<------><------>return s;
+
+<------>ret = slab_alloc(s, gfpflags, NUMA_NO_NODE, caller);
+
+<------>/* Honor the call site pointer we received. */
+<------>trace_kmalloc(caller, ret, size, s->size, gfpflags);
+
+<------>return ret;
+}
+
+
+
+
+

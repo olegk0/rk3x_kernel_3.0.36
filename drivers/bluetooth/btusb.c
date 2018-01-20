@@ -768,8 +768,8 @@ static int btusb_send_frame(struct sk_buff *skb)
 	unsigned int pipe;
 	int err;
 //workaround from https://github.com/rapidkaju/rtl8723au_bt/commit/8d7bbeda8995bf3b94369496415f8155faf1be27
-//	int blen = 256 > skb->len ? 256 : skb->len;
-	unsigned alig_data[(skb->len + 8) / 4];
+	int blen = 256 > skb->len ? 256 : skb->len;
+	unsigned alig_data[(blen + 10) / 4];
 	unsigned char *aligned_data = (unsigned char *)alig_data;
 	int i;
 
